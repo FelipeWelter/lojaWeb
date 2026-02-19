@@ -138,3 +138,151 @@ label { display: grid; gap: 0.35rem; font-weight: 600; }
 @media (max-width: 640px) {
   th:nth-child(n+5), td:nth-child(n+5) { font-size: .85rem; }
 }
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.assembly-summary {
+  grid-column: 1 / -1;
+  background: #f8faff;
+  border: 1px solid #dbe4ff;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.montaje-card h2 {
+  margin-top: 0;
+}
+
+.slot-box {
+  border: 1px solid #e4e9f8;
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #fcfdff;
+}
+
+.multi-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.multi-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.qty-box {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.qty-box input {
+  width: 90px;
+}
+
+.add-item {
+  margin-top: 0.5rem;
+  background: #edf2ff;
+  color: #2f4cc9;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.badge.success { background: #d3f9d8; color: #205d2e; }
+.badge.danger { background: #ffe3e3; color: #8f1b1b; }
+
+.btn-danger {
+  background: #c92a2a;
+  color: #fff;
+}
+
+.slot-multiple {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.multi-header {
+  display: grid;
+  grid-template-columns: 1fr 150px 34px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.multi-row {
+  display: grid;
+  grid-template-columns: 1fr 150px 34px;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.qty-control {
+  display: inline-grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  border: 1px solid #cfd6ea;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.qty-control input {
+  width: 100%;
+  border: none;
+  border-left: 1px solid #e2e8f5;
+  border-right: 1px solid #e2e8f5;
+  text-align: center;
+  border-radius: 0;
+  padding: .45rem .2rem;
+}
+
+.qty-btn {
+  background: #f1f4ff;
+  color: #2f4cc9;
+  border: none;
+  border-radius: 0;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: .45rem 0;
+}
+
+.row-remove {
+  background: #ffe3e3;
+  color: #9f1d1d;
+  border-radius: 8px;
+  padding: .45rem 0;
+  font-weight: 700;
+}
+
+@media (max-width: 860px) {
+  .multi-header {
+    display: none;
+  }
+
+  .multi-row {
+    grid-template-columns: 1fr;
+  }
+
+  .row-remove {
+    width: 34px;
+    justify-self: end;
+  }
+}
