@@ -20,13 +20,25 @@
     <button type="submit">Salvar</button>
   </form>
 </section>
+
 <section class="card">
   <h2>Estoque atual</h2>
+  <div class="class-menu" id="class-menu">
+    <button type="button" class="active" data-filter="all">Todos</button>
+    <button type="button" data-filter="computador">Computadores</button>
+    <button type="button" data-filter="gabinete">Gabinete</button>
+    <button type="button" data-filter="placa_mae">Placa-mãe</button>
+    <button type="button" data-filter="processador">Processador</button>
+    <button type="button" data-filter="memoria_ram">Memória RAM</button>
+    <button type="button" data-filter="armazenamento">Armazenamento</button>
+    <button type="button" data-filter="fonte">Fonte</button>
+  </div>
   <table>
     <thead><tr><th>Produto</th><th>Categoria</th><th>Classe</th><th>Estoque</th><th>Preço</th><th>Foto</th></tr></thead>
     <tbody>
       {% for p in products %}
-      <tr>
+      {% set bucket = 'computador' if p.category == 'Computador' else (p.component_class or 'sem_classe') %}
+      <tr data-bucket="{{ bucket }}">
         <td>{{ p.name }}</td><td>{{ p.category }}</td><td>{{ p.component_class or '-' }}</td><td>{{ p.stock }}</td><td>R$ {{ '%.2f'|format(p.price) }}</td>
         <td>{% if p.photo_url %}<a href="{{ p.photo_url }}" target="_blank">Ver</a>{% else %}-{% endif %}</td>
       </tr>
@@ -37,11 +49,28 @@
 <script>
   const categorySelect = document.getElementById('category-select');
   const classSelect = document.getElementById('component-class-select');
+  const menu = document.getElementById('class-menu');
+
   function togglePieceClass() {
     const isPiece = categorySelect.value === 'Peça';
     classSelect.disabled = !isPiece;
     if (!isPiece) classSelect.value = '';
   }
+
+  function applyFilter(bucket) {
+    document.querySelectorAll('tbody tr[data-bucket]').forEach((row) => {
+      row.style.display = bucket === 'all' || row.dataset.bucket === bucket ? '' : 'none';
+    });
+  }
+
+  menu.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      menu.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyFilter(btn.dataset.filter);
+    });
+  });
+
   categorySelect.addEventListener('change', togglePieceClass);
   togglePieceClass();
 </script>

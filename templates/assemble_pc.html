@@ -3,59 +3,74 @@
 <section class="card montaje-card">
   <h2>Montagem de Computadores</h2>
   <form method="post" class="grid form-grid" id="form-montagem">
-    <label class="full-width">
-      Nome do computador (novo ou existente)
-      <input name="computer_name" placeholder="Ex: GAMER" required />
-    </label>
-
-    {% for slot_key, slot_label, allow_multiple in component_slots %}
-    <div class="slot-box {% if allow_multiple %}slot-multiple{% endif %}">
+    <div class="pc-header full-width">
       <label>
-        {{ slot_label }} (opcional)
-        {% if not allow_multiple %}
-        <select name="slot_{{ slot_key }}" class="piece-select">
-          <option value="">Sem seleção (cliente já possui)</option>
-          {% for part in parts_by_class[slot_key] %}
-          <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
-            #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
-          </option>
-          {% endfor %}
-        </select>
-        {% endif %}
+        Nome do computador (novo ou existente)
+        <input name="computer_name" placeholder="Ex: GAMER" required />
       </label>
+      <label>
+        Preço original (apenas se for novo)
+        <input name="computer_original_price" type="number" min="0" step="0.01" value="0" />
+      </label>
+    </div>
 
-      {% if allow_multiple %}
-      <div class="multi-list" data-slot="{{ slot_key }}">
-        <div class="multi-header">
-          <span>Item</span>
-          <span>Quantidade</span>
-        </div>
-
-        <div class="multi-row">
-          <select name="{{ slot_key }}_ids[]" class="piece-select">
-            <option value="">Sem seleção</option>
+    <div class="slots-top full-width">
+      {% for slot_key, slot_label, allow_multiple in component_slots if not allow_multiple %}
+      <div class="slot-box">
+        <h3>{{ slot_label }}</h3>
+        <p class="slot-help">Função: {{ slot_label }} | opcional (pode usar peça do cliente).</p>
+        <label>
+          Seleção
+          <select name="slot_{{ slot_key }}" class="piece-select">
+            <option value="">Sem seleção (cliente já possui)</option>
             {% for part in parts_by_class[slot_key] %}
             <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
               #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
             </option>
             {% endfor %}
           </select>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
 
-          <div class="qty-control" title="Quantidade">
-            <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
-            <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
-            <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+    <div class="slots-bottom full-width">
+      {% for slot_key, slot_label, allow_multiple in component_slots if allow_multiple %}
+      <div class="slot-box slot-multiple">
+        <h3>{{ slot_label }}</h3>
+        <p class="slot-help">Função: {{ slot_label }} | opcional (pode usar peça do cliente).</p>
+        <div class="multi-list" data-slot="{{ slot_key }}">
+          <div class="multi-header">
+            <span>Item</span>
+            <span>Quantidade</span>
+            <span></span>
           </div>
 
-          <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
-        </div>
-      </div>
-      <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
-      {% endif %}
-    </div>
-    {% endfor %}
+          <div class="multi-row">
+            <select name="{{ slot_key }}_ids[]" class="piece-select">
+              <option value="">Sem seleção</option>
+              {% for part in parts_by_class[slot_key] %}
+              <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+                #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+              </option>
+              {% endfor %}
+            </select>
 
-    <div class="assembly-summary">
+            <div class="qty-control" title="Quantidade">
+              <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
+              <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
+              <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+            </div>
+
+            <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
+          </div>
+        </div>
+        <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="assembly-summary full-width">
       <p><strong>Custo total das peças:</strong> <span id="total-custo">R$ 0,00</span></p>
       <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
     </div>
@@ -72,8 +87,9 @@
         <th>Lote</th>
         <th>Referência</th>
         <th>Computador</th>
-        <th>Custo total</th>
+        <th>Preço original</th>
         <th>Preço sugerido</th>
+        <th>Custo peças</th>
         <th>Peças utilizadas (ID x qtd)</th>
       </tr>
     </thead>
@@ -83,8 +99,9 @@
         <td>#{{ montagem.id }}</td>
         <td>{{ montagem.nome_referencia }}</td>
         <td>#{{ montagem.computador.id }} - {{ montagem.computador.name }}</td>
-        <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.preco_original) }}</td>
         <td>R$ {{ '%.2f'|format(montagem.preco_sugerido) }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
         <td>
           {% for item in montagem.composicao %}
             [Peça #{{ item.peca.id }}: {{ item.peca.name }} x{{ item.quantidade_utilizada }}]{% if not loop.last %}, {% endif %}
@@ -92,7 +109,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6">Nenhuma montagem registrada.</td></tr>
+      <tr><td colspan="7">Nenhuma montagem registrada.</td></tr>
       {% endfor %}
     </tbody>
   </table>

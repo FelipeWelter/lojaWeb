@@ -44,6 +44,7 @@ class ComputerAssembly(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     nome_referencia = db.Column(db.String(120), nullable=True)
+    preco_original = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
@@ -61,9 +62,11 @@ class Client(db.Model):
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    sale_name = db.Column(db.String(120), nullable=False, default='Venda sem nome')
     client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
+    subtotal = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     canceled = db.Column(db.Boolean, nullable=False, default=False)
     canceled_at = db.Column(db.DateTime, nullable=True)
@@ -135,7 +138,7 @@ def produtos():
         flash('Produto cadastrado com sucesso!', 'success')
         return redirect(url_for('produtos'))
 
-    products = Product.query.order_by(Product.id.desc()).all()
+    products = Product.query.order_by(Product.category, Product.component_class, Product.name).all()
     return render_template('products.html', products=products)
 
 
@@ -151,6 +154,8 @@ def montar_pc():
         if not computer_name:
             flash('Informe o nome do computador montado.', 'danger')
             return redirect(url_for('montar_pc'))
+
+        original_price_new = Decimal(request.form.get('computer_original_price') or '0')
 
         selected_piece_ids = []
         for slot_key, _, allow_multiple in COMPONENT_SLOTS:
@@ -175,7 +180,7 @@ def montar_pc():
                 ).first()
 
                 piece_ids = list(piece_counter.keys())
-                pieces = Product.query.filter(Product.id.in_(piece_ids)).all()
+                pieces = Product.query.filter(Product.id.in_(piece_ids)).all() if piece_ids else []
                 pieces_by_id = {piece.id: piece for piece in pieces}
 
                 for piece_id, qty in piece_counter.items():
@@ -183,9 +188,7 @@ def montar_pc():
                     if not piece or piece.category != 'Peça':
                         raise ValueError('Uma das peças selecionadas é inválida.')
                     if piece.stock < qty:
-                        raise ValueError(
-                            f'Não foi possível finalizar: {piece.name} insuficiente no estoque'
-                        )
+                        raise ValueError(f'Não foi possível finalizar: {piece.name} insuficiente no estoque')
 
                 custo_total = Decimal('0.00')
                 for piece_id, qty in piece_counter.items():
@@ -200,17 +203,18 @@ def montar_pc():
                         name=computer_name,
                         category='Computador',
                         stock=0,
-                        price=preco_sugerido,
+                        price=original_price_new,
                     )
                     db.session.add(computer)
                     db.session.flush()
 
                 computer.stock += 1
-                computer.price = preco_sugerido
+                preco_original = Decimal(computer.price)
 
                 montagem = ComputerAssembly(
                     id_computador=computer.id,
                     nome_referencia=computer_name,
+                    preco_original=preco_original,
                     custo_total=custo_total,
                     preco_sugerido=preco_sugerido,
                 )
@@ -229,7 +233,7 @@ def montar_pc():
 
             db.session.commit()
             flash(
-                f'Montagem concluída! Custo total R$ {custo_total:.2f} | '
+                f'Montagem concluída! Preço original R$ {preco_original:.2f} | '
                 f'Preço sugerido R$ {preco_sugerido:.2f}.',
                 'success',
             )
@@ -272,22 +276,37 @@ def vendas():
     clients = Client.query.order_by(Client.name).all()
 
     if request.method == 'POST':
+        sale_name = (request.form.get('sale_name') or '').strip()
         client_id = int(request.form['client_id'])
         product_id = int(request.form['product_id'])
         quantity = int(request.form['quantity'])
 
         product = Product.query.get_or_404(product_id)
+        if not sale_name:
+            flash('Informe um nome para identificar a venda.', 'danger')
+            return redirect(url_for('vendas'))
         if quantity <= 0 or quantity > product.stock:
             flash('Quantidade inválida para o estoque disponível.', 'danger')
             return redirect(url_for('vendas'))
 
-        total = Decimal(quantity) * product.price
+        subtotal = (Decimal(quantity) * Decimal(product.price)).quantize(Decimal('0.01'))
+        custom_total_raw = request.form.get('custom_total')
+        if custom_total_raw:
+            total = Decimal(custom_total_raw)
+            if total < 0 or total > subtotal:
+                flash('Valor final inválido. Use um desconto entre R$ 0,00 e o subtotal.', 'danger')
+                return redirect(url_for('vendas'))
+        else:
+            total = subtotal
+
         product.stock -= quantity
 
         sale = Sale(
+            sale_name=sale_name,
             client_id=client_id,
             product_id=product_id,
             quantity=quantity,
+            subtotal=subtotal,
             total=total,
         )
         db.session.add(sale)
@@ -297,8 +316,6 @@ def vendas():
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
     return render_template('sales.html', sales=sales, products=products, clients=clients)
-
-
 
 
 @app.route('/vendas/<int:sale_id>/cancelar', methods=['POST'])
@@ -351,7 +368,6 @@ def confirmar_cobranca(charge_id: int):
 with app.app_context():
     db.create_all()
 
-    # Migração simples para bancos SQLite já existentes.
     columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(product)'))]
     if 'component_class' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN component_class VARCHAR(50)'))
@@ -360,10 +376,23 @@ with app.app_context():
     montagem_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(montagem_computador)'))]
     if 'nome_referencia' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN nome_referencia VARCHAR(120)'))
-        db.session.execute(db.text("UPDATE montagem_computador SET nome_referencia = (SELECT product.name FROM product WHERE product.id = montagem_computador.id_computador) WHERE nome_referencia IS NULL"))
-        db.session.commit()
+    if 'preco_original' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN preco_original NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    db.session.execute(
+        db.text(
+            "UPDATE montagem_computador SET nome_referencia = (SELECT product.name FROM product "
+            "WHERE product.id = montagem_computador.id_computador) WHERE nome_referencia IS NULL"
+        )
+    )
+    db.session.execute(db.text('UPDATE montagem_computador SET preco_original = preco_sugerido WHERE preco_original IS NULL'))
+    db.session.commit()
 
     sale_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(sale)'))]
+    if 'sale_name' not in sale_columns:
+        db.session.execute(db.text("ALTER TABLE sale ADD COLUMN sale_name VARCHAR(120) NOT NULL DEFAULT 'Venda sem nome'"))
+    if 'subtotal' not in sale_columns:
+        db.session.execute(db.text('ALTER TABLE sale ADD COLUMN subtotal NUMERIC(10,2) NOT NULL DEFAULT 0'))
+        db.session.execute(db.text('UPDATE sale SET subtotal = total WHERE subtotal = 0'))
     if 'canceled' not in sale_columns:
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
     if 'canceled_at' not in sale_columns:
