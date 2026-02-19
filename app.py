@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime
 from decimal import Decimal
 
@@ -19,6 +20,37 @@ class Product(db.Model):
     stock = db.Column(db.Integer, nullable=False, default=0)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     photo_url = db.Column(db.String(255), nullable=True)
+    component_class = db.Column(db.String(50), nullable=True)
+
+
+class ProductComposition(db.Model):
+    __tablename__ = 'composicao_produto'
+    __table_args__ = {'extend_existing': True}
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    id_peca = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    quantidade_utilizada = db.Column(db.Integer, nullable=False, default=1)
+    id_montagem = db.Column(db.Integer, db.ForeignKey('montagem_computador.id'), nullable=False)
+
+    computador = db.relationship('Product', foreign_keys=[id_computador])
+    peca = db.relationship('Product', foreign_keys=[id_peca])
+
+
+class ComputerAssembly(db.Model):
+    __tablename__ = 'montagem_computador'
+    __table_args__ = {'extend_existing': True}
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    nome_referencia = db.Column(db.String(120), nullable=True)
+    preco_original = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
+    computador = db.relationship('Product')
+    composicao = db.relationship('ProductComposition', backref='montagem', cascade='all, delete-orphan')
 
 
 class Client(db.Model):
@@ -30,10 +62,14 @@ class Client(db.Model):
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    sale_name = db.Column(db.String(120), nullable=False, default='Venda sem nome')
     client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
+    subtotal = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    canceled = db.Column(db.Boolean, nullable=False, default=False)
+    canceled_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     client = db.relationship('Client')
@@ -48,6 +84,16 @@ class Charge(db.Model):
     payment_confirmed_at = db.Column(db.DateTime, nullable=True)
 
     sale = db.relationship('Sale')
+
+
+COMPONENT_SLOTS = [
+    ('gabinete', 'Gabinete', False),
+    ('placa_mae', 'Placa-mãe', False),
+    ('processador', 'Processador', False),
+    ('memoria_ram', 'Memória RAM', True),
+    ('armazenamento', 'Armazenamento', True),
+    ('fonte', 'Fonte', False),
+]
 
 
 @app.route('/')
@@ -71,20 +117,140 @@ def dashboard():
 @app.route('/produtos', methods=['GET', 'POST'])
 def produtos():
     if request.method == 'POST':
+        category = request.form['category']
+        component_class = request.form.get('component_class') or None
+        if category != 'Peça':
+            component_class = None
+        elif not component_class:
+            flash('Informe a classe da peça para cadastro no estoque.', 'danger')
+            return redirect(url_for('produtos'))
+
         product = Product(
             name=request.form['name'],
-            category=request.form['category'],
+            category=category,
             stock=int(request.form['stock']),
             price=Decimal(request.form['price']),
             photo_url=request.form.get('photo_url') or None,
+            component_class=component_class,
         )
         db.session.add(product)
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
         return redirect(url_for('produtos'))
 
-    products = Product.query.order_by(Product.id.desc()).all()
+    products = Product.query.order_by(Product.category, Product.component_class, Product.name).all()
     return render_template('products.html', products=products)
+
+
+@app.route('/montar_pc', methods=['GET', 'POST'])
+def montar_pc():
+    parts_by_class = {
+        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key).order_by(Product.name).all()
+        for slot_key, _, _ in COMPONENT_SLOTS
+    }
+
+    if request.method == 'POST':
+        computer_name = (request.form.get('computer_name') or '').strip()
+        if not computer_name:
+            flash('Informe o nome do computador montado.', 'danger')
+            return redirect(url_for('montar_pc'))
+
+        original_price_new = Decimal(request.form.get('computer_original_price') or '0')
+
+        selected_piece_ids = []
+        for slot_key, _, allow_multiple in COMPONENT_SLOTS:
+            if allow_multiple:
+                ids = request.form.getlist(f'{slot_key}_ids[]')
+                qtys = request.form.getlist(f'{slot_key}_qtys[]')
+                for piece_id, qty in zip(ids, qtys):
+                    if piece_id and qty:
+                        selected_piece_ids.extend([int(piece_id)] * int(qty))
+            else:
+                value = request.form.get(f'slot_{slot_key}')
+                if value:
+                    selected_piece_ids.append(int(value))
+
+        piece_counter = Counter(selected_piece_ids)
+
+        try:
+            with db.session.begin_nested():
+                computer = Product.query.filter(
+                    db.func.lower(Product.name) == computer_name.lower(),
+                    Product.category == 'Computador',
+                ).first()
+
+                piece_ids = list(piece_counter.keys())
+                pieces = Product.query.filter(Product.id.in_(piece_ids)).all() if piece_ids else []
+                pieces_by_id = {piece.id: piece for piece in pieces}
+
+                for piece_id, qty in piece_counter.items():
+                    piece = pieces_by_id.get(piece_id)
+                    if not piece or piece.category != 'Peça':
+                        raise ValueError('Uma das peças selecionadas é inválida.')
+                    if piece.stock < qty:
+                        raise ValueError(f'Não foi possível finalizar: {piece.name} insuficiente no estoque')
+
+                custo_total = Decimal('0.00')
+                for piece_id, qty in piece_counter.items():
+                    piece = pieces_by_id[piece_id]
+                    piece.stock -= qty
+                    custo_total += Decimal(qty) * piece.price
+
+                preco_sugerido = (custo_total * Decimal('1.20')).quantize(Decimal('0.01'))
+
+                if not computer:
+                    computer = Product(
+                        name=computer_name,
+                        category='Computador',
+                        stock=0,
+                        price=original_price_new,
+                    )
+                    db.session.add(computer)
+                    db.session.flush()
+
+                computer.stock += 1
+                preco_original = Decimal(computer.price)
+
+                montagem = ComputerAssembly(
+                    id_computador=computer.id,
+                    nome_referencia=computer_name,
+                    preco_original=preco_original,
+                    custo_total=custo_total,
+                    preco_sugerido=preco_sugerido,
+                )
+                db.session.add(montagem)
+                db.session.flush()
+
+                for piece_id, qty in piece_counter.items():
+                    db.session.add(
+                        ProductComposition(
+                            id_computador=computer.id,
+                            id_peca=piece_id,
+                            quantidade_utilizada=qty,
+                            id_montagem=montagem.id,
+                        )
+                    )
+
+            db.session.commit()
+            flash(
+                f'Montagem concluída! Preço original R$ {preco_original:.2f} | '
+                f'Preço sugerido R$ {preco_sugerido:.2f}.',
+                'success',
+            )
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), 'danger')
+
+        return redirect(url_for('montar_pc'))
+
+    latest_assemblies = ComputerAssembly.query.order_by(ComputerAssembly.created_at.desc()).limit(20).all()
+
+    return render_template(
+        'assemble_pc.html',
+        parts_by_class=parts_by_class,
+        component_slots=COMPONENT_SLOTS,
+        latest_assemblies=latest_assemblies,
+    )
 
 
 @app.route('/clientes', methods=['GET', 'POST'])
@@ -110,22 +276,37 @@ def vendas():
     clients = Client.query.order_by(Client.name).all()
 
     if request.method == 'POST':
+        sale_name = (request.form.get('sale_name') or '').strip()
         client_id = int(request.form['client_id'])
         product_id = int(request.form['product_id'])
         quantity = int(request.form['quantity'])
 
         product = Product.query.get_or_404(product_id)
+        if not sale_name:
+            flash('Informe um nome para identificar a venda.', 'danger')
+            return redirect(url_for('vendas'))
         if quantity <= 0 or quantity > product.stock:
             flash('Quantidade inválida para o estoque disponível.', 'danger')
             return redirect(url_for('vendas'))
 
-        total = Decimal(quantity) * product.price
+        subtotal = (Decimal(quantity) * Decimal(product.price)).quantize(Decimal('0.01'))
+        custom_total_raw = request.form.get('custom_total')
+        if custom_total_raw:
+            total = Decimal(custom_total_raw)
+            if total < 0 or total > subtotal:
+                flash('Valor final inválido. Use um desconto entre R$ 0,00 e o subtotal.', 'danger')
+                return redirect(url_for('vendas'))
+        else:
+            total = subtotal
+
         product.stock -= quantity
 
         sale = Sale(
+            sale_name=sale_name,
             client_id=client_id,
             product_id=product_id,
             quantity=quantity,
+            subtotal=subtotal,
             total=total,
         )
         db.session.add(sale)
@@ -135,6 +316,23 @@ def vendas():
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
     return render_template('sales.html', sales=sales, products=products, clients=clients)
+
+
+@app.route('/vendas/<int:sale_id>/cancelar', methods=['POST'])
+def cancelar_venda(sale_id: int):
+    sale = Sale.query.get_or_404(sale_id)
+    if sale.canceled:
+        flash('Esta venda já está cancelada.', 'danger')
+        return redirect(url_for('vendas'))
+
+    with db.session.begin_nested():
+        sale.product.stock += sale.quantity
+        sale.canceled = True
+        sale.canceled_at = datetime.utcnow()
+
+    db.session.commit()
+    flash('Venda cancelada e itens retornados ao estoque.', 'success')
+    return redirect(url_for('vendas'))
 
 
 @app.route('/cobrancas', methods=['GET', 'POST'])
@@ -169,6 +367,37 @@ def confirmar_cobranca(charge_id: int):
 
 with app.app_context():
     db.create_all()
+
+    columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(product)'))]
+    if 'component_class' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN component_class VARCHAR(50)'))
+        db.session.commit()
+
+    montagem_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(montagem_computador)'))]
+    if 'nome_referencia' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN nome_referencia VARCHAR(120)'))
+    if 'preco_original' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN preco_original NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    db.session.execute(
+        db.text(
+            "UPDATE montagem_computador SET nome_referencia = (SELECT product.name FROM product "
+            "WHERE product.id = montagem_computador.id_computador) WHERE nome_referencia IS NULL"
+        )
+    )
+    db.session.execute(db.text('UPDATE montagem_computador SET preco_original = preco_sugerido WHERE preco_original IS NULL'))
+    db.session.commit()
+
+    sale_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(sale)'))]
+    if 'sale_name' not in sale_columns:
+        db.session.execute(db.text("ALTER TABLE sale ADD COLUMN sale_name VARCHAR(120) NOT NULL DEFAULT 'Venda sem nome'"))
+    if 'subtotal' not in sale_columns:
+        db.session.execute(db.text('ALTER TABLE sale ADD COLUMN subtotal NUMERIC(10,2) NOT NULL DEFAULT 0'))
+        db.session.execute(db.text('UPDATE sale SET subtotal = total WHERE subtotal = 0'))
+    if 'canceled' not in sale_columns:
+        db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
+    if 'canceled_at' not in sale_columns:
+        db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled_at DATETIME'))
+    db.session.commit()
 
 
 if __name__ == '__main__':

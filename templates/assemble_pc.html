@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card montaje-card">
+  <h2>Montagem de Computadores</h2>
+  <form method="post" class="grid form-grid" id="form-montagem">
+    <div class="pc-header full-width">
+      <label>
+        Nome do computador (novo ou existente)
+        <input name="computer_name" placeholder="Ex: GAMER" required />
+      </label>
+      <label>
+        Preço original (apenas se for novo)
+        <input name="computer_original_price" type="number" min="0" step="0.01" value="0" />
+      </label>
+    </div>
+
+    <div class="slots-top full-width">
+      {% for slot_key, slot_label, allow_multiple in component_slots if not allow_multiple %}
+      <div class="slot-box">
+        <h3>{{ slot_label }}</h3>
+        <p class="slot-help">Função: {{ slot_label }} | opcional (pode usar peça do cliente).</p>
+        <label>
+          Seleção
+          <select name="slot_{{ slot_key }}" class="piece-select">
+            <option value="">Sem seleção (cliente já possui)</option>
+            {% for part in parts_by_class[slot_key] %}
+            <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+              #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="slots-bottom full-width">
+      {% for slot_key, slot_label, allow_multiple in component_slots if allow_multiple %}
+      <div class="slot-box slot-multiple">
+        <h3>{{ slot_label }}</h3>
+        <p class="slot-help">Função: {{ slot_label }} | opcional (pode usar peça do cliente).</p>
+        <div class="multi-list" data-slot="{{ slot_key }}">
+          <div class="multi-header">
+            <span>Item</span>
+            <span>Quantidade</span>
+            <span></span>
+          </div>
+
+          <div class="multi-row">
+            <select name="{{ slot_key }}_ids[]" class="piece-select">
+              <option value="">Sem seleção</option>
+              {% for part in parts_by_class[slot_key] %}
+              <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+                #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+              </option>
+              {% endfor %}
+            </select>
+
+            <div class="qty-control" title="Quantidade">
+              <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
+              <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
+              <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+            </div>
+
+            <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
+          </div>
+        </div>
+        <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="assembly-summary full-width">
+      <p><strong>Custo total das peças:</strong> <span id="total-custo">R$ 0,00</span></p>
+      <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+    </div>
+
+    <button type="submit">Finalizar montagem</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Histórico de montagens</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Lote</th>
+        <th>Referência</th>
+        <th>Computador</th>
+        <th>Preço original</th>
+        <th>Preço sugerido</th>
+        <th>Custo peças</th>
+        <th>Peças utilizadas (ID x qtd)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for montagem in latest_assemblies %}
+      <tr>
+        <td>#{{ montagem.id }}</td>
+        <td>{{ montagem.nome_referencia }}</td>
+        <td>#{{ montagem.computador.id }} - {{ montagem.computador.name }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.preco_original) }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.preco_sugerido) }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
+        <td>
+          {% for item in montagem.composicao %}
+            [Peça #{{ item.peca.id }}: {{ item.peca.name }} x{{ item.quantidade_utilizada }}]{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Nenhuma montagem registrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+  const form = document.getElementById('form-montagem');
+  const custoEl = document.getElementById('total-custo');
+  const precoEl = document.getElementById('preco-sugerido');
+
+  function formatBRL(value) {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function atualizarTotais() {
+    let total = 0;
+    form.querySelectorAll('.multi-row').forEach((row) => {
+      const select = row.querySelector('select');
+      const qtyInput = row.querySelector('input[type="number"]');
+      const option = select.options[select.selectedIndex];
+      const qty = Number(qtyInput.value || 0);
+      if (option && option.value && qty > 0) {
+        total += Number(option.dataset.cost || 0) * qty;
+      }
+    });
+
+    form.querySelectorAll('.slot-box select[name^="slot_"]').forEach((select) => {
+      const option = select.options[select.selectedIndex];
+      if (option && option.value) {
+        total += Number(option.dataset.cost || 0);
+      }
+    });
+
+    const sugerido = total * 1.2;
+    custoEl.textContent = formatBRL(total);
+    precoEl.textContent = formatBRL(sugerido);
+  }
+
+  document.querySelectorAll('.add-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slot = btn.dataset.slot;
+      const list = document.querySelector(`.multi-list[data-slot="${slot}"]`);
+      const firstRow = list.querySelector('.multi-row');
+      const clone = firstRow.cloneNode(true);
+      clone.querySelector('select').selectedIndex = 0;
+      clone.querySelector('input').value = 1;
+      list.appendChild(clone);
+      atualizarTotais();
+    });
+  });
+
+  form.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (target.classList.contains('qty-decrease') || target.classList.contains('qty-increase')) {
+      const input = target.parentElement.querySelector('input[type="number"]');
+      const current = Number(input.value || 1);
+      const delta = target.classList.contains('qty-increase') ? 1 : -1;
+      input.value = Math.max(1, current + delta);
+      atualizarTotais();
+    }
+
+    if (target.classList.contains('row-remove')) {
+      const list = target.closest('.multi-list');
+      const rows = list.querySelectorAll('.multi-row');
+      if (rows.length > 1) {
+        target.closest('.multi-row').remove();
+      } else {
+        const row = rows[0];
+        row.querySelector('select').selectedIndex = 0;
+        row.querySelector('input[type="number"]').value = 1;
+      }
+      atualizarTotais();
+    }
+  });
+
+  form.addEventListener('change', atualizarTotais);
+  form.addEventListener('input', atualizarTotais);
+  atualizarTotais();
+</script>
+{% endblock %}

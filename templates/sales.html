@@ -3,33 +3,76 @@
 <section class="card">
   <h2>Nova venda</h2>
   <form method="post" class="grid form-grid">
+    <input name="sale_name" placeholder="Nome da venda (ex: Venda João - Notebook)" required />
     <select name="client_id" required>
       <option value="">Selecione o cliente</option>
-      {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      {% for client in clients %}
+      <option value="{{ client.id }}">{{ client.name }}</option>
+      {% endfor %}
     </select>
-    <select name="product_id" required>
+    <select name="product_id" id="sale-product" required>
       <option value="">Selecione o produto</option>
-      {% for p in products %}<option value="{{ p.id }}">{{ p.name }} ({{ p.stock }} un)</option>{% endfor %}
+      {% for product in products %}
+      <option value="{{ product.id }}" data-price="{{ product.price }}">{{ product.name }} (estoque: {{ product.stock }})</option>
+      {% endfor %}
     </select>
-    <input name="quantity" type="number" min="1" placeholder="Quantidade" required />
+    <input name="quantity" id="sale-qty" type="number" min="1" value="1" required />
+    <input name="custom_total" id="sale-total" type="number" min="0" step="0.01" placeholder="Valor final (opcional, desconto)" />
+    <div class="sale-summary">
+      <small>Subtotal automático: <strong id="sale-subtotal">R$ 0,00</strong></small>
+    </div>
     <button type="submit">Registrar venda</button>
   </form>
 </section>
+
 <section class="card">
   <h2>Histórico de vendas</h2>
   <table>
-    <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead>
+    <thead><tr><th>Data</th><th>Nome da venda</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Subtotal</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>
       {% for sale in sales %}
       <tr>
         <td>{{ sale.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ sale.sale_name }}</td>
         <td>{{ sale.client.name }}</td>
         <td>{{ sale.product.name }}</td>
         <td>{{ sale.quantity }}</td>
+        <td>R$ {{ '%.2f'|format(sale.subtotal) }}</td>
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
+        <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
+        <td>
+          {% if not sale.canceled %}
+          <form method="post" action="{{ url_for('cancelar_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja cancelar a venda e estornar o estoque?');">
+            <button type="submit" class="btn-danger">Cancelar venda</button>
+          </form>
+          {% else %}
+          -
+          {% endif %}
+        </td>
       </tr>
-      {% else %}<tr><td colspan="5">Sem vendas.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="9">Sem vendas.</td></tr>{% endfor %}
     </tbody>
   </table>
 </section>
+
+<script>
+  const pSel = document.getElementById('sale-product');
+  const qInput = document.getElementById('sale-qty');
+  const subtotalEl = document.getElementById('sale-subtotal');
+
+  function formatBRL(v) {
+    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function updateSubtotal() {
+    const opt = pSel.options[pSel.selectedIndex];
+    const unit = Number(opt?.dataset?.price || 0);
+    const qty = Number(qInput.value || 0);
+    subtotalEl.textContent = formatBRL(unit * qty);
+  }
+
+  pSel.addEventListener('change', updateSubtotal);
+  qInput.addEventListener('input', updateSubtotal);
+  updateSubtotal();
+</script>
 {% endblock %}
