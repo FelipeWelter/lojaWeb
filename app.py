@@ -25,6 +25,7 @@ class Product(db.Model):
 
 class ProductComposition(db.Model):
     __tablename__ = 'composicao_produto'
+    __table_args__ = {'extend_existing': True}
 
     id = db.Column(db.Integer, primary_key=True)
     id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
@@ -38,32 +39,7 @@ class ProductComposition(db.Model):
 
 class ComputerAssembly(db.Model):
     __tablename__ = 'montagem_computador'
-
-    id = db.Column(db.Integer, primary_key=True)
-    id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
-    preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
-
-    computador = db.relationship('Product')
-    composicao = db.relationship('ProductComposition', backref='montagem', cascade='all, delete-orphan')
-
-
-class ProductComposition(db.Model):
-    __tablename__ = 'composicao_produto'
-
-    id = db.Column(db.Integer, primary_key=True)
-    id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
-    id_peca = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
-    quantidade_utilizada = db.Column(db.Integer, nullable=False, default=1)
-    id_montagem = db.Column(db.Integer, db.ForeignKey('montagem_computador.id'), nullable=False)
-
-    computador = db.relationship('Product', foreign_keys=[id_computador])
-    peca = db.relationship('Product', foreign_keys=[id_peca])
-
-
-class ComputerAssembly(db.Model):
-    __tablename__ = 'montagem_computador'
+    __table_args__ = {'extend_existing': True}
 
     id = db.Column(db.Integer, primary_key=True)
     id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
