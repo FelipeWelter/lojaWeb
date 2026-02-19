@@ -24,3 +24,17 @@ th, td { padding: .6rem; border-bottom: 1px solid #e8ecf7; text-align: left; }
 @media (max-width: 640px) {
   th:nth-child(n+4), td:nth-child(n+4) { font-size: .85rem; }
 }
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.assembly-summary {
+  grid-column: 1 / -1;
+  background: #f8faff;
+  border: 1px solid #dbe4ff;
+  border-radius: 8px;
+  padding: 0.75rem;
+}

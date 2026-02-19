@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime
 from decimal import Decimal
 
@@ -19,6 +20,32 @@ class Product(db.Model):
     stock = db.Column(db.Integer, nullable=False, default=0)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     photo_url = db.Column(db.String(255), nullable=True)
+
+
+class ProductComposition(db.Model):
+    __tablename__ = 'composicao_produto'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    id_peca = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    quantidade_utilizada = db.Column(db.Integer, nullable=False, default=1)
+    id_montagem = db.Column(db.Integer, db.ForeignKey('montagem_computador.id'), nullable=False)
+
+    computador = db.relationship('Product', foreign_keys=[id_computador])
+    peca = db.relationship('Product', foreign_keys=[id_peca])
+
+
+class ComputerAssembly(db.Model):
+    __tablename__ = 'montagem_computador'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
+    computador = db.relationship('Product')
+    composicao = db.relationship('ProductComposition', backref='montagem', cascade='all, delete-orphan')
 
 
 class Client(db.Model):
@@ -48,6 +75,16 @@ class Charge(db.Model):
     payment_confirmed_at = db.Column(db.DateTime, nullable=True)
 
     sale = db.relationship('Sale')
+
+
+COMPONENT_SLOTS = [
+    ('gabinete', 'Gabinete'),
+    ('placa_mae', 'Placa-mãe'),
+    ('processador', 'Processador'),
+    ('memoria_ram', 'Memória RAM'),
+    ('armazenamento', 'Armazenamento'),
+    ('fonte', 'Fonte'),
+]
 
 
 @app.route('/')
@@ -85,6 +122,94 @@ def produtos():
 
     products = Product.query.order_by(Product.id.desc()).all()
     return render_template('products.html', products=products)
+
+
+@app.route('/montar_pc', methods=['GET', 'POST'])
+def montar_pc():
+    computers = Product.query.filter_by(category='Computador').order_by(Product.name).all()
+    parts = Product.query.filter_by(category='Peça').order_by(Product.name).all()
+
+    if request.method == 'POST':
+        computer_id = int(request.form['computer_id'])
+        selected_piece_ids = []
+        for slot_key, _ in COMPONENT_SLOTS:
+            value = request.form.get(f'slot_{slot_key}')
+            if value:
+                selected_piece_ids.append(int(value))
+
+        if not selected_piece_ids:
+            flash('Selecione ao menos uma peça para montar o computador.', 'danger')
+            return redirect(url_for('montar_pc'))
+
+        piece_counter = Counter(selected_piece_ids)
+
+        try:
+            with db.session.begin_nested():
+                computer = Product.query.get_or_404(computer_id)
+                if computer.category != 'Computador':
+                    raise ValueError('Produto selecionado não é um computador.')
+
+                piece_ids = list(piece_counter.keys())
+                pieces = Product.query.filter(Product.id.in_(piece_ids)).all()
+                pieces_by_id = {piece.id: piece for piece in pieces}
+
+                for piece_id, qty in piece_counter.items():
+                    piece = pieces_by_id.get(piece_id)
+                    if not piece or piece.category != 'Peça':
+                        raise ValueError('Uma das peças selecionadas é inválida.')
+                    if piece.stock < qty:
+                        raise ValueError(
+                            f'Não foi possível finalizar: {piece.name} insuficiente no estoque'
+                        )
+
+                custo_total = Decimal('0.00')
+                for piece_id, qty in piece_counter.items():
+                    piece = pieces_by_id[piece_id]
+                    piece.stock -= qty
+                    custo_total += Decimal(qty) * piece.price
+
+                computer.stock += 1
+                preco_sugerido = (custo_total * Decimal('1.20')).quantize(Decimal('0.01'))
+
+                montagem = ComputerAssembly(
+                    id_computador=computer.id,
+                    custo_total=custo_total,
+                    preco_sugerido=preco_sugerido,
+                )
+                db.session.add(montagem)
+                db.session.flush()
+
+                for piece_id, qty in piece_counter.items():
+                    db.session.add(
+                        ProductComposition(
+                            id_computador=computer.id,
+                            id_peca=piece_id,
+                            quantidade_utilizada=qty,
+                            id_montagem=montagem.id,
+                        )
+                    )
+
+            db.session.commit()
+            flash(
+                f'Montagem concluída! Custo total R$ {custo_total:.2f} | '
+                f'Preço sugerido R$ {preco_sugerido:.2f}.',
+                'success',
+            )
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), 'danger')
+
+        return redirect(url_for('montar_pc'))
+
+    latest_assemblies = ComputerAssembly.query.order_by(ComputerAssembly.created_at.desc()).limit(20).all()
+
+    return render_template(
+        'assemble_pc.html',
+        computers=computers,
+        parts=parts,
+        component_slots=COMPONENT_SLOTS,
+        latest_assemblies=latest_assemblies,
+    )
 
 
 @app.route('/clientes', methods=['GET', 'POST'])
