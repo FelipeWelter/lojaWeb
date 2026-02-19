@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Montagem de Computadores</h2>
+  <form method="post" class="grid form-grid" id="form-montagem">
+    <label>
+      Computador (produto pai)
+      <select name="computer_id" required>
+        <option value="">Selecione...</option>
+        {% for pc in computers %}
+        <option value="{{ pc.id }}">#{{ pc.id }} - {{ pc.name }} (estoque atual: {{ pc.stock }})</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    {% for slot_key, slot_label, allow_multiple in component_slots %}
+    <label>
+      {{ slot_label }} (opcional)
+      {% if allow_multiple %}
+      <select name="slot_{{ slot_key }}" class="piece-select" multiple size="4">
+      {% else %}
+      <select name="slot_{{ slot_key }}" class="piece-select">
+        <option value="">Sem seleção (cliente já possui)</option>
+      {% endif %}
+        {% for part in parts_by_class[slot_key] %}
+        <option
+          value="{{ part.id }}"
+          data-cost="{{ part.price }}"
+          data-stock="{{ part.stock }}"
+          {% if part.stock <= 0 %}disabled{% endif %}
+        >
+          #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+          {% if part.stock <= 0 %}- sem estoque{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      {% if allow_multiple %}
+      <small>Segure Ctrl/Cmd para selecionar vários itens.</small>
+      {% endif %}
+    </label>
+    {% endfor %}
+
+    <div class="assembly-summary">
+      <p><strong>Custo total das peças:</strong> <span id="total-custo">R$ 0,00</span></p>
+      <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+    </div>
+
+    <button type="submit">Finalizar montagem</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Histórico de montagens</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Lote</th>
+        <th>Computador</th>
+        <th>Custo total</th>
+        <th>Preço sugerido</th>
+        <th>Peças utilizadas (ID x qtd)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for montagem in latest_assemblies %}
+      <tr>
+        <td>#{{ montagem.id }}</td>
+        <td>#{{ montagem.computador.id }} - {{ montagem.computador.name }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
+        <td>R$ {{ '%.2f'|format(montagem.preco_sugerido) }}</td>
+        <td>
+          {% for item in montagem.composicao %}
+            [Peça #{{ item.peca.id }}: {{ item.peca.name }} x{{ item.quantidade_utilizada }}]{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Nenhuma montagem registrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<script>
+  const selects = document.querySelectorAll('.piece-select');
+  const custoEl = document.getElementById('total-custo');
+  const precoEl = document.getElementById('preco-sugerido');
+
+  function formatBRL(value) {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function atualizarTotais() {
+    let total = 0;
+    selects.forEach((select) => {
+      Array.from(select.selectedOptions || []).forEach((option) => {
+        if (option && option.value) {
+          total += Number(option.dataset.cost || 0);
+        }
+      });
+    });
+
+    const sugerido = total * 1.2;
+    custoEl.textContent = formatBRL(total);
+    precoEl.textContent = formatBRL(sugerido);
+  }
+
+  selects.forEach((select) => select.addEventListener('change', atualizarTotais));
+  atualizarTotais();
+</script>
+{% endblock %}
