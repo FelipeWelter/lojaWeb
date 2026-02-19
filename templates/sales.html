@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Nova venda</h2>
+  <form method="post" class="grid form-grid">
+    <select name="client_id" required>
+      <option value="">Selecione o cliente</option>
+      {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+    </select>
+    <select name="product_id" required>
+      <option value="">Selecione o produto</option>
+      {% for p in products %}<option value="{{ p.id }}">{{ p.name }} ({{ p.stock }} un)</option>{% endfor %}
+    </select>
+    <input name="quantity" type="number" min="1" placeholder="Quantidade" required />
+    <button type="submit">Registrar venda</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Histórico de vendas</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for sale in sales %}
+      <tr>
+        <td>{{ sale.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ sale.client.name }}</td>
+        <td>{{ sale.product.name }}</td>
+        <td>{{ sale.quantity }}</td>
+        <td>R$ {{ '%.2f'|format(sale.total) }}</td>
+      </tr>
+      {% else %}<tr><td colspan="5">Sem vendas.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

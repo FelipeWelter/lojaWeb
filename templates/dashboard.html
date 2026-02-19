@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="grid cards">
+  <article class="card"><h3>Produtos cadastrados</h3><strong>{{ product_count }}</strong></article>
+  <article class="card"><h3>Itens em estoque</h3><strong>{{ total_stock }}</strong></article>
+  <article class="card"><h3>Vendas registradas</h3><strong>{{ sales_count }}</strong></article>
+  <article class="card"><h3>Cobranças pendentes</h3><strong>{{ pending_charges }}</strong></article>
+</section>
+
+<section class="card">
+  <h2>Últimas vendas</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for sale in latest_sales %}
+      <tr>
+        <td>{{ sale.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ sale.client.name }}</td>
+        <td>{{ sale.product.name }}</td>
+        <td>{{ sale.quantity }}</td>
+        <td>R$ {{ '%.2f'|format(sale.total) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Nenhuma venda registrada ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
