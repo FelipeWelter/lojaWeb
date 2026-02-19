@@ -5,20 +5,25 @@
   <form method="post" class="grid form-grid">
     <select name="client_id" required>
       <option value="">Selecione o cliente</option>
-      {% for c in clients %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      {% for client in clients %}
+      <option value="{{ client.id }}">{{ client.name }}</option>
+      {% endfor %}
     </select>
     <select name="product_id" required>
       <option value="">Selecione o produto</option>
-      {% for p in products %}<option value="{{ p.id }}">{{ p.name }} ({{ p.stock }} un)</option>{% endfor %}
+      {% for product in products %}
+      <option value="{{ product.id }}">{{ product.name }} (estoque: {{ product.stock }})</option>
+      {% endfor %}
     </select>
-    <input name="quantity" type="number" min="1" placeholder="Quantidade" required />
+    <input name="quantity" type="number" min="1" value="1" required />
     <button type="submit">Registrar venda</button>
   </form>
 </section>
+
 <section class="card">
   <h2>Histórico de vendas</h2>
   <table>
-    <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead>
+    <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>
       {% for sale in sales %}
       <tr>
@@ -27,8 +32,18 @@
         <td>{{ sale.product.name }}</td>
         <td>{{ sale.quantity }}</td>
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
+        <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
+        <td>
+          {% if not sale.canceled %}
+          <form method="post" action="{{ url_for('cancelar_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja cancelar a venda e estornar o estoque?');">
+            <button type="submit" class="btn-danger">Cancelar venda</button>
+          </form>
+          {% else %}
+          -
+          {% endif %}
+        </td>
       </tr>
-      {% else %}<tr><td colspan="5">Sem vendas.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="7">Sem vendas.</td></tr>{% endfor %}
     </tbody>
   </table>
 </section>
