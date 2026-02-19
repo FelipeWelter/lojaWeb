@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  # Nginx Proxy Manager: A interface de gerenciamento
+  nginx-proxy-manager:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - '80:80'   # Porta HTTP padrão
+      - '81:81'   # Painel Administrativo (Acesse via localhost:81)
+      - '443:443' # Porta HTTPS padrão
+    volumes:
+      - ./npm_data:/data
+      - ./npm_letsencrypt:/etc/letsencrypt
+    networks:
+      - proxy-network
+
+  # Sua aplicação Flask
+  lojaweb:
+    image: python:3.11-slim
+    container_name: lojaweb
+    working_dir: /app
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python app.py"
+    volumes:
+      - ./:/app
+      - lojaweb_data:/app/instance
+    # Removi a exposição da porta 5000 para o mundo exterior. 
+    # Agora só o Nginx acessa ela internamente.
+    expose:
+      - "5000"
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production
+    networks:
+      - proxy-network
+
+networks:
+  proxy-network:
+    driver: bridge
+
+volumes:
+  lojaweb_data:
