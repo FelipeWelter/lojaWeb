@@ -1,43 +1,49 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
+<section class="card montaje-card">
   <h2>Montagem de Computadores</h2>
   <form method="post" class="grid form-grid" id="form-montagem">
-    <label>
-      Computador (produto pai)
-      <select name="computer_id" required>
-        <option value="">Selecione...</option>
-        {% for pc in computers %}
-        <option value="{{ pc.id }}">#{{ pc.id }} - {{ pc.name }} (estoque atual: {{ pc.stock }})</option>
-        {% endfor %}
-      </select>
+    <label class="full-width">
+      Nome do computador (referência no estoque)
+      <input name="computer_name" placeholder="Ex: PC Gamer Ryzen 7" required />
     </label>
 
     {% for slot_key, slot_label, allow_multiple in component_slots %}
-    <label>
-      {{ slot_label }} (opcional)
+    <div class="slot-box {% if allow_multiple %}slot-multiple{% endif %}">
+      <label>
+        {{ slot_label }} (opcional)
+        {% if not allow_multiple %}
+        <select name="slot_{{ slot_key }}" class="piece-select">
+          <option value="">Sem seleção (cliente já possui)</option>
+          {% for part in parts_by_class[slot_key] %}
+          <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+            #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+          </option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </label>
+
       {% if allow_multiple %}
-      <select name="slot_{{ slot_key }}" class="piece-select" multiple size="4">
-      {% else %}
-      <select name="slot_{{ slot_key }}" class="piece-select">
-        <option value="">Sem seleção (cliente já possui)</option>
+      <div class="multi-list" data-slot="{{ slot_key }}">
+        <div class="multi-row">
+          <select name="{{ slot_key }}_ids[]" class="piece-select">
+            <option value="">Sem seleção</option>
+            {% for part in parts_by_class[slot_key] %}
+            <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+              #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+            </option>
+            {% endfor %}
+          </select>
+          <label class="qty-box" title="Quantidade">
+            <span>🔢</span>
+            <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
+          </label>
+        </div>
+      </div>
+      <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
       {% endif %}
-        {% for part in parts_by_class[slot_key] %}
-        <option
-          value="{{ part.id }}"
-          data-cost="{{ part.price }}"
-          data-stock="{{ part.stock }}"
-          {% if part.stock <= 0 %}disabled{% endif %}
-        >
-          #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
-          {% if part.stock <= 0 %}- sem estoque{% endif %}
-        </option>
-        {% endfor %}
-      </select>
-      {% if allow_multiple %}
-      <small>Segure Ctrl/Cmd para selecionar vários itens.</small>
-      {% endif %}
-    </label>
+    </div>
     {% endfor %}
 
     <div class="assembly-summary">
@@ -55,6 +61,7 @@
     <thead>
       <tr>
         <th>Lote</th>
+        <th>Referência</th>
         <th>Computador</th>
         <th>Custo total</th>
         <th>Preço sugerido</th>
@@ -65,6 +72,7 @@
       {% for montagem in latest_assemblies %}
       <tr>
         <td>#{{ montagem.id }}</td>
+        <td>{{ montagem.nome_referencia }}</td>
         <td>#{{ montagem.computador.id }} - {{ montagem.computador.name }}</td>
         <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
         <td>R$ {{ '%.2f'|format(montagem.preco_sugerido) }}</td>
@@ -75,14 +83,14 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5">Nenhuma montagem registrada.</td></tr>
+      <tr><td colspan="6">Nenhuma montagem registrada.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
 
 <script>
-  const selects = document.querySelectorAll('.piece-select');
+  const form = document.getElementById('form-montagem');
   const custoEl = document.getElementById('total-custo');
   const precoEl = document.getElementById('preco-sugerido');
 
@@ -92,12 +100,21 @@
 
   function atualizarTotais() {
     let total = 0;
-    selects.forEach((select) => {
-      Array.from(select.selectedOptions || []).forEach((option) => {
-        if (option && option.value) {
-          total += Number(option.dataset.cost || 0);
-        }
-      });
+    form.querySelectorAll('.multi-row').forEach((row) => {
+      const select = row.querySelector('select');
+      const qtyInput = row.querySelector('input[type="number"]');
+      const option = select.options[select.selectedIndex];
+      const qty = Number(qtyInput.value || 0);
+      if (option && option.value && qty > 0) {
+        total += Number(option.dataset.cost || 0) * qty;
+      }
+    });
+
+    form.querySelectorAll('.slot-box select[name^="slot_"]').forEach((select) => {
+      const option = select.options[select.selectedIndex];
+      if (option && option.value) {
+        total += Number(option.dataset.cost || 0);
+      }
     });
 
     const sugerido = total * 1.2;
@@ -105,7 +122,21 @@
     precoEl.textContent = formatBRL(sugerido);
   }
 
-  selects.forEach((select) => select.addEventListener('change', atualizarTotais));
+  document.querySelectorAll('.add-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slot = btn.dataset.slot;
+      const list = document.querySelector(`.multi-list[data-slot="${slot}"]`);
+      const firstRow = list.querySelector('.multi-row');
+      const clone = firstRow.cloneNode(true);
+      clone.querySelector('select').selectedIndex = 0;
+      clone.querySelector('input').value = 1;
+      list.appendChild(clone);
+      atualizarTotais();
+    });
+  });
+
+  form.addEventListener('change', atualizarTotais);
+  form.addEventListener('input', atualizarTotais);
   atualizarTotais();
 </script>
 {% endblock %}

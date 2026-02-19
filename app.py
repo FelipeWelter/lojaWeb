@@ -43,6 +43,7 @@ class ComputerAssembly(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    nome_referencia = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
@@ -64,6 +65,8 @@ class Sale(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
     total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    canceled = db.Column(db.Boolean, nullable=False, default=False)
+    canceled_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     client = db.relationship('Client')
@@ -138,19 +141,25 @@ def produtos():
 
 @app.route('/montar_pc', methods=['GET', 'POST'])
 def montar_pc():
-    computers = Product.query.filter_by(category='Computador').order_by(Product.name).all()
     parts_by_class = {
         slot_key: Product.query.filter_by(category='Peça', component_class=slot_key).order_by(Product.name).all()
         for slot_key, _, _ in COMPONENT_SLOTS
     }
 
     if request.method == 'POST':
-        computer_id = int(request.form['computer_id'])
+        computer_name = (request.form.get('computer_name') or '').strip()
+        if not computer_name:
+            flash('Informe o nome do computador para localizar no estoque.', 'danger')
+            return redirect(url_for('montar_pc'))
+
         selected_piece_ids = []
         for slot_key, _, allow_multiple in COMPONENT_SLOTS:
             if allow_multiple:
-                values = request.form.getlist(f'slot_{slot_key}')
-                selected_piece_ids.extend(int(value) for value in values if value)
+                ids = request.form.getlist(f'{slot_key}_ids[]')
+                qtys = request.form.getlist(f'{slot_key}_qtys[]')
+                for piece_id, qty in zip(ids, qtys):
+                    if piece_id and qty:
+                        selected_piece_ids.extend([int(piece_id)] * int(qty))
             else:
                 value = request.form.get(f'slot_{slot_key}')
                 if value:
@@ -160,9 +169,12 @@ def montar_pc():
 
         try:
             with db.session.begin_nested():
-                computer = Product.query.get_or_404(computer_id)
-                if computer.category != 'Computador':
-                    raise ValueError('Produto selecionado não é um computador.')
+                computer = Product.query.filter(
+                    db.func.lower(Product.name) == computer_name.lower(),
+                    Product.category == 'Computador',
+                ).first()
+                if not computer:
+                    raise ValueError('Computador não encontrado no estoque para este nome de referência.')
 
                 piece_ids = list(piece_counter.keys())
                 pieces = Product.query.filter(Product.id.in_(piece_ids)).all()
@@ -188,6 +200,7 @@ def montar_pc():
 
                 montagem = ComputerAssembly(
                     id_computador=computer.id,
+                    nome_referencia=computer_name,
                     custo_total=custo_total,
                     preco_sugerido=preco_sugerido,
                 )
@@ -220,7 +233,6 @@ def montar_pc():
 
     return render_template(
         'assemble_pc.html',
-        computers=computers,
         parts_by_class=parts_by_class,
         component_slots=COMPONENT_SLOTS,
         latest_assemblies=latest_assemblies,
@@ -277,6 +289,25 @@ def vendas():
     return render_template('sales.html', sales=sales, products=products, clients=clients)
 
 
+
+
+@app.route('/vendas/<int:sale_id>/cancelar', methods=['POST'])
+def cancelar_venda(sale_id: int):
+    sale = Sale.query.get_or_404(sale_id)
+    if sale.canceled:
+        flash('Esta venda já está cancelada.', 'danger')
+        return redirect(url_for('vendas'))
+
+    with db.session.begin_nested():
+        sale.product.stock += sale.quantity
+        sale.canceled = True
+        sale.canceled_at = datetime.utcnow()
+
+    db.session.commit()
+    flash('Venda cancelada e itens retornados ao estoque.', 'success')
+    return redirect(url_for('vendas'))
+
+
 @app.route('/cobrancas', methods=['GET', 'POST'])
 def cobrancas():
     if request.method == 'POST':
@@ -315,6 +346,19 @@ with app.app_context():
     if 'component_class' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN component_class VARCHAR(50)'))
         db.session.commit()
+
+    montagem_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(montagem_computador)'))]
+    if 'nome_referencia' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN nome_referencia VARCHAR(120)'))
+        db.session.execute(db.text("UPDATE montagem_computador SET nome_referencia = 'Sem referência' WHERE nome_referencia IS NULL"))
+        db.session.commit()
+
+    sale_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(sale)'))]
+    if 'canceled' not in sale_columns:
+        db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
+    if 'canceled_at' not in sale_columns:
+        db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled_at DATETIME'))
+    db.session.commit()
 
 
 if __name__ == '__main__':
