@@ -43,7 +43,7 @@ class ComputerAssembly(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
-    nome_referencia = db.Column(db.String(120), nullable=False)
+    nome_referencia = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
@@ -149,7 +149,7 @@ def montar_pc():
     if request.method == 'POST':
         computer_name = (request.form.get('computer_name') or '').strip()
         if not computer_name:
-            flash('Informe o nome do computador para localizar no estoque.', 'danger')
+            flash('Informe o nome do computador montado.', 'danger')
             return redirect(url_for('montar_pc'))
 
         selected_piece_ids = []
@@ -173,8 +173,6 @@ def montar_pc():
                     db.func.lower(Product.name) == computer_name.lower(),
                     Product.category == 'Computador',
                 ).first()
-                if not computer:
-                    raise ValueError('Computador não encontrado no estoque para este nome de referência.')
 
                 piece_ids = list(piece_counter.keys())
                 pieces = Product.query.filter(Product.id.in_(piece_ids)).all()
@@ -195,8 +193,20 @@ def montar_pc():
                     piece.stock -= qty
                     custo_total += Decimal(qty) * piece.price
 
-                computer.stock += 1
                 preco_sugerido = (custo_total * Decimal('1.20')).quantize(Decimal('0.01'))
+
+                if not computer:
+                    computer = Product(
+                        name=computer_name,
+                        category='Computador',
+                        stock=0,
+                        price=preco_sugerido,
+                    )
+                    db.session.add(computer)
+                    db.session.flush()
+
+                computer.stock += 1
+                computer.price = preco_sugerido
 
                 montagem = ComputerAssembly(
                     id_computador=computer.id,
@@ -350,7 +360,7 @@ with app.app_context():
     montagem_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(montagem_computador)'))]
     if 'nome_referencia' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN nome_referencia VARCHAR(120)'))
-        db.session.execute(db.text("UPDATE montagem_computador SET nome_referencia = 'Sem referência' WHERE nome_referencia IS NULL"))
+        db.session.execute(db.text("UPDATE montagem_computador SET nome_referencia = (SELECT product.name FROM product WHERE product.id = montagem_computador.id_computador) WHERE nome_referencia IS NULL"))
         db.session.commit()
 
     sale_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(sale)'))]

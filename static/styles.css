@@ -97,3 +97,78 @@ label {
   background: #c92a2a;
   color: #fff;
 }
+
+.slot-multiple {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.multi-header {
+  display: grid;
+  grid-template-columns: 1fr 150px 34px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.multi-row {
+  display: grid;
+  grid-template-columns: 1fr 150px 34px;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.qty-control {
+  display: inline-grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  border: 1px solid #cfd6ea;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.qty-control input {
+  width: 100%;
+  border: none;
+  border-left: 1px solid #e2e8f5;
+  border-right: 1px solid #e2e8f5;
+  text-align: center;
+  border-radius: 0;
+  padding: .45rem .2rem;
+}
+
+.qty-btn {
+  background: #f1f4ff;
+  color: #2f4cc9;
+  border: none;
+  border-radius: 0;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: .45rem 0;
+}
+
+.row-remove {
+  background: #ffe3e3;
+  color: #9f1d1d;
+  border-radius: 8px;
+  padding: .45rem 0;
+  font-weight: 700;
+}
+
+@media (max-width: 860px) {
+  .multi-header {
+    display: none;
+  }
+
+  .multi-row {
+    grid-template-columns: 1fr;
+  }
+
+  .row-remove {
+    width: 34px;
+    justify-self: end;
+  }
+}
