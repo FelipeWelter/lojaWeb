@@ -20,6 +20,33 @@ class Product(db.Model):
     stock = db.Column(db.Integer, nullable=False, default=0)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     photo_url = db.Column(db.String(255), nullable=True)
+    component_class = db.Column(db.String(50), nullable=True)
+
+
+class ProductComposition(db.Model):
+    __tablename__ = 'composicao_produto'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    id_peca = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    quantidade_utilizada = db.Column(db.Integer, nullable=False, default=1)
+    id_montagem = db.Column(db.Integer, db.ForeignKey('montagem_computador.id'), nullable=False)
+
+    computador = db.relationship('Product', foreign_keys=[id_computador])
+    peca = db.relationship('Product', foreign_keys=[id_peca])
+
+
+class ComputerAssembly(db.Model):
+    __tablename__ = 'montagem_computador'
+
+    id = db.Column(db.Integer, primary_key=True)
+    id_computador = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
+    computador = db.relationship('Product')
+    composicao = db.relationship('ProductComposition', backref='montagem', cascade='all, delete-orphan')
 
 
 class ProductComposition(db.Model):
@@ -78,12 +105,12 @@ class Charge(db.Model):
 
 
 COMPONENT_SLOTS = [
-    ('gabinete', 'Gabinete'),
-    ('placa_mae', 'Placa-mãe'),
-    ('processador', 'Processador'),
-    ('memoria_ram', 'Memória RAM'),
-    ('armazenamento', 'Armazenamento'),
-    ('fonte', 'Fonte'),
+    ('gabinete', 'Gabinete', False),
+    ('placa_mae', 'Placa-mãe', False),
+    ('processador', 'Processador', False),
+    ('memoria_ram', 'Memória RAM', True),
+    ('armazenamento', 'Armazenamento', True),
+    ('fonte', 'Fonte', False),
 ]
 
 
@@ -108,12 +135,21 @@ def dashboard():
 @app.route('/produtos', methods=['GET', 'POST'])
 def produtos():
     if request.method == 'POST':
+        category = request.form['category']
+        component_class = request.form.get('component_class') or None
+        if category != 'Peça':
+            component_class = None
+        elif not component_class:
+            flash('Informe a classe da peça para cadastro no estoque.', 'danger')
+            return redirect(url_for('produtos'))
+
         product = Product(
             name=request.form['name'],
-            category=request.form['category'],
+            category=category,
             stock=int(request.form['stock']),
             price=Decimal(request.form['price']),
             photo_url=request.form.get('photo_url') or None,
+            component_class=component_class,
         )
         db.session.add(product)
         db.session.commit()
@@ -127,19 +163,22 @@ def produtos():
 @app.route('/montar_pc', methods=['GET', 'POST'])
 def montar_pc():
     computers = Product.query.filter_by(category='Computador').order_by(Product.name).all()
-    parts = Product.query.filter_by(category='Peça').order_by(Product.name).all()
+    parts_by_class = {
+        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key).order_by(Product.name).all()
+        for slot_key, _, _ in COMPONENT_SLOTS
+    }
 
     if request.method == 'POST':
         computer_id = int(request.form['computer_id'])
         selected_piece_ids = []
-        for slot_key, _ in COMPONENT_SLOTS:
-            value = request.form.get(f'slot_{slot_key}')
-            if value:
-                selected_piece_ids.append(int(value))
-
-        if not selected_piece_ids:
-            flash('Selecione ao menos uma peça para montar o computador.', 'danger')
-            return redirect(url_for('montar_pc'))
+        for slot_key, _, allow_multiple in COMPONENT_SLOTS:
+            if allow_multiple:
+                values = request.form.getlist(f'slot_{slot_key}')
+                selected_piece_ids.extend(int(value) for value in values if value)
+            else:
+                value = request.form.get(f'slot_{slot_key}')
+                if value:
+                    selected_piece_ids.append(int(value))
 
         piece_counter = Counter(selected_piece_ids)
 
@@ -206,7 +245,7 @@ def montar_pc():
     return render_template(
         'assemble_pc.html',
         computers=computers,
-        parts=parts,
+        parts_by_class=parts_by_class,
         component_slots=COMPONENT_SLOTS,
         latest_assemblies=latest_assemblies,
     )
@@ -294,6 +333,12 @@ def confirmar_cobranca(charge_id: int):
 
 with app.app_context():
     db.create_all()
+
+    # Migração simples para bancos SQLite já existentes.
+    columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(product)'))]
+    if 'component_class' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN component_class VARCHAR(50)'))
+        db.session.commit()
 
 
 if __name__ == '__main__':
