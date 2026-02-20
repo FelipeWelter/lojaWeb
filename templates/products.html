@@ -2,7 +2,7 @@
 {% block content %}
 <section class="card">
   <h2>Novo produto</h2>
-  <form method="post" class="grid form-grid">
+  <form method="post" class="grid form-grid" enctype="multipart/form-data">
     <input name="name" placeholder="Nome" required />
     <select name="category" id="category-select"><option>Peça</option><option>Computador</option></select>
     <select name="component_class" id="component-class-select">
@@ -16,7 +16,7 @@
     </select>
     <input name="stock" type="number" min="0" placeholder="Estoque" required />
     <input name="price" type="number" min="0" step="0.01" placeholder="Preço" required />
-    <input name="photo_url" type="url" placeholder="URL da foto (opcional)" />
+    <input name="photo_file" type="file" accept="image/*" />
     <button type="submit">Salvar</button>
   </form>
 </section>
@@ -40,10 +40,16 @@
       {% set bucket = 'computador' if p.category == 'Computador' else (p.component_class or 'sem_classe') %}
       <tr data-bucket="{{ bucket }}">
         <td>{{ p.name }}</td><td>{{ p.category }}</td><td>{{ p.component_class or '-' }}</td><td>{{ p.stock }}</td><td>R$ {{ '%.2f'|format(p.price) }}</td>
-        <td>{% if p.photo_url %}<a href="{{ p.photo_url }}" target="_blank">Ver</a>{% else %}-{% endif %}</td>
         <td>
-          <form method="post" action="{{ url_for('atualizar_foto_produto', product_id=p.id) }}" class="inline-form">
-            <input name="photo_url" type="url" placeholder="Nova URL" value="{{ p.photo_url or '' }}" />
+          {% if p.photo_url %}
+            <a href="{{ p.photo_url }}" target="_blank" title="Abrir imagem">
+              <img src="{{ p.photo_url }}" alt="Foto de {{ p.name }}" width="64" height="64" loading="lazy" />
+            </a>
+          {% else %}-{% endif %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('atualizar_foto_produto', product_id=p.id) }}" class="inline-form" enctype="multipart/form-data">
+            <input name="photo_file" type="file" accept="image/*" required />
             <button type="submit">Atualizar</button>
           </form>
         </td>
