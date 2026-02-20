@@ -6,7 +6,8 @@
     <title>LojaWeb - Gestão</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   </head>
-  <body>
+  <body class="{% if request.endpoint == 'login' %}auth-page{% endif %}">
+    {% if request.endpoint != 'login' %}
     <header class="header">
       <h1>LojaWeb</h1>
       <nav>
@@ -26,6 +27,7 @@
         {% endif %}
       </nav>
     </header>
+    {% endif %}
 
     <main class="container">
       {% with messages = get_flashed_messages(with_categories=true) %}

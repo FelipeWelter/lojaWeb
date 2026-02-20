@@ -1,12 +1,41 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
-  <h2>Login</h2>
-  <form method="post" class="grid form-grid">
-    <input type="email" name="email" placeholder="E-mail" required />
-    <input type="password" name="password" placeholder="Senha" required />
-    <button type="submit">Entrar</button>
+<section class="card login-card">
+  <div class="login-brand">LojaWeb</div>
+  <h2>Acesse sua conta</h2>
+  <p class="login-subtitle">Bem-vindo de volta! Faça login para gerenciar sua loja.</p>
+
+  <form method="post" class="grid form-grid" id="login-form">
+    <input type="email" name="email" placeholder="E-mail" required autocomplete="email" />
+    <div class="password-wrap full-width">
+      <input id="password" type="password" name="password" placeholder="Senha" required minlength="6" autocomplete="current-password" />
+      <button type="button" class="toggle-password" id="toggle-password" aria-label="Mostrar senha" aria-pressed="false">👁️</button>
+    </div>
+    <label class="remember-row full-width">
+      <input type="checkbox" name="remember_me" />
+      <span>Lembrar-me</span>
+    </label>
+    <button type="submit" id="login-submit" class="full-width">Entrar</button>
   </form>
   <p><a href="{{ url_for('recuperar_senha') }}">Esqueci minha senha</a></p>
 </section>
+
+<script>
+  const passwordInput = document.getElementById('password');
+  const togglePassword = document.getElementById('toggle-password');
+  const loginForm = document.getElementById('login-form');
+  const loginSubmit = document.getElementById('login-submit');
+
+  togglePassword?.addEventListener('click', () => {
+    const reveal = passwordInput.type === 'password';
+    passwordInput.type = reveal ? 'text' : 'password';
+    togglePassword.setAttribute('aria-pressed', String(reveal));
+    togglePassword.setAttribute('aria-label', reveal ? 'Ocultar senha' : 'Mostrar senha');
+  });
+
+  loginForm?.addEventListener('submit', () => {
+    loginSubmit.disabled = true;
+    loginSubmit.textContent = 'Carregando...';
+  });
+</script>
 {% endblock %}
