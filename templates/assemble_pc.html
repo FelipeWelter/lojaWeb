@@ -2,6 +2,7 @@
 {% block content %}
 <section class="card montaje-card">
   <h2>Montagem de Computadores</h2>
+  <p class="montage-subtitle">Monte uma configuração profissional em poucos cliques.</p>
   <form method="post" class="grid form-grid" id="form-montagem" enctype="multipart/form-data">
     <div class="pc-header full-width">
       <label>
@@ -21,27 +22,37 @@
     <div class="slots-top full-width">
       {% for slot_key, slot_label, allow_multiple in component_slots if not allow_multiple %}
       <div class="slot-box">
-        <h3>{{ slot_label }}</h3>
-        <p class="slot-help">Função: {{ slot_label }} | opcional (pode usar peça do cliente).</p>
-        <label>
-          Seleção
-          <select name="slot_{{ slot_key }}" class="piece-select">
-            <option value="">Sem seleção (cliente já possui)</option>
-            {% for part in parts_by_class[slot_key] %}
-            <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
-              {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
-            </option>
-            {% endfor %}
-          </select>
-        </label>
-        <label>
-          Ou peça personalizada
-          <input name="custom_{{ slot_key }}_name" placeholder="Ex: Placa-mãe do cliente" />
-        </label>
-        <label>
-          Custo (R$)
-          <input name="custom_{{ slot_key }}_cost" type="number" min="0" step="0.01" value="0" />
-        </label>
+        <div class="slot-heading">
+          <h3>{{ slot_label }}</h3>
+          <span class="slot-icon" aria-hidden="true">🧩</span>
+        </div>
+        <div class="piece-mode" role="group" aria-label="Modo de peça">
+          <label><input type="radio" name="mode_{{ slot_key }}" value="stock" checked /> Estoque</label>
+          <label><input type="radio" name="mode_{{ slot_key }}" value="custom" /> Personalizado</label>
+        </div>
+        <div class="stock-fields">
+          <label>
+            Peça
+            <select name="slot_{{ slot_key }}" class="piece-select">
+              <option value="">Sem seleção (cliente já possui)</option>
+              {% for part in parts_by_class[slot_key] %}
+              <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+                {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+              </option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="custom-fields hidden">
+          <label>
+            Nome personalizado
+            <input name="custom_{{ slot_key }}_name" placeholder="Ex: {{ slot_label }} do cliente" />
+          </label>
+          <label>
+            Custo (R$)
+            <input name="custom_{{ slot_key }}_cost" type="number" min="0" step="0.01" value="0" />
+          </label>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -49,27 +60,38 @@
     <div class="slots-bottom full-width">
       {% for slot_key, slot_label, allow_multiple in component_slots if allow_multiple %}
       <div class="slot-box slot-multiple">
-        <h3>{{ slot_label }}</h3>
-        <p class="slot-help">Função: {{ slot_label }} | opcional (pode usar peça do cliente).</p>
+        <div class="slot-heading">
+          <h3>{{ slot_label }}</h3>
+          <span class="slot-icon" aria-hidden="true">⚙️</span>
+        </div>
         <div class="multi-list" data-slot="{{ slot_key }}">
           <div class="multi-header">
+            <span>Modo</span>
             <span>Item</span>
+            <span>Custo (R$)</span>
             <span>Quantidade</span>
             <span></span>
           </div>
 
           <div class="multi-row">
-            <select name="{{ slot_key }}_ids[]" class="piece-select">
-              <option value="">Sem seleção</option>
-              {% for part in parts_by_class[slot_key] %}
-              <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
-                {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
-              </option>
-              {% endfor %}
-            </select>
+            <div class="piece-mode compact" role="group" aria-label="Modo do item">
+              <label><input type="radio" name="{{ slot_key }}_mode_0" value="stock" checked />E</label>
+              <label><input type="radio" name="{{ slot_key }}_mode_0" value="custom" />P</label>
+            </div>
 
-            <input name="{{ slot_key }}_custom_names[]" placeholder="Ou peça personalizada" />
-            <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" value="0" placeholder="Custo" />
+            <div class="multi-item multi-stock-fields">
+              <select name="{{ slot_key }}_ids[]" class="piece-select">
+                <option value="">Sem seleção</option>
+                {% for part in parts_by_class[slot_key] %}
+                <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+                  {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+                </option>
+                {% endfor %}
+              </select>
+              <input name="{{ slot_key }}_custom_names[]" class="hidden" placeholder="Peça personalizada" />
+            </div>
+
+            <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" value="0" placeholder="0,00" />
 
             <div class="qty-control" title="Quantidade">
               <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
@@ -85,9 +107,13 @@
       {% endfor %}
     </div>
 
-    <div class="assembly-summary full-width">
-      <p><strong>Custo total das peças:</strong> <span id="total-custo">R$ 0,00</span></p>
-      <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+    <div class="assembly-summary summary-highlight full-width">
+      <div>
+        <p class="summary-title">Resumo do Orçamento</p>
+        <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
+        <p><strong>Preço Sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+      </div>
+      <button type="submit" class="summary-submit">Finalizar montagem</button>
     </div>
 
     <div class="assembly-summary full-width">
@@ -102,8 +128,6 @@
         <label><input type="checkbox" name="create_stock_item" checked /> Criar item automaticamente em "Computador" no estoque</label>
       </div>
     </div>
-
-    <button type="submit">Finalizar montagem</button>
   </form>
 </section>
 
@@ -282,21 +306,28 @@
     let total = 0;
     form.querySelectorAll('.multi-row').forEach((row) => {
       const select = row.querySelector('select');
-      const qtyInput = row.querySelector('input[type="number"]');
+      const qtyInput = row.querySelector('input[name$="_qtys[]"]');
       const customCostInput = row.querySelector('input[name$="_custom_costs[]"]');
       const customNameInput = row.querySelector('input[name$="_custom_names[]"]');
+      const modeInput = row.querySelector('input[type="radio"][value="custom"]');
+      const isCustom = modeInput ? modeInput.checked : false;
       const option = select.options[select.selectedIndex];
-      const qty = Number(qtyInput.value || 0);
-      if (option && option.value && qty > 0) {
+      const qty = Number(qtyInput?.value || 0);
+
+      if (!isCustom && option && option.value && qty > 0) {
         total += Number(option.dataset.cost || 0) * qty;
-      } else if (customNameInput && customNameInput.value.trim() && qty > 0) {
+      } else if (isCustom && customNameInput && customNameInput.value.trim() && qty > 0) {
         total += Number(customCostInput.value || 0) * qty;
       }
     });
 
-    form.querySelectorAll('.slot-box select[name^="slot_"]').forEach((select) => {
+    form.querySelectorAll('.slots-top .slot-box').forEach((box) => {
+      const select = box.querySelector('select[name^="slot_"]');
+      const customRadio = box.querySelector('input[type="radio"][value="custom"]');
+      const isCustom = customRadio ? customRadio.checked : false;
       const option = select.options[select.selectedIndex];
-      if (option && option.value) {
+
+      if (!isCustom && option && option.value) {
         total += Number(option.dataset.cost || 0);
       } else {
         const slot = select.name.replace('slot_', '');
@@ -313,6 +344,38 @@
     precoEl.textContent = formatBRL(sugerido);
   }
 
+
+  function atualizarVisibilidadeModos() {
+    form.querySelectorAll('.slots-top .slot-box').forEach((box) => {
+      const customRadio = box.querySelector('input[type="radio"][value="custom"]');
+      const stockFields = box.querySelector('.stock-fields');
+      const customFields = box.querySelector('.custom-fields');
+      const isCustom = customRadio?.checked;
+      stockFields.classList.toggle('hidden', isCustom);
+      customFields.classList.toggle('hidden', !isCustom);
+    });
+
+    form.querySelectorAll('.multi-row').forEach((row) => {
+      const customRadio = row.querySelector('input[type="radio"][value="custom"]');
+      const select = row.querySelector('select');
+      const customInput = row.querySelector('input[name$="_custom_names[]"]');
+      const isCustom = customRadio?.checked;
+      select.classList.toggle('hidden', isCustom);
+      customInput.classList.toggle('hidden', !isCustom);
+    });
+  }
+
+  function renumerarModosMultiplos() {
+    document.querySelectorAll('.multi-list').forEach((list) => {
+      const slot = list.dataset.slot;
+      list.querySelectorAll('.multi-row').forEach((row, index) => {
+        row.querySelectorAll('.piece-mode.compact input[type="radio"]').forEach((radio) => {
+          radio.name = `${slot}_mode_${index}`;
+        });
+      });
+    });
+  }
+
   document.querySelectorAll('.add-item').forEach((btn) => {
     btn.addEventListener('click', () => {
       const slot = btn.dataset.slot;
@@ -326,7 +389,11 @@
       if (customName) customName.value = '';
       if (customCost) customCost.value = 0;
       if (qtyInput) qtyInput.value = 1;
+      const stockRadio = clone.querySelector('input[type="radio"][value="stock"]');
+      if (stockRadio) stockRadio.checked = true;
       list.appendChild(clone);
+      renumerarModosMultiplos();
+      atualizarVisibilidadeModos();
       atualizarTotais();
     });
   });
@@ -373,10 +440,16 @@
       const rows = list.querySelectorAll('.multi-row');
       if (rows.length > 1) {
         target.closest('.multi-row').remove();
+        renumerarModosMultiplos();
       } else {
         const row = rows[0];
         row.querySelector('select').selectedIndex = 0;
-        row.querySelector('input[type="number"]').value = 1;
+        const customName = row.querySelector('input[name$="_custom_names[]"]');
+        const customCost = row.querySelector('input[name$="_custom_costs[]"]');
+        const qtyInput = row.querySelector('input[name$="_qtys[]"]');
+        if (customName) customName.value = '';
+        if (customCost) customCost.value = 0;
+        if (qtyInput) qtyInput.value = 1;
       }
       atualizarTotais();
     }
@@ -395,6 +468,8 @@
       if (customName) customName.value = '';
       if (customCost) customCost.value = 0;
       if (qtyInput) qtyInput.value = 1;
+      const stockRadio = clone.querySelector('input[type="radio"][value="stock"]');
+      if (stockRadio) stockRadio.checked = true;
       list.appendChild(clone);
     });
   });
@@ -418,8 +493,13 @@
     });
   });
 
-  form.addEventListener('change', atualizarTotais);
+  form.addEventListener('change', () => {
+    atualizarVisibilidadeModos();
+    atualizarTotais();
+  });
   form.addEventListener('input', atualizarTotais);
+  renumerarModosMultiplos();
+  atualizarVisibilidadeModos();
   atualizarTotais();
 </script>
 {% endblock %}
