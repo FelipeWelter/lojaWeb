@@ -34,15 +34,21 @@
     <button type="button" data-filter="fonte">Fonte</button>
   </div>
   <table>
-    <thead><tr><th>Produto</th><th>Categoria</th><th>Classe</th><th>Estoque</th><th>Preço</th><th>Foto</th></tr></thead>
+    <thead><tr><th>Produto</th><th>Categoria</th><th>Classe</th><th>Estoque</th><th>Preço</th><th>Foto</th><th>Atualizar foto</th></tr></thead>
     <tbody>
       {% for p in products %}
       {% set bucket = 'computador' if p.category == 'Computador' else (p.component_class or 'sem_classe') %}
       <tr data-bucket="{{ bucket }}">
         <td>{{ p.name }}</td><td>{{ p.category }}</td><td>{{ p.component_class or '-' }}</td><td>{{ p.stock }}</td><td>R$ {{ '%.2f'|format(p.price) }}</td>
         <td>{% if p.photo_url %}<a href="{{ p.photo_url }}" target="_blank">Ver</a>{% else %}-{% endif %}</td>
+        <td>
+          <form method="post" action="{{ url_for('atualizar_foto_produto', product_id=p.id) }}" class="inline-form">
+            <input name="photo_url" type="url" placeholder="Nova URL" value="{{ p.photo_url or '' }}" />
+            <button type="submit">Atualizar</button>
+          </form>
+        </td>
       </tr>
-      {% else %}<tr><td colspan="6">Sem produtos.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="7">Sem produtos.</td></tr>{% endfor %}
     </tbody>
   </table>
 </section>

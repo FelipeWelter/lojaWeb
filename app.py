@@ -143,6 +143,16 @@ def produtos():
     return render_template('products.html', products=products)
 
 
+@app.route('/produtos/<int:product_id>/atualizar_foto', methods=['POST'])
+def atualizar_foto_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+    photo_url = (request.form.get('photo_url') or '').strip() or None
+    product.photo_url = photo_url
+    db.session.commit()
+    flash('Foto do produto atualizada com sucesso!', 'success')
+    return redirect(url_for('produtos'))
+
+
 @app.route('/montar_pc', methods=['GET', 'POST'])
 def montar_pc():
     parts_by_class = {
@@ -204,13 +214,19 @@ def montar_pc():
                         name=computer_name,
                         category='Computador',
                         stock=0,
-                        price=original_price_new,
+                        price=0,
                     )
                     db.session.add(computer)
                     db.session.flush()
 
                 computer.stock += 1
-                preco_original = Decimal(computer.price)
+                preco_base_informado = original_price_new
+                if computer.id and preco_base_informado == 0 and Decimal(computer.price) > 0:
+                    preco_base_informado = Decimal(computer.price)
+
+                preco_original = preco_base_informado
+                preco_final = (preco_original + custo_total).quantize(Decimal('0.01'))
+                computer.price = preco_final
 
                 montagem = ComputerAssembly(
                     id_computador=computer.id,
@@ -234,7 +250,8 @@ def montar_pc():
 
             db.session.commit()
             flash(
-                f'Montagem concluída! Preço original R$ {preco_original:.2f} | '
+                f'Montagem concluída! Preço base R$ {preco_original:.2f} + '
+                f'peças R$ {custo_total:.2f} = preço final R$ {preco_final:.2f} | '
                 f'Preço sugerido R$ {preco_sugerido:.2f}.',
                 'success',
             )
