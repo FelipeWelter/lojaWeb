@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Histórico do cliente: {{ client.name }}</h2>
+  <p>CPF: {{ client.cpf or '-' }} | Telefone: {{ client.phone or '-' }} | E-mail: {{ client.email or '-' }}</p>
+</section>
+<section class="card">
+  <h3>Compras</h3>
+  <table>
+    <thead><tr><th>Data</th><th>Venda</th><th>Produto</th><th>Qtd</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for s in sales %}
+      <tr><td>{{ s.created_at.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ s.sale_name }}</td><td>{{ s.product.name }}</td><td>{{ s.quantity }}</td><td>R$ {{ '%.2f'|format(s.total) }}</td><td>{{ 'Cancelada' if s.canceled else 'Ativa' }}</td></tr>
+      {% else %}<tr><td colspan="6">Sem compras.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+<section class="card">
+  <h3>PCs em manutenção</h3>
+  <table>
+    <thead><tr><th>Entrada</th><th>Equipamento</th><th>Serviço</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for m in maintenances %}
+      <tr><td>{{ m.entry_date.strftime('%d/%m/%Y') }}</td><td>{{ m.equipment }}</td><td>{{ m.service_description }}</td><td>{{ m.status }}</td></tr>
+      {% else %}<tr><td colspan="4">Sem manutenções.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+<section class="card">
+  <h3>Serviços concluídos</h3>
+  <table>
+    <thead><tr><th>Data</th><th>Serviço</th><th>Equipamento</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for r in services %}
+      <tr><td>{{ r.created_at.strftime('%d/%m/%Y') }}</td><td>{{ r.service_name }}</td><td>{{ r.equipment }}</td><td>R$ {{ '%.2f'|format(r.total_price) }}</td></tr>
+      {% else %}<tr><td colspan="4">Sem serviços.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
