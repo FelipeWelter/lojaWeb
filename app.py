@@ -1,14 +1,19 @@
 from collections import Counter
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
 
 from flask import Flask, flash, redirect, render_template, request, url_for
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///loja.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'dev-secret-change-me'
+app.config['UPLOAD_FOLDER'] = 'static/uploads/products'
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 
 db = SQLAlchemy(app)
 
@@ -87,6 +92,39 @@ class Charge(db.Model):
     sale = db.relationship('Sale')
 
 
+
+
+def _save_product_photo(file_storage):
+    if not file_storage or not file_storage.filename:
+        return None
+
+    original_name = secure_filename(file_storage.filename)
+    extension = Path(original_name).suffix.lower()
+    if extension not in {'.jpg', '.jpeg', '.png', '.webp'}:
+        raise ValueError('Formato de imagem inválido. Use JPG, PNG ou WEBP.')
+
+    upload_dir = Path(app.root_path) / app.config['UPLOAD_FOLDER']
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    file_id = uuid4().hex
+    original_relative = f"uploads/products/{file_id}{extension}"
+    original_path = Path(app.root_path) / 'static' / original_relative
+
+    file_storage.save(original_path)
+
+    return f"/static/{original_relative}", None
+
+
+def _remove_product_photo_files(photo_url: str | None):
+    if not photo_url or not photo_url.startswith('/static/uploads/products/'):
+        return
+
+    relative = photo_url.removeprefix('/static/')
+    original_path = Path(app.root_path) / 'static' / relative
+    if original_path.exists():
+        original_path.unlink()
+
+
 COMPONENT_SLOTS = [
     ('gabinete', 'Gabinete', False),
     ('placa_mae', 'Placa-mãe', False),
@@ -126,12 +164,21 @@ def produtos():
             flash('Informe a classe da peça para cadastro no estoque.', 'danger')
             return redirect(url_for('produtos'))
 
+        photo_url = None
+        photo_file = request.files.get('photo_file')
+        if photo_file and photo_file.filename:
+            try:
+                photo_url, _ = _save_product_photo(photo_file)
+            except ValueError as exc:
+                flash(str(exc), 'danger')
+                return redirect(url_for('produtos'))
+
         product = Product(
             name=request.form['name'],
             category=category,
             stock=int(request.form['stock']),
             price=Decimal(request.form['price']),
-            photo_url=request.form.get('photo_url') or None,
+            photo_url=photo_url,
             component_class=component_class,
         )
         db.session.add(product)
@@ -141,6 +188,29 @@ def produtos():
 
     products = Product.query.order_by(Product.category, Product.component_class, Product.name).all()
     return render_template('products.html', products=products)
+
+
+@app.route('/produtos/<int:product_id>/atualizar_foto', methods=['POST'])
+def atualizar_foto_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+    photo_file = request.files.get('photo_file')
+
+    if not photo_file or not photo_file.filename:
+        flash('Selecione uma imagem para atualizar a foto do produto.', 'danger')
+        return redirect(url_for('produtos'))
+
+    old_photo_url = product.photo_url
+    try:
+        photo_url, _ = _save_product_photo(photo_file)
+        product.photo_url = photo_url
+        db.session.commit()
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(url_for('produtos'))
+
+    _remove_product_photo_files(old_photo_url)
+    flash('Foto do produto atualizada com sucesso!', 'success')
+    return redirect(url_for('produtos'))
 
 
 @app.route('/montar_pc', methods=['GET', 'POST'])
@@ -204,13 +274,19 @@ def montar_pc():
                         name=computer_name,
                         category='Computador',
                         stock=0,
-                        price=original_price_new,
+                        price=0,
                     )
                     db.session.add(computer)
                     db.session.flush()
 
                 computer.stock += 1
-                preco_original = Decimal(computer.price)
+                preco_base_informado = original_price_new
+                if computer.id and preco_base_informado == 0 and Decimal(computer.price) > 0:
+                    preco_base_informado = Decimal(computer.price)
+
+                preco_original = preco_base_informado
+                preco_final = (preco_original + custo_total).quantize(Decimal('0.01'))
+                computer.price = preco_final
 
                 montagem = ComputerAssembly(
                     id_computador=computer.id,
@@ -234,7 +310,8 @@ def montar_pc():
 
             db.session.commit()
             flash(
-                f'Montagem concluída! Preço original R$ {preco_original:.2f} | '
+                f'Montagem concluída! Preço base R$ {preco_original:.2f} + '
+                f'peças R$ {custo_total:.2f} = preço final R$ {preco_final:.2f} | '
                 f'Preço sugerido R$ {preco_sugerido:.2f}.',
                 'success',
             )

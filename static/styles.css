@@ -286,3 +286,7 @@ label {
     justify-self: end;
   }
 }
+
+
+.inline-form { display: grid; gap: .35rem; }
+td img { object-fit: cover; border-radius: 8px; border: 1px solid #dfe4f1; }
