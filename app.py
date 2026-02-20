@@ -24,6 +24,7 @@ class Product(db.Model):
     category = db.Column(db.String(50), nullable=False, default='Peça')
     stock = db.Column(db.Integer, nullable=False, default=0)
     price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    cost_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     photo_url = db.Column(db.String(255), nullable=True)
     component_class = db.Column(db.String(50), nullable=True)
 
@@ -87,6 +88,7 @@ class Charge(db.Model):
     sale_id = db.Column(db.Integer, db.ForeignKey('sale.id'), nullable=False)
     mercado_pago_reference = db.Column(db.String(120), nullable=False)
     status = db.Column(db.String(30), nullable=False, default='pendente')
+    payment_method = db.Column(db.String(30), nullable=False, default='pix')
     payment_confirmed_at = db.Column(db.DateTime, nullable=True)
 
     sale = db.relationship('Sale')
@@ -134,6 +136,15 @@ COMPONENT_SLOTS = [
     ('fonte', 'Fonte', False),
 ]
 
+PAYMENT_METHODS = [
+    ('credito', 'Crédito'),
+    ('pix', 'Pix'),
+    ('boleto', 'Boleto'),
+    ('parcelado', 'Parcelado'),
+]
+
+PAYMENT_METHOD_LABELS = dict(PAYMENT_METHODS)
+
 
 @app.route('/')
 def dashboard():
@@ -141,6 +152,21 @@ def dashboard():
     total_stock = db.session.query(db.func.coalesce(db.func.sum(Product.stock), 0)).scalar()
     sales_count = Sale.query.count()
     pending_charges = Charge.query.filter(Charge.status != 'confirmado').count()
+    total_sales_amount = db.session.query(db.func.coalesce(db.func.sum(Sale.total), 0)).filter(Sale.canceled.is_(False)).scalar()
+    total_profit = db.session.query(
+        db.func.coalesce(db.func.sum(Sale.total - (Product.cost_price * Sale.quantity)), 0)
+    ).join(Product, Product.id == Sale.product_id).filter(Sale.canceled.is_(False)).scalar()
+    payment_method_summary = (
+        db.session.query(
+            Charge.payment_method,
+            db.func.count(Charge.id),
+            db.func.coalesce(db.func.sum(Sale.total), 0),
+        )
+        .join(Sale, Sale.id == Charge.sale_id)
+        .filter(Sale.canceled.is_(False))
+        .group_by(Charge.payment_method)
+        .all()
+    )
     latest_sales = Sale.query.order_by(Sale.created_at.desc()).limit(5).all()
 
     return render_template(
@@ -149,6 +175,10 @@ def dashboard():
         total_stock=total_stock,
         sales_count=sales_count,
         pending_charges=pending_charges,
+        total_sales_amount=total_sales_amount,
+        total_profit=total_profit,
+        payment_method_summary=payment_method_summary,
+        payment_method_labels=PAYMENT_METHOD_LABELS,
         latest_sales=latest_sales,
     )
 
@@ -178,6 +208,7 @@ def produtos():
             category=category,
             stock=int(request.form['stock']),
             price=Decimal(request.form['price']),
+            cost_price=Decimal(request.form.get('cost_price') or '0'),
             photo_url=photo_url,
             component_class=component_class,
         )
@@ -210,6 +241,57 @@ def atualizar_foto_produto(product_id: int):
 
     _remove_product_photo_files(old_photo_url)
     flash('Foto do produto atualizada com sucesso!', 'success')
+    return redirect(url_for('produtos'))
+
+
+@app.route('/produtos/<int:product_id>/editar', methods=['POST'])
+def editar_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+
+    name = (request.form.get('name') or '').strip()
+    if not name:
+        flash('Informe o nome do produto.', 'danger')
+        return redirect(url_for('produtos'))
+
+    category = request.form.get('category') or product.category
+    component_class = request.form.get('component_class') or None
+
+    if category != 'Peça':
+        component_class = None
+    elif not component_class:
+        flash('Informe a classe da peça para produtos da categoria Peça.', 'danger')
+        return redirect(url_for('produtos'))
+
+    product.name = name
+    product.category = category
+    product.stock = int(request.form.get('stock') or 0)
+    product.price = Decimal(request.form.get('price') or '0')
+    product.cost_price = Decimal(request.form.get('cost_price') or '0')
+    product.component_class = component_class
+
+    db.session.commit()
+    flash('Produto atualizado com sucesso!', 'success')
+    return redirect(url_for('produtos'))
+
+
+@app.route('/produtos/<int:product_id>/remover', methods=['POST'])
+def remover_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+
+    linked_sale = Sale.query.filter_by(product_id=product.id).first()
+    linked_composition = ProductComposition.query.filter(
+        (ProductComposition.id_peca == product.id) | (ProductComposition.id_computador == product.id)
+    ).first()
+
+    if linked_sale or linked_composition:
+        flash('Não é possível remover produto com histórico de vendas ou montagem.', 'danger')
+        return redirect(url_for('produtos'))
+
+    old_photo_url = product.photo_url
+    db.session.delete(product)
+    db.session.commit()
+    _remove_product_photo_files(old_photo_url)
+    flash('Produto removido com sucesso!', 'success')
     return redirect(url_for('produtos'))
 
 
@@ -265,7 +347,7 @@ def montar_pc():
                 for piece_id, qty in piece_counter.items():
                     piece = pieces_by_id[piece_id]
                     piece.stock -= qty
-                    custo_total += Decimal(qty) * piece.price
+                    custo_total += Decimal(qty) * (piece.cost_price or piece.price)
 
                 preco_sugerido = (custo_total * Decimal('1.20')).quantize(Decimal('0.01'))
 
@@ -392,9 +474,9 @@ def editar_cliente(client_id: int):
 @app.route('/clientes/<int:client_id>/remover', methods=['POST'])
 def remover_cliente(client_id: int):
     client = Client.query.get_or_404(client_id)
-    has_sales = Sale.query.filter_by(client_id=client.id).first()
-    if has_sales:
-        flash('Não é possível remover cliente com vendas registradas.', 'danger')
+    active_sales = Sale.query.filter_by(client_id=client.id, canceled=False).first()
+    if active_sales:
+        flash('Não é possível remover cliente com vendas ativas.', 'danger')
         return redirect(url_for('clientes'))
 
     db.session.delete(client)
@@ -468,6 +550,20 @@ def cancelar_venda(sale_id: int):
     return redirect(url_for('vendas'))
 
 
+@app.route('/vendas/<int:sale_id>/excluir', methods=['POST'])
+def excluir_venda(sale_id: int):
+    sale = Sale.query.get_or_404(sale_id)
+    if not sale.canceled:
+        flash('Só é possível excluir vendas canceladas.', 'danger')
+        return redirect(request.referrer or url_for('vendas'))
+
+    Charge.query.filter_by(sale_id=sale.id).delete()
+    db.session.delete(sale)
+    db.session.commit()
+    flash('Venda excluída do histórico com sucesso!', 'success')
+    return redirect(request.referrer or url_for('vendas'))
+
+
 @app.route('/cobrancas', methods=['GET', 'POST'])
 def cobrancas():
     if request.method == 'POST':
@@ -476,6 +572,7 @@ def cobrancas():
             sale_id=sale_id,
             mercado_pago_reference=request.form['mercado_pago_reference'],
             status=request.form['status'],
+            payment_method=request.form['payment_method'],
             payment_confirmed_at=datetime.utcnow() if request.form['status'] == 'confirmado' else None,
         )
         db.session.add(charge)
@@ -485,7 +582,24 @@ def cobrancas():
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
     charges = Charge.query.order_by(Charge.id.desc()).all()
-    return render_template('charges.html', charges=charges, sales=sales)
+    return render_template('charges.html', charges=charges, sales=sales, payment_methods=PAYMENT_METHODS)
+
+
+@app.route('/cobrancas/<int:charge_id>/editar', methods=['POST'])
+def editar_cobranca(charge_id: int):
+    charge = Charge.query.get_or_404(charge_id)
+    charge.payment_method = request.form['payment_method']
+    charge.status = request.form['status']
+    charge.mercado_pago_reference = (request.form.get('mercado_pago_reference') or '').strip()
+
+    if not charge.mercado_pago_reference:
+        flash('Informe a referência da cobrança.', 'danger')
+        return redirect(url_for('cobrancas'))
+
+    charge.payment_confirmed_at = datetime.utcnow() if charge.status == 'confirmado' else None
+    db.session.commit()
+    flash('Cobrança atualizada com sucesso!', 'success')
+    return redirect(url_for('cobrancas'))
 
 
 @app.route('/cobrancas/<int:charge_id>/confirmar', methods=['POST'])
@@ -518,7 +632,9 @@ with app.app_context():
     columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(product)'))]
     if 'component_class' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN component_class VARCHAR(50)'))
-        db.session.commit()
+    if 'cost_price' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN cost_price NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    db.session.commit()
 
     montagem_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(montagem_computador)'))]
     if 'nome_referencia' not in montagem_columns:
@@ -550,6 +666,11 @@ with app.app_context():
     if 'cpf' not in client_columns:
         db.session.execute(db.text('ALTER TABLE client ADD COLUMN cpf VARCHAR(14)'))
     db.session.execute(db.text('CREATE UNIQUE INDEX IF NOT EXISTS ux_client_cpf ON client (cpf)'))
+    db.session.commit()
+
+    charge_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(charge)'))]
+    if 'payment_method' not in charge_columns:
+        db.session.execute(db.text("ALTER TABLE charge ADD COLUMN payment_method VARCHAR(30) NOT NULL DEFAULT 'pix'"))
     db.session.commit()
 
 

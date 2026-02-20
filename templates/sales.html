@@ -46,7 +46,9 @@
             <button type="submit" class="btn-danger">Cancelar venda</button>
           </form>
           {% else %}
-          -
+          <form method="post" action="{{ url_for('excluir_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja excluir definitivamente esta venda cancelada?');">
+            <button type="submit" class="btn-danger">Excluir venda</button>
+          </form>
           {% endif %}
         </td>
       </tr>

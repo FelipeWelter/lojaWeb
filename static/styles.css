@@ -290,3 +290,6 @@ label {
 
 .inline-form { display: grid; gap: .35rem; }
 td img { object-fit: cover; border-radius: 8px; border: 1px solid #dfe4f1; }
+
+
+.assembly-part { display: inline-block; background: #eef2ff; color: #2f4cc9; border: 1px solid #dbe4ff; border-radius: 999px; padding: .1rem .5rem; margin: .1rem .15rem .1rem 0; font-size: .82rem; }
