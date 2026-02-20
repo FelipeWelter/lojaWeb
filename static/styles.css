@@ -168,6 +168,7 @@ tbody tr:hover { background: #fbfcff; }
 .alert.danger { background: #ffe5e5; color: #7d2222; }
 
 .full-width { grid-column: 1 / -1; }
+.hidden { display: none !important; }
 
 .inline-form {
   display: grid;
@@ -220,7 +221,7 @@ tbody tr:hover { background: #fbfcff; }
 .pc-header {
   display: grid;
   gap: .75rem;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .slots-top,
