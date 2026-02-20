@@ -30,7 +30,7 @@
 <section class="card">
   <h2>Últimas vendas</h2>
   <table>
-    <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Total</th></tr></thead>
+    <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead>
     <tbody>
       {% for sale in latest_sales %}
       <tr>
@@ -39,9 +39,17 @@
         <td>{{ sale.product.name }}</td>
         <td>{{ sale.quantity }}</td>
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
+        <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
+        <td>
+          {% if sale.canceled %}
+          <form method="post" action="{{ url_for('excluir_venda', sale_id=sale.id) }}" onsubmit="return confirm('Excluir esta venda cancelada do histórico inicial?');">
+            <button type="submit" class="btn-danger">Excluir</button>
+          </form>
+          {% else %}-{% endif %}
+        </td>
       </tr>
       {% else %}
-      <tr><td colspan="5">Nenhuma venda registrada ainda.</td></tr>
+      <tr><td colspan="7">Nenhuma venda registrada ainda.</td></tr>
       {% endfor %}
     </tbody>
   </table>

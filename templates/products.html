@@ -35,12 +35,17 @@
     <button type="button" data-filter="fonte">Fonte</button>
   </div>
   <table>
-    <thead><tr><th>Produto</th><th>Categoria</th><th>Classe</th><th>Estoque</th><th>Compra</th><th>Venda</th><th>Foto</th><th>Atualizar foto</th></tr></thead>
+    <thead><tr><th>Produto</th><th>Categoria</th><th>Classe</th><th>Estoque</th><th>Compra</th><th>Venda</th><th>Foto</th><th>Ações</th></tr></thead>
     <tbody>
       {% for p in products %}
       {% set bucket = 'computador' if p.category == 'Computador' else (p.component_class or 'sem_classe') %}
       <tr data-bucket="{{ bucket }}">
-        <td>{{ p.name }}</td><td>{{ p.category }}</td><td>{{ p.component_class or '-' }}</td><td>{{ p.stock }}</td><td>R$ {{ '%.2f'|format(p.cost_price) }}</td><td>R$ {{ '%.2f'|format(p.price) }}</td>
+        <td>{{ p.name }}</td>
+        <td>{{ p.category }}</td>
+        <td>{{ p.component_class or '-' }}</td>
+        <td>{{ p.stock }}</td>
+        <td>R$ {{ '%.2f'|format(p.cost_price) }}</td>
+        <td>R$ {{ '%.2f'|format(p.price) }}</td>
         <td>
           {% if p.photo_url %}
             <a href="{{ p.photo_url }}" target="_blank" title="Abrir imagem">
@@ -49,10 +54,36 @@
           {% else %}-{% endif %}
         </td>
         <td>
-          <form method="post" action="{{ url_for('atualizar_foto_produto', product_id=p.id) }}" class="inline-form" enctype="multipart/form-data">
-            <input name="photo_file" type="file" accept="image/*" required />
-            <button type="submit">Atualizar</button>
-          </form>
+          <details>
+            <summary>Editar</summary>
+            <form method="post" action="{{ url_for('editar_produto', product_id=p.id) }}" class="inline-form">
+              <input name="name" value="{{ p.name }}" required />
+              <select name="category">
+                <option value="Peça" {% if p.category == 'Peça' %}selected{% endif %}>Peça</option>
+                <option value="Computador" {% if p.category == 'Computador' %}selected{% endif %}>Computador</option>
+              </select>
+              <select name="component_class">
+                <option value="">Sem classe</option>
+                <option value="gabinete" {% if p.component_class == 'gabinete' %}selected{% endif %}>Gabinete</option>
+                <option value="placa_mae" {% if p.component_class == 'placa_mae' %}selected{% endif %}>Placa-mãe</option>
+                <option value="processador" {% if p.component_class == 'processador' %}selected{% endif %}>Processador</option>
+                <option value="memoria_ram" {% if p.component_class == 'memoria_ram' %}selected{% endif %}>Memória RAM</option>
+                <option value="armazenamento" {% if p.component_class == 'armazenamento' %}selected{% endif %}>Armazenamento</option>
+                <option value="fonte" {% if p.component_class == 'fonte' %}selected{% endif %}>Fonte</option>
+              </select>
+              <input name="stock" type="number" min="0" value="{{ p.stock }}" required />
+              <input name="cost_price" type="number" min="0" step="0.01" value="{{ p.cost_price }}" required />
+              <input name="price" type="number" min="0" step="0.01" value="{{ p.price }}" required />
+              <button type="submit">Salvar</button>
+            </form>
+            <form method="post" action="{{ url_for('atualizar_foto_produto', product_id=p.id) }}" class="inline-form" enctype="multipart/form-data">
+              <input name="photo_file" type="file" accept="image/*" required />
+              <button type="submit">Atualizar foto</button>
+            </form>
+            <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" onsubmit="return confirm('Deseja remover este item do estoque?');">
+              <button type="submit" class="btn-danger">Remover item</button>
+            </form>
+          </details>
         </td>
       </tr>
       {% else %}<tr><td colspan="8">Sem produtos.</td></tr>{% endfor %}

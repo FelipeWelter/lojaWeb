@@ -244,6 +244,57 @@ def atualizar_foto_produto(product_id: int):
     return redirect(url_for('produtos'))
 
 
+@app.route('/produtos/<int:product_id>/editar', methods=['POST'])
+def editar_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+
+    name = (request.form.get('name') or '').strip()
+    if not name:
+        flash('Informe o nome do produto.', 'danger')
+        return redirect(url_for('produtos'))
+
+    category = request.form.get('category') or product.category
+    component_class = request.form.get('component_class') or None
+
+    if category != 'Peça':
+        component_class = None
+    elif not component_class:
+        flash('Informe a classe da peça para produtos da categoria Peça.', 'danger')
+        return redirect(url_for('produtos'))
+
+    product.name = name
+    product.category = category
+    product.stock = int(request.form.get('stock') or 0)
+    product.price = Decimal(request.form.get('price') or '0')
+    product.cost_price = Decimal(request.form.get('cost_price') or '0')
+    product.component_class = component_class
+
+    db.session.commit()
+    flash('Produto atualizado com sucesso!', 'success')
+    return redirect(url_for('produtos'))
+
+
+@app.route('/produtos/<int:product_id>/remover', methods=['POST'])
+def remover_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+
+    linked_sale = Sale.query.filter_by(product_id=product.id).first()
+    linked_composition = ProductComposition.query.filter(
+        (ProductComposition.id_peca == product.id) | (ProductComposition.id_computador == product.id)
+    ).first()
+
+    if linked_sale or linked_composition:
+        flash('Não é possível remover produto com histórico de vendas ou montagem.', 'danger')
+        return redirect(url_for('produtos'))
+
+    old_photo_url = product.photo_url
+    db.session.delete(product)
+    db.session.commit()
+    _remove_product_photo_files(old_photo_url)
+    flash('Produto removido com sucesso!', 'success')
+    return redirect(url_for('produtos'))
+
+
 @app.route('/montar_pc', methods=['GET', 'POST'])
 def montar_pc():
     parts_by_class = {
@@ -423,9 +474,9 @@ def editar_cliente(client_id: int):
 @app.route('/clientes/<int:client_id>/remover', methods=['POST'])
 def remover_cliente(client_id: int):
     client = Client.query.get_or_404(client_id)
-    has_sales = Sale.query.filter_by(client_id=client.id).first()
-    if has_sales:
-        flash('Não é possível remover cliente com vendas registradas.', 'danger')
+    active_sales = Sale.query.filter_by(client_id=client.id, canceled=False).first()
+    if active_sales:
+        flash('Não é possível remover cliente com vendas ativas.', 'danger')
         return redirect(url_for('clientes'))
 
     db.session.delete(client)
@@ -497,6 +548,20 @@ def cancelar_venda(sale_id: int):
     db.session.commit()
     flash('Venda cancelada e itens retornados ao estoque.', 'success')
     return redirect(url_for('vendas'))
+
+
+@app.route('/vendas/<int:sale_id>/excluir', methods=['POST'])
+def excluir_venda(sale_id: int):
+    sale = Sale.query.get_or_404(sale_id)
+    if not sale.canceled:
+        flash('Só é possível excluir vendas canceladas.', 'danger')
+        return redirect(request.referrer or url_for('vendas'))
+
+    Charge.query.filter_by(sale_id=sale.id).delete()
+    db.session.delete(sale)
+    db.session.commit()
+    flash('Venda excluída do histórico com sucesso!', 'success')
+    return redirect(request.referrer or url_for('vendas'))
 
 
 @app.route('/cobrancas', methods=['GET', 'POST'])
