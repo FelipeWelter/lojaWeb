@@ -1,12 +1,19 @@
 from collections import Counter
 from datetime import datetime, timedelta
 from decimal import Decimal
+from functools import wraps
+from io import BytesIO
+import os
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for
+from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+from xhtml2pdf import pisa
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///loja.db'
@@ -14,8 +21,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'dev-secret-change-me'
 app.config['UPLOAD_FOLDER'] = 'static/uploads/products'
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', '587'))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME'))
+app.config['SECURITY_PASSWORD_SALT'] = os.getenv('SECURITY_PASSWORD_SALT', 'lojaweb-reset-salt')
 
 db = SQLAlchemy(app)
+mail = Mail(app)
 
 
 class Product(db.Model):
@@ -148,6 +163,123 @@ class MaintenanceTicket(db.Model):
     status = db.Column(db.String(30), nullable=False, default='em_andamento')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(120), nullable=False, unique=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_name = db.Column(db.String(120), nullable=False)
+    action = db.Column(db.String(180), nullable=False)
+    details = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+def _login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not session.get('user_id'):
+            flash('Faça login para continuar.', 'danger')
+            return redirect(url_for('login'))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def _current_user():
+    uid = session.get('user_id')
+    if not uid:
+        return None
+    return User.query.get(uid)
+
+
+def _build_reset_token(email: str):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    return serializer.dumps(email, salt=app.config['SECURITY_PASSWORD_SALT'])
+
+
+def _read_reset_token(token: str, max_age_seconds: int = 3600):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    return serializer.loads(token, salt=app.config['SECURITY_PASSWORD_SALT'], max_age=max_age_seconds)
+
+
+def _log_audit(action: str, details: str):
+    user = _current_user()
+    db.session.add(AuditLog(user_name=user.name if user else 'Sistema', action=action, details=details))
+
+
+def _html_to_pdf(html: str):
+    output = BytesIO()
+    status = pisa.CreatePDF(src=html, dest=output)
+    if status.err:
+        raise ValueError('Erro ao gerar PDF.')
+    output.seek(0)
+    return output
+
+
+def _receipt_style():
+    return """
+    <style>
+      body { font-family: Helvetica, Arial, sans-serif; color: #1f2937; font-size: 11px; }
+      .header { border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 14px; }
+      .brand { font-size: 20px; color: #1d4ed8; font-weight: bold; }
+      .meta { color: #374151; }
+      .box { border: 1px solid #d1d5db; padding: 10px; margin: 8px 0; }
+      .title { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; }
+      th { background: #eff6ff; }
+      .total { margin-top: 12px; font-size: 13px; font-weight: bold; text-align: right; }
+      .footer { margin-top: 20px; color: #6b7280; font-size: 10px; }
+    </style>
+    """
+
+
+def _render_sale_receipt_html(sale: Sale):
+    return f"""
+    <html><head>{_receipt_style()}</head><body>
+      <div class='header'>
+        <div class='brand'>LojaWeb - Recibo de Venda</div>
+        <div class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</div>
+      </div>
+      <div class='box'><div class='title'>Dados do cliente</div>
+        Nome: {sale.client.name}<br/>CPF: {sale.client.cpf or '-'}<br/>Telefone: {sale.client.phone or '-'}
+      </div>
+      <table><tr><th>Venda</th><th>Produto</th><th>Qtd</th><th>Subtotal</th><th>Total</th></tr>
+      <tr><td>{sale.sale_name}</td><td>{sale.product.name}</td><td>{sale.quantity}</td><td>R$ {Decimal(sale.subtotal):.2f}</td><td>R$ {Decimal(sale.total):.2f}</td></tr></table>
+      <div class='total'>Total do recibo: R$ {Decimal(sale.total):.2f}</div>
+      <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
+    </body></html>
+    """
+
+
+def _render_assembly_receipt_html(assembly: ComputerAssembly):
+    items = []
+    for item in assembly.composicao:
+        if item.peca:
+            items.append(f"<tr><td>{item.peca.name}</td><td>{item.quantidade_utilizada}</td><td>Estoque</td></tr>")
+    for custom in assembly.custom_parts:
+        items.append(f"<tr><td>{custom.part_name}</td><td>{custom.quantity}</td><td>Personalizado</td></tr>")
+    rows = ''.join(items) or '<tr><td colspan="3">Sem itens</td></tr>'
+    return f"""
+    <html><head>{_receipt_style()}</head><body>
+      <div class='header'>
+        <div class='brand'>LojaWeb - Orçamento de Montagem</div>
+        <div class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</div>
+      </div>
+      <div class='box'><div class='title'>Montagem #{assembly.id}</div>
+        Referência: {assembly.nome_referencia}<br/>Computador: {assembly.computador.name}
+      </div>
+      <table><tr><th>Componente</th><th>Qtd</th><th>Origem</th></tr>{rows}</table>
+      <div class='total'>Custo: R$ {Decimal(assembly.custo_total):.2f} | Sugerido: R$ {Decimal(assembly.preco_sugerido):.2f}</div>
+      <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
+    </body></html>
+    """
 
 
 def _save_product_photo(file_storage):
@@ -374,7 +506,106 @@ PAYMENT_METHODS = [
 PAYMENT_METHOD_LABELS = dict(PAYMENT_METHODS)
 
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        password = request.form.get('password') or ''
+        user = User.query.filter_by(email=email).first()
+        if not user or not check_password_hash(user.password_hash, password):
+            flash('Credenciais inválidas.', 'danger')
+            return redirect(url_for('login'))
+        session['user_id'] = user.id
+        flash('Login realizado com sucesso!', 'success')
+        return redirect(url_for('dashboard'))
+    if session.get('user_id'):
+        return redirect(url_for('dashboard'))
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Sessão encerrada.', 'success')
+    return redirect(url_for('login'))
+
+
+@app.route('/usuarios', methods=['GET', 'POST'])
+@_login_required
+def usuarios():
+    current = _current_user()
+    if not current or not current.is_admin:
+        flash('Apenas administradores podem gerenciar usuários.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
+        password = request.form.get('password') or ''
+        is_admin = request.form.get('is_admin') == 'on'
+        if not name or not email or len(password) < 6:
+            flash('Preencha nome, e-mail e senha com ao menos 6 caracteres.', 'danger')
+            return redirect(url_for('usuarios'))
+        if User.query.filter_by(email=email).first():
+            flash('E-mail já cadastrado.', 'danger')
+            return redirect(url_for('usuarios'))
+
+        user = User(name=name, email=email, password_hash=generate_password_hash(password), is_admin=is_admin)
+        db.session.add(user)
+        _log_audit('Criação de usuário', f'Usuário {current.name} criou o usuário {name} ({email}).')
+        db.session.commit()
+        flash('Usuário criado com sucesso!', 'success')
+        return redirect(url_for('usuarios'))
+
+    return render_template('users.html', users=User.query.order_by(User.created_at.desc()).all())
+
+
+@app.route('/recuperar-senha', methods=['GET', 'POST'])
+def recuperar_senha():
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').strip().lower()
+        user = User.query.filter_by(email=email).first()
+        if user:
+            token = _build_reset_token(user.email)
+            reset_url = url_for('redefinir_senha', token=token, _external=True)
+            msg = Message('Recuperação de senha - LojaWeb', recipients=[user.email])
+            msg.body = f'Olá, {user.name}! Use o link para redefinir sua senha: {reset_url}'
+            try:
+                mail.send(msg)
+                flash('E-mail de recuperação enviado com sucesso.', 'success')
+            except Exception:
+                flash('Não foi possível enviar e-mail. Verifique as credenciais do Gmail no servidor.', 'danger')
+        else:
+            flash('Se o e-mail existir, enviaremos as instruções.', 'success')
+        return redirect(url_for('recuperar_senha'))
+
+    return render_template('recover_password.html')
+
+
+@app.route('/redefinir-senha/<token>', methods=['GET', 'POST'])
+def redefinir_senha(token: str):
+    try:
+        email = _read_reset_token(token)
+    except (SignatureExpired, BadSignature):
+        flash('Link inválido ou expirado.', 'danger')
+        return redirect(url_for('recuperar_senha'))
+
+    user = User.query.filter_by(email=email).first_or_404()
+    if request.method == 'POST':
+        password = request.form.get('password') or ''
+        if len(password) < 6:
+            flash('A nova senha deve ter ao menos 6 caracteres.', 'danger')
+            return redirect(url_for('redefinir_senha', token=token))
+        user.password_hash = generate_password_hash(password)
+        db.session.commit()
+        flash('Senha redefinida com sucesso. Faça login.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('reset_password.html', token=token)
+
+
 @app.route('/')
+@_login_required
 def dashboard():
     period = request.args.get('period', 'month')
     now = datetime.utcnow()
@@ -483,6 +714,7 @@ def dashboard():
 
 
 @app.route('/produtos', methods=['GET', 'POST'])
+@_login_required
 def produtos():
     if request.method == 'POST':
         form_mode = request.form.get('form_mode')
@@ -573,6 +805,7 @@ def produtos():
 
 
 @app.route('/produtos/<int:product_id>/atualizar_foto', methods=['POST'])
+@_login_required
 def atualizar_foto_produto(product_id: int):
     product = Product.query.get_or_404(product_id)
     photo_files = request.files.getlist('photo_files')
@@ -608,6 +841,7 @@ def atualizar_foto_produto(product_id: int):
 
 
 @app.route('/produtos/<int:product_id>/editar', methods=['POST'])
+@_login_required
 def editar_produto(product_id: int):
     product = Product.query.get_or_404(product_id)
 
@@ -625,13 +859,22 @@ def editar_produto(product_id: int):
         flash('Informe a classe da peça para produtos da categoria Peça.', 'danger')
         return redirect(url_for('produtos'))
 
+    old_price = Decimal(product.price)
+    new_price = Decimal(request.form.get('price') or '0')
+
     product.name = name
     product.category = category
     product.stock = int(request.form.get('stock') or 0)
-    product.price = Decimal(request.form.get('price') or '0')
+    product.price = new_price
     product.cost_price = Decimal(request.form.get('cost_price') or '0')
     product.component_class = component_class
     product.serial_number = (request.form.get('serial_number') or '').strip() or None
+
+    if old_price != new_price:
+        _log_audit(
+            'Alteração de preço',
+            f'Usuário {_current_user().name} alterou o preço do item {product.name} de R$ {old_price:.2f} para R$ {new_price:.2f} em {datetime.utcnow().strftime("%d/%m/%Y %H:%M")}.',
+        )
 
     db.session.commit()
     flash('Produto atualizado com sucesso!', 'success')
@@ -639,6 +882,7 @@ def editar_produto(product_id: int):
 
 
 @app.route('/produtos/<int:product_id>/remover', methods=['POST'])
+@_login_required
 def remover_produto(product_id: int):
     product = Product.query.get_or_404(product_id)
 
@@ -714,6 +958,7 @@ def _build_assembly_edit_data(latest_assemblies):
     return data
 
 @app.route('/montar_pc', methods=['GET', 'POST'])
+@_login_required
 def montar_pc():
     parts_by_class = {
         slot_key: Product.query.filter_by(category='Peça', component_class=slot_key).order_by(Product.name).all()
@@ -774,6 +1019,7 @@ def montar_pc():
 
 
 @app.route('/montagens/<int:assembly_id>/editar', methods=['POST'])
+@_login_required
 def editar_montagem(assembly_id: int):
     assembly = ComputerAssembly.query.get_or_404(assembly_id)
 
@@ -879,6 +1125,7 @@ def editar_montagem(assembly_id: int):
 
 
 @app.route('/montagens/<int:assembly_id>/cancelar', methods=['POST'])
+@_login_required
 def cancelar_montagem(assembly_id: int):
     assembly = ComputerAssembly.query.get_or_404(assembly_id)
 
@@ -909,6 +1156,7 @@ def cancelar_montagem(assembly_id: int):
 
 
 @app.route('/montagens/<int:assembly_id>/excluir', methods=['POST'])
+@_login_required
 def excluir_montagem(assembly_id: int):
     assembly = ComputerAssembly.query.get_or_404(assembly_id)
 
@@ -930,6 +1178,7 @@ def excluir_montagem(assembly_id: int):
 
 
 @app.route('/servicos', methods=['GET', 'POST'])
+@_login_required
 def servicos():
     service_catalog = [
         {'name': 'Montagem Premium', 'price': Decimal('199.90'), 'description': 'Montagem completa, organização de cabos e validação final.'},
@@ -1012,6 +1261,7 @@ def servicos():
 
 
 @app.route('/manutencoes/<int:ticket_id>/atualizar', methods=['POST'])
+@_login_required
 def atualizar_manutencao(ticket_id: int):
     ticket = MaintenanceTicket.query.get_or_404(ticket_id)
     status = request.form.get('status') or ticket.status
@@ -1038,6 +1288,7 @@ def atualizar_manutencao(ticket_id: int):
 
 
 @app.route('/dashboard/custos-fixos', methods=['POST'])
+@_login_required
 def cadastrar_custo_fixo():
     description = (request.form.get('description') or '').strip()
     amount = Decimal(request.form.get('amount') or '0')
@@ -1056,6 +1307,7 @@ def cadastrar_custo_fixo():
 
 
 @app.route('/clientes', methods=['GET', 'POST'])
+@_login_required
 def clientes():
     if request.method == 'POST':
         cpf = (request.form.get('cpf') or '').strip()
@@ -1084,6 +1336,7 @@ def clientes():
 
 
 @app.route('/clientes/<int:client_id>/editar', methods=['GET', 'POST'])
+@_login_required
 def editar_cliente(client_id: int):
     client = Client.query.get_or_404(client_id)
 
@@ -1114,6 +1367,7 @@ def editar_cliente(client_id: int):
 
 
 @app.route('/clientes/<int:client_id>/remover', methods=['POST'])
+@_login_required
 def remover_cliente(client_id: int):
     client = Client.query.get_or_404(client_id)
     active_sales = Sale.query.filter_by(client_id=client.id, canceled=False).first()
@@ -1128,6 +1382,7 @@ def remover_cliente(client_id: int):
 
 
 @app.route('/vendas', methods=['GET', 'POST'])
+@_login_required
 def vendas():
     products = Product.query.order_by(Product.name).all()
     clients = Client.query.order_by(Client.name).all()
@@ -1176,6 +1431,7 @@ def vendas():
 
 
 @app.route('/vendas/<int:sale_id>/cancelar', methods=['POST'])
+@_login_required
 def cancelar_venda(sale_id: int):
     sale = Sale.query.get_or_404(sale_id)
     if sale.canceled:
@@ -1193,6 +1449,7 @@ def cancelar_venda(sale_id: int):
 
 
 @app.route('/vendas/<int:sale_id>/excluir', methods=['POST'])
+@_login_required
 def excluir_venda(sale_id: int):
     sale = Sale.query.get_or_404(sale_id)
     if not sale.canceled:
@@ -1207,6 +1464,7 @@ def excluir_venda(sale_id: int):
 
 
 @app.route('/cobrancas', methods=['GET', 'POST'])
+@_login_required
 def cobrancas():
     if request.method == 'POST':
         sale_id = int(request.form['sale_id'])
@@ -1228,6 +1486,7 @@ def cobrancas():
 
 
 @app.route('/cobrancas/<int:charge_id>/editar', methods=['POST'])
+@_login_required
 def editar_cobranca(charge_id: int):
     charge = Charge.query.get_or_404(charge_id)
     charge.payment_method = request.form['payment_method']
@@ -1245,6 +1504,7 @@ def editar_cobranca(charge_id: int):
 
 
 @app.route('/cobrancas/<int:charge_id>/confirmar', methods=['POST'])
+@_login_required
 def confirmar_cobranca(charge_id: int):
     charge = Charge.query.get_or_404(charge_id)
     charge.status = 'confirmado'
@@ -1255,6 +1515,7 @@ def confirmar_cobranca(charge_id: int):
 
 
 @app.route('/cobrancas/<int:charge_id>/cancelar', methods=['POST'])
+@_login_required
 def cancelar_cobranca(charge_id: int):
     charge = Charge.query.get_or_404(charge_id)
     if charge.status == 'cancelado':
@@ -1268,8 +1529,66 @@ def cancelar_cobranca(charge_id: int):
     return redirect(url_for('cobrancas'))
 
 
+@app.route('/vendas/<int:sale_id>/imprimir')
+@_login_required
+def imprimir_venda(sale_id: int):
+    sale = Sale.query.get_or_404(sale_id)
+    pdf = _html_to_pdf(_render_sale_receipt_html(sale))
+    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=f'recibo-venda-{sale.id}.pdf')
+
+
+@app.route('/montagens/<int:assembly_id>/imprimir')
+@_login_required
+def imprimir_montagem(assembly_id: int):
+    assembly = ComputerAssembly.query.get_or_404(assembly_id)
+    pdf = _html_to_pdf(_render_assembly_receipt_html(assembly))
+    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=f'orcamento-montagem-{assembly.id}.pdf')
+
+
+@app.route('/clientes/<int:client_id>/historico')
+@_login_required
+def historico_cliente(client_id: int):
+    client = Client.query.get_or_404(client_id)
+    sales = Sale.query.filter_by(client_id=client.id).order_by(Sale.created_at.desc()).all()
+    maintenances = MaintenanceTicket.query.filter(MaintenanceTicket.client_name == client.name).order_by(MaintenanceTicket.entry_date.desc()).all()
+    services = ServiceRecord.query.filter(ServiceRecord.client_name == client.name).order_by(ServiceRecord.created_at.desc()).all()
+    return render_template('client_history.html', client=client, sales=sales, maintenances=maintenances, services=services)
+
+
+@app.route('/logs')
+@_login_required
+def logs_auditoria():
+    return render_template('audit_logs.html', logs=AuditLog.query.order_by(AuditLog.created_at.desc()).limit(300).all())
+
+
+@app.route('/produtos/<int:product_id>/alterar-preco', methods=['POST'])
+@_login_required
+def alterar_preco_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+    old_price = Decimal(product.price)
+    new_price = Decimal(request.form.get('new_price') or '0')
+    if new_price < 0:
+        flash('Preço inválido.', 'danger')
+        return redirect(url_for('produtos'))
+
+    product.price = new_price
+    _log_audit(
+        'Alteração de preço',
+        f'Usuário {_current_user().name} alterou o preço do item {product.name} de R$ {old_price:.2f} para R$ {new_price:.2f} em {datetime.utcnow().strftime("%d/%m/%Y %H:%M")}.',
+    )
+    db.session.commit()
+    flash('Preço atualizado com sucesso!', 'success')
+    return redirect(url_for('produtos'))
+
+
 with app.app_context():
     db.create_all()
+
+    if not User.query.first():
+        admin_email = os.getenv('DEFAULT_ADMIN_EMAIL', 'admin@lojaweb.local')
+        admin_password = os.getenv('DEFAULT_ADMIN_PASSWORD', 'admin123')
+        db.session.add(User(name='Administrador', email=admin_email, password_hash=generate_password_hash(admin_password), is_admin=True))
+        db.session.commit()
 
     columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(product)'))]
     if 'component_class' not in columns:
