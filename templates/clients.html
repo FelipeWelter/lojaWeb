@@ -4,6 +4,7 @@
   <h2>Novo cliente</h2>
   <form method="post" class="grid form-grid">
     <input name="name" placeholder="Nome" required />
+    <input name="cpf" placeholder="CPF" required />
     <input name="phone" placeholder="Telefone" />
     <input name="email" type="email" placeholder="E-mail" />
     <button type="submit">Salvar</button>
@@ -12,11 +13,22 @@
 <section class="card">
   <h2>Clientes</h2>
   <table>
-    <thead><tr><th>Nome</th><th>Telefone</th><th>E-mail</th></tr></thead>
+    <thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>E-mail</th><th>Ações</th></tr></thead>
     <tbody>
       {% for c in clients %}
-      <tr><td>{{ c.name }}</td><td>{{ c.phone or '-' }}</td><td>{{ c.email or '-' }}</td></tr>
-      {% else %}<tr><td colspan="3">Sem clientes.</td></tr>{% endfor %}
+      <tr>
+        <td>{{ c.name }}</td>
+        <td>{{ c.cpf or '-' }}</td>
+        <td>{{ c.phone or '-' }}</td>
+        <td>{{ c.email or '-' }}</td>
+        <td>
+          <a href="{{ url_for('editar_cliente', client_id=c.id) }}"><button type="button">Editar</button></a>
+          <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" style="display:inline" onsubmit="return confirm('Deseja remover este cliente?');">
+            <button type="submit" class="btn-danger">Remover</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="5">Sem clientes.</td></tr>{% endfor %}
     </tbody>
   </table>
 </section>

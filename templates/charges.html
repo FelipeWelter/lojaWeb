@@ -5,7 +5,7 @@
   <form method="post" class="grid form-grid">
     <select name="sale_id" required>
       <option value="">Selecione a venda</option>
-      {% for s in sales %}<option value="{{ s.id }}">Venda #{{ s.id }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
+      {% for s in sales %}<option value="{{ s.id }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
     </select>
     <input name="mercado_pago_reference" placeholder="ID/referência no Mercado Pago" required />
     <select name="status">
@@ -23,16 +23,21 @@
     <tbody>
       {% for c in charges %}
       <tr>
-        <td>#{{ c.sale.id }} - {{ c.sale.client.name }}</td>
+        <td>{{ c.sale.sale_name }} - {{ c.sale.client.name }}</td>
         <td>{{ c.mercado_pago_reference }}</td>
         <td>{{ c.status }}</td>
         <td>{{ c.payment_confirmed_at.strftime('%d/%m/%Y %H:%M') if c.payment_confirmed_at else '-' }}</td>
         <td>
           {% if c.status != 'confirmado' %}
-          <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+          <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}" style="display:inline">
             <button type="submit">Confirmar pagamento</button>
           </form>
-          {% else %}—{% endif %}
+          {% endif %}
+          {% if c.status != 'cancelado' %}
+          <form method="post" action="{{ url_for('cancelar_cobranca', charge_id=c.id) }}" style="display:inline" onsubmit="return confirm('Deseja cancelar a cobrança?');">
+            <button type="submit" class="btn-danger">Cancelar cobrança</button>
+          </form>
+          {% endif %}
         </td>
       </tr>
       {% else %}<tr><td colspan="5">Sem cobranças.</td></tr>{% endfor %}
