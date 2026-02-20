@@ -327,6 +327,7 @@ def _build_computer_with_parts(
 COMPONENT_SLOTS = [
     ('gabinete', 'Gabinete', False),
     ('placa_mae', 'Placa-mãe', False),
+    ('placa_video', 'Placa de Vídeo', False),
     ('processador', 'Processador', False),
     ('memoria_ram', 'Memória RAM', True),
     ('armazenamento', 'Armazenamento', True),
