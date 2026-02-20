@@ -27,6 +27,14 @@ class Product(db.Model):
     cost_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     photo_url = db.Column(db.String(255), nullable=True)
     component_class = db.Column(db.String(50), nullable=True)
+    images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
+
+
+class ProductImage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    image_url = db.Column(db.String(255), nullable=False)
+    position = db.Column(db.Integer, nullable=False, default=0)
 
 
 class ProductComposition(db.Model):
@@ -43,6 +51,15 @@ class ProductComposition(db.Model):
     peca = db.relationship('Product', foreign_keys=[id_peca])
 
 
+class AssemblyCustomPart(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    assembly_id = db.Column(db.Integer, db.ForeignKey('montagem_computador.id'), nullable=False)
+    slot_key = db.Column(db.String(50), nullable=False)
+    part_name = db.Column(db.String(120), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    unit_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
+
 class ComputerAssembly(db.Model):
     __tablename__ = 'montagem_computador'
     __table_args__ = {'extend_existing': True}
@@ -56,9 +73,14 @@ class ComputerAssembly(db.Model):
     preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     canceled = db.Column(db.Boolean, nullable=False, default=False)
     canceled_at = db.Column(db.DateTime, nullable=True)
+    technical_notes = db.Column(db.Text, nullable=True)
+    bios_updated = db.Column(db.Boolean, nullable=False, default=False)
+    stress_test_done = db.Column(db.Boolean, nullable=False, default=False)
+    os_installed = db.Column(db.Boolean, nullable=False, default=False)
 
     computador = db.relationship('Product')
     composicao = db.relationship('ProductComposition', backref='montagem', cascade='all, delete-orphan')
+    custom_parts = db.relationship('AssemblyCustomPart', backref='assembly', cascade='all, delete-orphan')
 
 
 class Client(db.Model):
@@ -129,26 +151,67 @@ def _remove_product_photo_files(photo_url: str | None):
         original_path.unlink()
 
 
-def _collect_selected_piece_ids(form_data):
+def _collect_selected_piece_inputs(form_data, prefix=''):
     selected_piece_ids = []
+    custom_items = []
+
     for slot_key, _, allow_multiple in COMPONENT_SLOTS:
         if allow_multiple:
-            ids = form_data.getlist(f'{slot_key}_ids[]')
-            qtys = form_data.getlist(f'{slot_key}_qtys[]')
-            for piece_id, qty in zip(ids, qtys):
+            ids = form_data.getlist(f'{prefix}{slot_key}_ids[]')
+            qtys = form_data.getlist(f'{prefix}{slot_key}_qtys[]')
+            custom_names = form_data.getlist(f'{prefix}{slot_key}_custom_names[]')
+            custom_costs = form_data.getlist(f'{prefix}{slot_key}_custom_costs[]')
+
+            for piece_id, qty, custom_name, custom_cost in zip(ids, qtys, custom_names, custom_costs):
+                qty_value = int(qty) if qty else 0
                 if piece_id and qty:
-                    selected_piece_ids.extend([int(piece_id)] * int(qty))
+                    selected_piece_ids.extend([int(piece_id)] * qty_value)
+                    continue
+
+                custom_name = (custom_name or '').strip()
+                if custom_name and qty_value > 0:
+                    custom_items.append({
+                        'slot_key': slot_key,
+                        'name': custom_name,
+                        'qty': qty_value,
+                        'unit_cost': Decimal(custom_cost or '0'),
+                    })
         else:
-            value = form_data.get(f'slot_{slot_key}')
+            value = form_data.get(f'{prefix}slot_{slot_key}')
             if value:
                 selected_piece_ids.append(int(value))
-    return selected_piece_ids
+                continue
+
+            custom_name = (form_data.get(f'{prefix}custom_{slot_key}_name') or '').strip()
+            custom_cost = form_data.get(f'{prefix}custom_{slot_key}_cost') or '0'
+            if custom_name:
+                custom_items.append({
+                    'slot_key': slot_key,
+                    'name': custom_name,
+                    'qty': 1,
+                    'unit_cost': Decimal(custom_cost),
+                })
+
+    return selected_piece_ids, custom_items
 
 
-def _build_computer_with_parts(computer_name, original_price_new, selected_piece_ids, photo_file=None):
+def _build_computer_with_parts(
+    computer_name,
+    original_price_new,
+    selected_piece_ids,
+    custom_items=None,
+    photo_files=None,
+    create_stock_item=True,
+    technical_notes=None,
+    bios_updated=False,
+    stress_test_done=False,
+    os_installed=False,
+):
+    custom_items = custom_items or []
+    photo_files = photo_files or []
     piece_counter = Counter(selected_piece_ids)
-    photo_url = None
-    previous_photo_url = None
+    uploaded_photo_urls = []
+    previous_photo_urls = []
 
     with db.session.begin_nested():
         computer = Product.query.filter(
@@ -173,6 +236,11 @@ def _build_computer_with_parts(computer_name, original_price_new, selected_piece
             piece.stock -= qty
             custo_total += Decimal(qty) * (piece.cost_price or piece.price)
 
+        for custom_item in custom_items:
+            if custom_item['unit_cost'] < 0:
+                raise ValueError(f"Custo inválido para peça personalizada: {custom_item['name']}")
+            custo_total += Decimal(custom_item['qty']) * custom_item['unit_cost']
+
         preco_sugerido = (custo_total * Decimal('1.20')).quantize(Decimal('0.01'))
 
         if not computer:
@@ -185,19 +253,31 @@ def _build_computer_with_parts(computer_name, original_price_new, selected_piece
             db.session.add(computer)
             db.session.flush()
 
-        if photo_file and photo_file.filename:
+        for photo_file in photo_files:
+            if not photo_file or not photo_file.filename:
+                continue
             photo_url, _ = _save_product_photo(photo_file)
-            previous_photo_url = computer.photo_url
-            computer.photo_url = photo_url
+            uploaded_photo_urls.append(photo_url)
 
-        computer.stock += 1
+        if uploaded_photo_urls:
+            if not computer.photo_url:
+                computer.photo_url = uploaded_photo_urls[0]
+            existing_positions = [img.position for img in computer.images] or [0]
+            next_position = max(existing_positions) + 1
+            for url in uploaded_photo_urls:
+                db.session.add(ProductImage(product_id=computer.id, image_url=url, position=next_position))
+                next_position += 1
+
+        if create_stock_item:
+            computer.stock += 1
         preco_base_informado = original_price_new
         if computer.id and preco_base_informado == 0 and Decimal(computer.price) > 0:
             preco_base_informado = Decimal(computer.price)
 
         preco_original = preco_base_informado
         preco_final = (preco_original + custo_total).quantize(Decimal('0.01'))
-        computer.price = preco_final
+        if create_stock_item:
+            computer.price = preco_final
 
         montagem = ComputerAssembly(
             id_computador=computer.id,
@@ -205,6 +285,10 @@ def _build_computer_with_parts(computer_name, original_price_new, selected_piece
             preco_original=preco_original,
             custo_total=custo_total,
             preco_sugerido=preco_sugerido,
+            technical_notes=(technical_notes or '').strip() or None,
+            bios_updated=bios_updated,
+            stress_test_done=stress_test_done,
+            os_installed=os_installed,
         )
         db.session.add(montagem)
         db.session.flush()
@@ -219,19 +303,31 @@ def _build_computer_with_parts(computer_name, original_price_new, selected_piece
                 )
             )
 
+        for custom_item in custom_items:
+            db.session.add(
+                AssemblyCustomPart(
+                    assembly_id=montagem.id,
+                    slot_key=custom_item['slot_key'],
+                    part_name=custom_item['name'],
+                    quantity=custom_item['qty'],
+                    unit_cost=custom_item['unit_cost'],
+                )
+            )
+
     return {
         'preco_original': preco_original,
         'custo_total': custo_total,
         'preco_final': preco_final,
         'preco_sugerido': preco_sugerido,
-        'new_photo_url': photo_url,
-        'previous_photo_url': previous_photo_url,
+        'new_photo_urls': uploaded_photo_urls,
+        'previous_photo_urls': previous_photo_urls,
     }
 
 
 COMPONENT_SLOTS = [
     ('gabinete', 'Gabinete', False),
     ('placa_mae', 'Placa-mãe', False),
+    ('placa_video', 'Placa de Vídeo', False),
     ('processador', 'Processador', False),
     ('memoria_ram', 'Memória RAM', True),
     ('armazenamento', 'Armazenamento', True),
@@ -296,18 +392,28 @@ def produtos():
                 return redirect(url_for('produtos'))
 
             original_price_new = Decimal(request.form.get('computer_original_price') or '0')
-            selected_piece_ids = _collect_selected_piece_ids(request.form)
-            photo_file = request.files.get('photo_file')
+            selected_piece_ids, custom_items = _collect_selected_piece_inputs(request.form)
+            photo_files = request.files.getlist('photo_files')
+            create_stock_item = request.form.get('create_stock_item') == 'on'
+            technical_notes = request.form.get('technical_notes')
+            bios_updated = request.form.get('bios_updated') == 'on'
+            stress_test_done = request.form.get('stress_test_done') == 'on'
+            os_installed = request.form.get('os_installed') == 'on'
 
             try:
                 result = _build_computer_with_parts(
                     computer_name=computer_name,
                     original_price_new=original_price_new,
                     selected_piece_ids=selected_piece_ids,
-                    photo_file=photo_file,
+                    custom_items=custom_items,
+                    photo_files=photo_files,
+                    create_stock_item=create_stock_item,
+                    technical_notes=technical_notes,
+                    bios_updated=bios_updated,
+                    stress_test_done=stress_test_done,
+                    os_installed=os_installed,
                 )
                 db.session.commit()
-                _remove_product_photo_files(result['previous_photo_url'])
                 flash(
                     f'Computador montado cadastrado! Preço base R$ {result["preco_original"]:.2f} + '
                     f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
@@ -367,23 +473,35 @@ def produtos():
 @app.route('/produtos/<int:product_id>/atualizar_foto', methods=['POST'])
 def atualizar_foto_produto(product_id: int):
     product = Product.query.get_or_404(product_id)
-    photo_file = request.files.get('photo_file')
+    photo_files = request.files.getlist('photo_files')
 
-    if not photo_file or not photo_file.filename:
-        flash('Selecione uma imagem para atualizar a foto do produto.', 'danger')
+    valid_files = [file for file in photo_files if file and file.filename]
+    if not valid_files:
+        flash('Selecione ao menos uma imagem para atualizar a galeria do produto.', 'danger')
         return redirect(url_for('produtos'))
 
-    old_photo_url = product.photo_url
     try:
-        photo_url, _ = _save_product_photo(photo_file)
-        product.photo_url = photo_url
+        existing_positions = [img.position for img in product.images] or [0]
+        next_position = max(existing_positions) + 1
+        first_new_url = None
+
+        for photo_file in valid_files:
+            photo_url, _ = _save_product_photo(photo_file)
+            if not first_new_url:
+                first_new_url = photo_url
+            db.session.add(ProductImage(product_id=product.id, image_url=photo_url, position=next_position))
+            next_position += 1
+
+        if not product.photo_url and first_new_url:
+            product.photo_url = first_new_url
+
         db.session.commit()
     except ValueError as exc:
+        db.session.rollback()
         flash(str(exc), 'danger')
         return redirect(url_for('produtos'))
 
-    _remove_product_photo_files(old_photo_url)
-    flash('Foto do produto atualizada com sucesso!', 'success')
+    flash('Galeria de fotos atualizada com sucesso!', 'success')
     return redirect(url_for('produtos'))
 
 
@@ -438,6 +556,60 @@ def remover_produto(product_id: int):
     return redirect(url_for('produtos'))
 
 
+
+
+def _build_assembly_edit_data(latest_assemblies):
+    slot_multiple = {slot_key: allow_multiple for slot_key, _, allow_multiple in COMPONENT_SLOTS}
+    slot_defaults = {slot_key: {'name': '', 'cost': '0'} for slot_key, _, allow_multiple in COMPONENT_SLOTS if not allow_multiple}
+
+    data = {}
+    for assembly in latest_assemblies:
+        single_selected = {}
+        single_custom = {k: {'name': v['name'], 'cost': v['cost']} for k, v in slot_defaults.items()}
+        multi_rows = {slot_key: [] for slot_key, _, allow_multiple in COMPONENT_SLOTS if allow_multiple}
+
+        for item in assembly.composicao:
+            if not item.peca:
+                continue
+            slot_key = item.peca.component_class
+            if not slot_key:
+                continue
+            if slot_multiple.get(slot_key):
+                multi_rows.setdefault(slot_key, []).append({
+                    'piece_id': item.id_peca,
+                    'qty': item.quantidade_utilizada,
+                    'custom_name': '',
+                    'custom_cost': '0',
+                })
+            else:
+                single_selected[slot_key] = item.id_peca
+
+        for custom in assembly.custom_parts:
+            if slot_multiple.get(custom.slot_key):
+                multi_rows.setdefault(custom.slot_key, []).append({
+                    'piece_id': '',
+                    'qty': custom.quantity,
+                    'custom_name': custom.part_name,
+                    'custom_cost': f'{Decimal(custom.unit_cost):.2f}',
+                })
+            else:
+                single_custom[custom.slot_key] = {
+                    'name': custom.part_name,
+                    'cost': f'{Decimal(custom.unit_cost):.2f}',
+                }
+
+        for slot_key in list(multi_rows.keys()):
+            if not multi_rows[slot_key]:
+                multi_rows[slot_key].append({'piece_id': '', 'qty': 1, 'custom_name': '', 'custom_cost': '0'})
+
+        data[assembly.id] = {
+            'single_selected': single_selected,
+            'single_custom': single_custom,
+            'multi_rows': multi_rows,
+        }
+
+    return data
+
 @app.route('/montar_pc', methods=['GET', 'POST'])
 def montar_pc():
     parts_by_class = {
@@ -453,18 +625,28 @@ def montar_pc():
 
         original_price_new = Decimal(request.form.get('computer_original_price') or '0')
 
-        selected_piece_ids = _collect_selected_piece_ids(request.form)
-        photo_file = request.files.get('photo_file')
+        selected_piece_ids, custom_items = _collect_selected_piece_inputs(request.form)
+        photo_files = request.files.getlist('photo_files')
+        create_stock_item = request.form.get('create_stock_item') == 'on'
+        technical_notes = request.form.get('technical_notes')
+        bios_updated = request.form.get('bios_updated') == 'on'
+        stress_test_done = request.form.get('stress_test_done') == 'on'
+        os_installed = request.form.get('os_installed') == 'on'
 
         try:
             result = _build_computer_with_parts(
                 computer_name=computer_name,
                 original_price_new=original_price_new,
                 selected_piece_ids=selected_piece_ids,
-                photo_file=photo_file,
+                custom_items=custom_items,
+                photo_files=photo_files,
+                create_stock_item=create_stock_item,
+                technical_notes=technical_notes,
+                bios_updated=bios_updated,
+                stress_test_done=stress_test_done,
+                os_installed=os_installed,
             )
             db.session.commit()
-            _remove_product_photo_files(result['previous_photo_url'])
             flash(
                 f'Montagem concluída! Preço base R$ {result["preco_original"]:.2f} + '
                 f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
@@ -484,6 +666,7 @@ def montar_pc():
         parts_by_class=parts_by_class,
         component_slots=COMPONENT_SLOTS,
         latest_assemblies=latest_assemblies,
+        assembly_edit_data=_build_assembly_edit_data(latest_assemblies),
     )
 
 
@@ -510,12 +693,85 @@ def editar_montagem(assembly_id: int):
         flash('Preço original não pode ser negativo.', 'danger')
         return redirect(url_for('montar_pc'))
 
-    assembly.nome_referencia = nome_referencia
-    assembly.preco_original = preco_original
-    assembly.preco_sugerido = (Decimal(assembly.custo_total) * Decimal('1.20')).quantize(Decimal('0.01'))
+    selected_piece_ids, custom_items = _collect_selected_piece_inputs(request.form, prefix='edit_')
+    piece_counter_new = Counter(selected_piece_ids)
 
-    db.session.commit()
-    flash('Montagem atualizada com sucesso!', 'success')
+    try:
+        existing_counter = Counter()
+        for item in assembly.composicao:
+            if item.id_peca:
+                existing_counter[item.id_peca] += item.quantidade_utilizada
+
+        all_piece_ids = set(existing_counter.keys()) | set(piece_counter_new.keys())
+        pieces = Product.query.filter(Product.id.in_(all_piece_ids)).all() if all_piece_ids else []
+        pieces_by_id = {piece.id: piece for piece in pieces}
+
+        for piece_id, qty in existing_counter.items():
+            piece = pieces_by_id.get(piece_id)
+            if piece:
+                piece.stock += qty
+
+        for piece_id, qty in piece_counter_new.items():
+            piece = pieces_by_id.get(piece_id)
+            if not piece or piece.category != 'Peça':
+                raise ValueError('Uma das peças selecionadas é inválida.')
+            if piece.stock < qty:
+                raise ValueError(f'Não foi possível salvar edição: {piece.name} insuficiente no estoque')
+
+        custo_total = Decimal('0.00')
+        for piece_id, qty in piece_counter_new.items():
+            piece = pieces_by_id[piece_id]
+            piece.stock -= qty
+            custo_total += Decimal(qty) * (piece.cost_price or piece.price)
+
+        for custom_item in custom_items:
+            if custom_item['unit_cost'] < 0:
+                raise ValueError(f"Custo inválido para peça personalizada: {custom_item['name']}")
+            custo_total += Decimal(custom_item['qty']) * custom_item['unit_cost']
+
+        assembly.nome_referencia = nome_referencia
+        assembly.preco_original = preco_original
+        assembly.custo_total = custo_total.quantize(Decimal('0.01'))
+        assembly.preco_sugerido = (Decimal(assembly.custo_total) * Decimal('1.20')).quantize(Decimal('0.01'))
+        assembly.technical_notes = (request.form.get('technical_notes') or '').strip() or None
+        assembly.bios_updated = request.form.get('bios_updated') == 'on'
+        assembly.stress_test_done = request.form.get('stress_test_done') == 'on'
+        assembly.os_installed = request.form.get('os_installed') == 'on'
+
+        computer = assembly.computador
+        if computer and computer.stock > 0:
+            computer.price = (preco_original + assembly.custo_total).quantize(Decimal('0.01'))
+
+        ProductComposition.query.filter_by(id_montagem=assembly.id).delete()
+        AssemblyCustomPart.query.filter_by(assembly_id=assembly.id).delete()
+
+        for piece_id, qty in piece_counter_new.items():
+            db.session.add(
+                ProductComposition(
+                    id_computador=assembly.id_computador,
+                    id_peca=piece_id,
+                    quantidade_utilizada=qty,
+                    id_montagem=assembly.id,
+                )
+            )
+
+        for custom_item in custom_items:
+            db.session.add(
+                AssemblyCustomPart(
+                    assembly_id=assembly.id,
+                    slot_key=custom_item['slot_key'],
+                    part_name=custom_item['name'],
+                    quantity=custom_item['qty'],
+                    unit_cost=custom_item['unit_cost'],
+                )
+            )
+
+        db.session.commit()
+        flash('Montagem atualizada com sucesso!', 'success')
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
+
     return redirect(url_for('montar_pc'))
 
 
@@ -786,6 +1042,32 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN cost_price NUMERIC(10,2) NOT NULL DEFAULT 0'))
     db.session.commit()
 
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS product_image ('
+            'id INTEGER PRIMARY KEY, '
+            'product_id INTEGER NOT NULL, '
+            'image_url VARCHAR(255) NOT NULL, '
+            'position INTEGER NOT NULL DEFAULT 0, '
+            'FOREIGN KEY(product_id) REFERENCES product (id)'
+            ')'
+        )
+    )
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS assembly_custom_part ('
+            'id INTEGER PRIMARY KEY, '
+            'assembly_id INTEGER NOT NULL, '
+            'slot_key VARCHAR(50) NOT NULL, '
+            'part_name VARCHAR(120) NOT NULL, '
+            'quantity INTEGER NOT NULL DEFAULT 1, '
+            'unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'FOREIGN KEY(assembly_id) REFERENCES montagem_computador (id)'
+            ')'
+        )
+    )
+    db.session.commit()
+
     montagem_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(montagem_computador)'))]
     if 'nome_referencia' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN nome_referencia VARCHAR(120)'))
@@ -795,6 +1077,14 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
     if 'canceled_at' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN canceled_at DATETIME'))
+    if 'technical_notes' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN technical_notes TEXT'))
+    if 'bios_updated' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN bios_updated BOOLEAN NOT NULL DEFAULT 0'))
+    if 'stress_test_done' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN stress_test_done BOOLEAN NOT NULL DEFAULT 0'))
+    if 'os_installed' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN os_installed BOOLEAN NOT NULL DEFAULT 0'))
     db.session.execute(
         db.text(
             "UPDATE montagem_computador SET nome_referencia = (SELECT product.name FROM product "
