@@ -91,6 +91,8 @@
         <th>Preço sugerido</th>
         <th>Custo peças</th>
         <th>Peças utilizadas</th>
+        <th>Status</th>
+        <th>Ações</th>
       </tr>
     </thead>
     <tbody>
@@ -107,9 +109,42 @@
             <span class="assembly-part">{{ item.peca.name }} x{{ item.quantidade_utilizada }}</span>{% if not loop.last %}, {% endif %}
           {% endfor %}
         </td>
+        <td>
+          {% if montagem.canceled %}
+            <span class="badge danger">Cancelada</span>
+          {% else %}
+            <span class="badge success">Ativa</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if not montagem.canceled %}
+            <button type="button" class="btn-secondary open-edit-modal" data-modal-id="assembly-modal-{{ montagem.id }}">Editar</button>
+            <form method="post" action="{{ url_for('cancelar_montagem', assembly_id=montagem.id) }}" onsubmit="return confirm('Deseja cancelar esta montagem e estornar as peças no estoque?');">
+              <button type="submit" class="btn-danger">Cancelar</button>
+            </form>
+          {% else %}
+            -
+          {% endif %}
+        </td>
       </tr>
+
+      {% if not montagem.canceled %}
+      <dialog id="assembly-modal-{{ montagem.id }}" class="modal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Editar montagem #{{ montagem.id }}</h3>
+            <button type="button" class="modal-close" data-close-modal="assembly-modal-{{ montagem.id }}">✕</button>
+          </div>
+          <form method="post" action="{{ url_for('editar_montagem', assembly_id=montagem.id) }}" class="grid form-grid">
+            <input name="nome_referencia" value="{{ montagem.nome_referencia }}" required />
+            <input name="preco_original" type="number" min="0" step="0.01" value="{{ montagem.preco_original }}" required />
+            <button type="submit">Salvar alterações</button>
+          </form>
+        </div>
+      </dialog>
+      {% endif %}
       {% else %}
-      <tr><td colspan="7">Nenhuma montagem registrada.</td></tr>
+      <tr><td colspan="9">Nenhuma montagem registrada.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -158,6 +193,32 @@
       clone.querySelector('input').value = 1;
       list.appendChild(clone);
       atualizarTotais();
+    });
+  });
+
+  document.querySelectorAll('.open-edit-modal').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const modal = document.getElementById(btn.dataset.modalId);
+      if (modal) modal.showModal();
+    });
+  });
+
+  document.querySelectorAll('[data-close-modal]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const modal = document.getElementById(btn.dataset.closeModal);
+      if (modal) modal.close();
+    });
+  });
+
+  document.querySelectorAll('dialog.modal').forEach((modal) => {
+    modal.addEventListener('click', (event) => {
+      const rect = modal.getBoundingClientRect();
+      const clickedBackdrop =
+        event.clientX < rect.left ||
+        event.clientX > rect.right ||
+        event.clientY < rect.top ||
+        event.clientY > rect.bottom;
+      if (clickedBackdrop) modal.close();
     });
   });
 
