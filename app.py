@@ -137,6 +137,17 @@ class FixedCost(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+class MaintenanceTicket(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    client_name = db.Column(db.String(120), nullable=False)
+    equipment = db.Column(db.String(120), nullable=False)
+    service_description = db.Column(db.String(180), nullable=False)
+    entry_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    exit_date = db.Column(db.DateTime, nullable=True)
+    waiting_parts = db.Column(db.Boolean, nullable=False, default=False)
+    status = db.Column(db.String(30), nullable=False, default='em_andamento')
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
 
 
 def _save_product_photo(file_storage):
@@ -381,6 +392,7 @@ def dashboard():
     sales_query = Sale.query.filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
     service_query = ServiceRecord.query.filter(ServiceRecord.created_at >= start_date)
     fixed_cost_query = FixedCost.query.filter(FixedCost.created_at >= start_date)
+    maintenance_query = MaintenanceTicket.query.filter(MaintenanceTicket.entry_date >= start_date)
 
     product_count = Product.query.count()
     total_stock = db.session.query(db.func.coalesce(db.func.sum(Product.stock), 0)).scalar()
@@ -404,6 +416,8 @@ def dashboard():
     ).scalar()
     total_profit = sales_profit + service_profit
     net_profit = total_profit - total_fixed_costs
+    maintenance_in_progress = maintenance_query.filter(MaintenanceTicket.status != 'concluido').count()
+    maintenance_waiting_parts = maintenance_query.filter(MaintenanceTicket.waiting_parts.is_(True), MaintenanceTicket.status != 'concluido').count()
 
     payment_method_summary = (
         db.session.query(
@@ -455,6 +469,8 @@ def dashboard():
         total_profit=total_profit,
         total_fixed_costs=total_fixed_costs,
         net_profit=net_profit,
+        maintenance_in_progress=maintenance_in_progress,
+        maintenance_waiting_parts=maintenance_waiting_parts,
         payment_method_summary=payment_method_summary,
         payment_method_labels=PAYMENT_METHOD_LABELS,
         latest_sales=latest_sales,
@@ -922,6 +938,41 @@ def servicos():
     ]
 
     if request.method == 'POST':
+        form_type = request.form.get('form_type', 'service_record')
+
+        if form_type == 'maintenance_ticket':
+            client_name = (request.form.get('maintenance_client_name') or '').strip()
+            equipment = (request.form.get('maintenance_equipment') or '').strip()
+            service_description = (request.form.get('maintenance_service_description') or '').strip()
+            entry_date_raw = request.form.get('maintenance_entry_date')
+            waiting_parts = request.form.get('maintenance_waiting_parts') == 'on'
+
+            if not client_name or not equipment or not service_description:
+                flash('Preencha cliente, equipamento e serviço em manutenção.', 'danger')
+                return redirect(url_for('servicos'))
+
+            entry_date = datetime.utcnow()
+            if entry_date_raw:
+                try:
+                    entry_date = datetime.fromisoformat(entry_date_raw)
+                except ValueError:
+                    flash('Data de entrada inválida.', 'danger')
+                    return redirect(url_for('servicos'))
+
+            db.session.add(
+                MaintenanceTicket(
+                    client_name=client_name,
+                    equipment=equipment,
+                    service_description=service_description,
+                    entry_date=entry_date,
+                    waiting_parts=waiting_parts,
+                    status='aguardando_pecas' if waiting_parts else 'em_andamento',
+                )
+            )
+            db.session.commit()
+            flash('Computador em manutenção cadastrado com sucesso!', 'success')
+            return redirect(url_for('servicos'))
+
         service_name = (request.form.get('service_name') or '').strip()
         client_name = (request.form.get('client_name') or '').strip()
         equipment = (request.form.get('equipment') or '').strip()
@@ -951,7 +1002,39 @@ def servicos():
         return redirect(url_for('servicos'))
 
     recent_services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).limit(10).all()
-    return render_template('services.html', services=service_catalog, recent_services=recent_services)
+    maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(20).all()
+    return render_template(
+        'services.html',
+        services=service_catalog,
+        recent_services=recent_services,
+        maintenance_tickets=maintenance_tickets,
+    )
+
+
+@app.route('/manutencoes/<int:ticket_id>/atualizar', methods=['POST'])
+def atualizar_manutencao(ticket_id: int):
+    ticket = MaintenanceTicket.query.get_or_404(ticket_id)
+    status = request.form.get('status') or ticket.status
+    waiting_parts = request.form.get('waiting_parts') == 'on'
+    exit_date_raw = request.form.get('exit_date')
+
+    if status == 'concluido' and not exit_date_raw:
+        ticket.exit_date = datetime.utcnow()
+    elif exit_date_raw:
+        try:
+            ticket.exit_date = datetime.fromisoformat(exit_date_raw)
+        except ValueError:
+            flash('Data de saída inválida.', 'danger')
+            return redirect(url_for('servicos'))
+
+    ticket.status = status
+    ticket.waiting_parts = waiting_parts
+    if waiting_parts and status != 'concluido':
+        ticket.status = 'aguardando_pecas'
+
+    db.session.commit()
+    flash('Status da manutenção atualizado!', 'success')
+    return redirect(url_for('servicos'))
 
 
 @app.route('/dashboard/custos-fixos', methods=['POST'])
@@ -970,6 +1053,7 @@ def cadastrar_custo_fixo():
     db.session.commit()
     flash('Custo fixo adicionado ao financeiro!', 'success')
     return redirect(url_for('dashboard'))
+
 
 @app.route('/clientes', methods=['GET', 'POST'])
 def clientes():
@@ -1242,6 +1326,21 @@ with app.app_context():
             'id INTEGER PRIMARY KEY, '
             'description VARCHAR(120) NOT NULL, '
             'amount NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'created_at DATETIME NOT NULL'
+            ')'
+        )
+    )
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS maintenance_ticket ('
+            'id INTEGER PRIMARY KEY, '
+            'client_name VARCHAR(120) NOT NULL, '
+            'equipment VARCHAR(120) NOT NULL, '
+            'service_description VARCHAR(180) NOT NULL, '
+            'entry_date DATETIME NOT NULL, '
+            'exit_date DATETIME, '
+            'waiting_parts BOOLEAN NOT NULL DEFAULT 0, '
+            "status VARCHAR(30) NOT NULL DEFAULT 'em_andamento', "
             'created_at DATETIME NOT NULL'
             ')'
         )

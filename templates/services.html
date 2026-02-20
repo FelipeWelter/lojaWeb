@@ -16,8 +16,70 @@
 </section>
 
 <section class="card">
+  <h2>Cadastro de computador em manutenção</h2>
+  <form method="post" class="grid form-grid">
+    <input type="hidden" name="form_type" value="maintenance_ticket" />
+    <input name="maintenance_client_name" placeholder="Cliente" required />
+    <input name="maintenance_equipment" placeholder="Equipamento" required />
+    <input name="maintenance_service_description" placeholder="Serviço em execução" required />
+    <label>
+      Data de entrada
+      <input name="maintenance_entry_date" type="datetime-local" />
+    </label>
+    <label>
+      <input name="maintenance_waiting_parts" type="checkbox" /> Aguardando peças
+    </label>
+    <button type="submit">Adicionar na manutenção</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Controle de manutenção</h2>
+  <table>
+    <thead>
+      <tr><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Entrada</th><th>Saída</th><th>Status</th><th>Ação</th></tr>
+    </thead>
+    <tbody>
+      {% for ticket in maintenance_tickets %}
+      <tr>
+        <td>{{ ticket.client_name }}</td>
+        <td>{{ ticket.equipment }}</td>
+        <td>{{ ticket.service_description }}</td>
+        <td>{{ ticket.entry_date.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ ticket.exit_date.strftime('%d/%m/%Y %H:%M') if ticket.exit_date else '-' }}</td>
+        <td>
+          {% if ticket.status == 'concluido' %}
+            <span class="badge success">Concluído</span>
+          {% elif ticket.waiting_parts %}
+            <span class="badge danger">Aguardando peças</span>
+          {% else %}
+            <span class="badge">Em andamento</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}" class="inline-form">
+            <select name="status">
+              <option value="em_andamento" {% if ticket.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+              <option value="aguardando_pecas" {% if ticket.status == 'aguardando_pecas' %}selected{% endif %}>Aguardando peças</option>
+              <option value="concluido" {% if ticket.status == 'concluido' %}selected{% endif %}>Concluído</option>
+            </select>
+            <label><input type="checkbox" name="waiting_parts" {% if ticket.waiting_parts %}checked{% endif %}/> Aguardando peças</label>
+            <input type="datetime-local" name="exit_date" value="{{ ticket.exit_date.strftime('%Y-%m-%dT%H:%M') if ticket.exit_date else '' }}" />
+            <button type="submit">Atualizar</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Nenhum equipamento em manutenção.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
   <h2>Cadastrar serviço realizado</h2>
   <form method="post" class="grid form-grid">
+    <input type="hidden" name="form_type" value="service_record" />
     <input name="service_name" placeholder="Nome do serviço" required />
     <input name="client_name" placeholder="Cliente" required />
     <input name="equipment" placeholder="Equipamento" required />
