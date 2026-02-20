@@ -41,8 +41,8 @@
         <input name="computer_original_price" type="number" min="0" step="0.01" value="0" />
       </label>
       <label>
-        Foto do computador
-        <input name="photo_file" type="file" accept="image/*" />
+        Fotos do computador
+        <input name="photo_files" type="file" accept="image/*" multiple />
       </label>
     </div>
 
@@ -61,6 +61,14 @@
             </option>
             {% endfor %}
           </select>
+        </label>
+        <label>
+          Ou peça personalizada
+          <input name="custom_{{ slot_key }}_name" placeholder="Ex: item fora do estoque" />
+        </label>
+        <label>
+          Custo (R$)
+          <input name="custom_{{ slot_key }}_cost" type="number" min="0" step="0.01" value="0" />
         </label>
       </div>
       {% endfor %}
@@ -87,6 +95,8 @@
               </option>
               {% endfor %}
             </select>
+            <input name="{{ slot_key }}_custom_names[]" placeholder="Ou peça personalizada" />
+            <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" value="0" placeholder="Custo" />
 
             <div class="qty-control" title="Quantidade">
               <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
@@ -105,6 +115,19 @@
     <div class="assembly-summary full-width">
       <p><strong>Custo total das peças:</strong> <span id="total-custo">R$ 0,00</span></p>
       <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+    </div>
+
+    <div class="assembly-summary full-width">
+      <label>
+        Observações técnicas
+        <textarea name="technical_notes" rows="3" placeholder="Detalhes técnicos e validações..."></textarea>
+      </label>
+      <div class="class-menu">
+        <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
+        <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
+        <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
+        <label><input type="checkbox" name="create_stock_item" checked /> Criar automaticamente item em estoque</label>
+      </div>
     </div>
 
     <button type="submit">Salvar computador montado</button>
@@ -136,7 +159,11 @@
         <td>R$ {{ '%.2f'|format(p.cost_price) }}</td>
         <td>R$ {{ '%.2f'|format(p.price) }}</td>
         <td>
-          {% if p.photo_url %}
+          {% set gallery = p.images if p.images else [] %}
+          {% if gallery %}
+            <img src="{{ gallery[0].image_url }}" alt="Foto de {{ p.name }}" class="stock-thumb" loading="lazy" />
+            <small>{{ gallery|length }} foto(s)</small>
+          {% elif p.photo_url %}
             <a href="{{ p.photo_url }}" target="_blank" title="Abrir imagem">
               <img src="{{ p.photo_url }}" alt="Foto de {{ p.name }}" class="stock-thumb" loading="lazy" />
             </a>
@@ -176,9 +203,26 @@
               <button type="submit">Salvar alterações</button>
             </form>
 
+            <div class="product-gallery" data-gallery-id="gallery-{{ p.id }}">
+              {% if p.images %}
+                {% for img in p.images %}
+                <img src="{{ img.image_url }}" alt="Imagem {{ loop.index }} de {{ p.name }}" class="gallery-image {% if not loop.first %}hidden{% endif %}" data-index="{{ loop.index0 }}" />
+                {% endfor %}
+                <div class="gallery-controls">
+                  <button type="button" class="btn-secondary gallery-prev" data-gallery-id="gallery-{{ p.id }}">◀</button>
+                  <span class="gallery-counter" data-gallery-counter="gallery-{{ p.id }}">1 / {{ p.images|length }}</span>
+                  <button type="button" class="btn-secondary gallery-next" data-gallery-id="gallery-{{ p.id }}">▶</button>
+                </div>
+              {% elif p.photo_url %}
+                <img src="{{ p.photo_url }}" alt="Foto de {{ p.name }}" class="gallery-image" />
+              {% else %}
+                <p class="slot-help">Sem fotos cadastradas.</p>
+              {% endif %}
+            </div>
+
             <form method="post" action="{{ url_for('atualizar_foto_produto', product_id=p.id) }}" class="inline-form" enctype="multipart/form-data">
-              <input name="photo_file" type="file" accept="image/*" required />
-              <button type="submit">Atualizar foto</button>
+              <input name="photo_files" type="file" accept="image/*" multiple required />
+              <button type="submit">Adicionar fotos na galeria</button>
             </form>
 
             <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" onsubmit="return confirm('Deseja remover este item do estoque?');">
@@ -232,10 +276,14 @@
     assembledForm.querySelectorAll('.multi-row').forEach((row) => {
       const select = row.querySelector('select');
       const qtyInput = row.querySelector('input[type="number"]');
+      const customNameInput = row.querySelector('input[name$="_custom_names[]"]');
+      const customCostInput = row.querySelector('input[name$="_custom_costs[]"]');
       const option = select.options[select.selectedIndex];
       const qty = Number(qtyInput.value || 0);
       if (option && option.value && qty > 0) {
         total += Number(option.dataset.cost || 0) * qty;
+      } else if (customNameInput && customNameInput.value.trim() && qty > 0) {
+        total += Number(customCostInput.value || 0) * qty;
       }
     });
 
@@ -243,6 +291,11 @@
       const option = select.options[select.selectedIndex];
       if (option && option.value) {
         total += Number(option.dataset.cost || 0);
+      } else {
+        const slot = select.name.replace('slot_', '');
+        const name = assembledForm.querySelector(`input[name="custom_${slot}_name"]`);
+        const cost = assembledForm.querySelector(`input[name="custom_${slot}_cost"]`);
+        if (name && name.value.trim()) total += Number(cost.value || 0);
       }
     });
 
@@ -270,7 +323,12 @@
       const firstRow = list.querySelector('.multi-row');
       const clone = firstRow.cloneNode(true);
       clone.querySelector('select').selectedIndex = 0;
-      clone.querySelector('input').value = 1;
+      const customName = clone.querySelector('input[name$="_custom_names[]"]');
+      const customCost = clone.querySelector('input[name$="_custom_costs[]"]');
+      const qtyInput = clone.querySelector('input[name$="_qtys[]"]');
+      if (customName) customName.value = '';
+      if (customCost) customCost.value = 0;
+      if (qtyInput) qtyInput.value = 1;
       list.appendChild(clone);
       atualizarTotaisMontado();
     });
@@ -329,6 +387,29 @@
 
   assembledForm.addEventListener('change', atualizarTotaisMontado);
   assembledForm.addEventListener('input', atualizarTotaisMontado);
+
+
+  document.querySelectorAll('.gallery-prev, .gallery-next').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const galleryId = btn.dataset.galleryId;
+      const container = document.querySelector(`[data-gallery-id="${galleryId}"]`);
+      if (!container) return;
+      const images = container.querySelectorAll('.gallery-image[data-index]');
+      if (!images.length) return;
+
+      let current = [...images].findIndex((img) => !img.classList.contains('hidden'));
+      if (current < 0) current = 0;
+      const next = btn.classList.contains('gallery-next')
+        ? (current + 1) % images.length
+        : (current - 1 + images.length) % images.length;
+
+      images[current].classList.add('hidden');
+      images[next].classList.remove('hidden');
+
+      const counter = container.querySelector(`[data-gallery-counter="${galleryId}"]`);
+      if (counter) counter.textContent = `${next + 1} / ${images.length}`;
+    });
+  });
 
   categorySelect.addEventListener('change', togglePieceClass);
   togglePieceClass();

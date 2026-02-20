@@ -13,8 +13,8 @@
         <input name="computer_original_price" type="number" min="0" step="0.01" value="0" />
       </label>
       <label>
-        Foto do computador (opcional)
-        <input name="photo_file" type="file" accept="image/*" />
+        Fotos do computador (opcional)
+        <input name="photo_files" type="file" accept="image/*" multiple />
       </label>
     </div>
 
@@ -33,6 +33,14 @@
             </option>
             {% endfor %}
           </select>
+        </label>
+        <label>
+          Ou peça personalizada
+          <input name="custom_{{ slot_key }}_name" placeholder="Ex: Placa-mãe do cliente" />
+        </label>
+        <label>
+          Custo (R$)
+          <input name="custom_{{ slot_key }}_cost" type="number" min="0" step="0.01" value="0" />
         </label>
       </div>
       {% endfor %}
@@ -60,6 +68,9 @@
               {% endfor %}
             </select>
 
+            <input name="{{ slot_key }}_custom_names[]" placeholder="Ou peça personalizada" />
+            <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" value="0" placeholder="Custo" />
+
             <div class="qty-control" title="Quantidade">
               <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
               <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
@@ -79,6 +90,19 @@
       <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
     </div>
 
+    <div class="assembly-summary full-width">
+      <label>
+        Observações técnicas
+        <textarea name="technical_notes" rows="3" placeholder="Ex: curva de fan ajustada, XMP ativado..."></textarea>
+      </label>
+      <div class="class-menu">
+        <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
+        <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
+        <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
+        <label><input type="checkbox" name="create_stock_item" checked /> Criar item automaticamente em "Computador" no estoque</label>
+      </div>
+    </div>
+
     <button type="submit">Finalizar montagem</button>
   </form>
 </section>
@@ -95,6 +119,7 @@
         <th>Preço sugerido</th>
         <th>Custo peças</th>
         <th>Peças utilizadas</th>
+        <th>Checklist técnico</th>
         <th>Status</th>
         <th>Ações</th>
       </tr>
@@ -110,8 +135,19 @@
         <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
         <td>
           {% for item in montagem.composicao %}
-            <span class="assembly-part">{{ item.peca.name }} x{{ item.quantidade_utilizada }}</span>{% if not loop.last %}, {% endif %}
+            <span class="assembly-part">{{ item.peca.name }} x{{ item.quantidade_utilizada }}</span>{% if not loop.last or montagem.custom_parts %}, {% endif %}
           {% endfor %}
+          {% for custom in montagem.custom_parts %}
+            <span class="assembly-part">{{ custom.part_name }} x{{ custom.quantity }} (custom)</span>{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+        <td>
+          {% if montagem.technical_notes %}<div>{{ montagem.technical_notes }}</div>{% endif %}
+          <small>
+            BIOS: {{ 'Sim' if montagem.bios_updated else 'Não' }} |
+            Stress: {{ 'Sim' if montagem.stress_test_done else 'Não' }} |
+            SO: {{ 'Sim' if montagem.os_installed else 'Não' }}
+          </small>
         </td>
         <td>
           {% if montagem.canceled %}
@@ -135,22 +171,99 @@
       </tr>
 
       {% if not montagem.canceled %}
+      {% set edit_data = assembly_edit_data.get(montagem.id, {}) %}
       <dialog id="assembly-modal-{{ montagem.id }}" class="modal">
         <div class="modal-content">
           <div class="modal-header">
             <h3>Editar montagem #{{ montagem.id }}</h3>
             <button type="button" class="modal-close" data-close-modal="assembly-modal-{{ montagem.id }}">✕</button>
           </div>
-          <form method="post" action="{{ url_for('editar_montagem', assembly_id=montagem.id) }}" class="grid form-grid">
-            <input name="nome_referencia" value="{{ montagem.nome_referencia }}" required />
-            <input name="preco_original" type="number" min="0" step="0.01" value="{{ montagem.preco_original }}" required />
+          <form method="post" action="{{ url_for('editar_montagem', assembly_id=montagem.id) }}" class="grid form-grid edit-assembly-form" data-edit-form="{{ montagem.id }}">
+            <div class="pc-header full-width">
+              <label>
+                Nome de referência
+                <input name="nome_referencia" value="{{ montagem.nome_referencia }}" required />
+              </label>
+              <label>
+                Preço base
+                <input name="preco_original" type="number" min="0" step="0.01" value="{{ montagem.preco_original }}" required />
+              </label>
+            </div>
+
+            <div class="slots-top full-width">
+              {% for slot_key, slot_label, allow_multiple in component_slots if not allow_multiple %}
+              <div class="slot-box">
+                <h3>{{ slot_label }}</h3>
+                <label>
+                  Seleção
+                  <select name="edit_slot_{{ slot_key }}" class="piece-select">
+                    <option value="">Sem seleção</option>
+                    {% for part in parts_by_class[slot_key] %}
+                    <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if (edit_data.single_selected.get(slot_key) == part.id) %}selected{% endif %}>{{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})</option>
+                    {% endfor %}
+                  </select>
+                </label>
+                <label>
+                  Ou peça personalizada
+                  <input name="edit_custom_{{ slot_key }}_name" value="{{ edit_data.single_custom.get(slot_key, {}).get('name', '') }}" />
+                </label>
+                <label>
+                  Custo (R$)
+                  <input name="edit_custom_{{ slot_key }}_cost" type="number" min="0" step="0.01" value="{{ edit_data.single_custom.get(slot_key, {}).get('cost', '0') }}" />
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+
+            <div class="slots-bottom full-width">
+              {% for slot_key, slot_label, allow_multiple in component_slots if allow_multiple %}
+              <div class="slot-box slot-multiple">
+                <h3>{{ slot_label }}</h3>
+                <div class="multi-list" data-slot="edit_{{ slot_key }}">
+                  <div class="multi-header"><span>Item</span><span>Qtd</span><span></span></div>
+                  {% for row in edit_data.multi_rows.get(slot_key, [{'piece_id':'','qty':1,'custom_name':'','custom_cost':'0'}]) %}
+                  <div class="multi-row">
+                    <select name="edit_{{ slot_key }}_ids[]" class="piece-select">
+                      <option value="">Sem seleção</option>
+                      {% for part in parts_by_class[slot_key] %}
+                      <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if row.piece_id == part.id %}selected{% endif %}>{{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})</option>
+                      {% endfor %}
+                    </select>
+                    <input name="edit_{{ slot_key }}_custom_names[]" placeholder="Ou personalizada" value="{{ row.custom_name }}" />
+                    <input name="edit_{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" value="{{ row.custom_cost }}" />
+                    <div class="qty-control" title="Quantidade">
+                      <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
+                      <input type="number" name="edit_{{ slot_key }}_qtys[]" min="1" value="{{ row.qty }}" />
+                      <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+                    </div>
+                    <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
+                  </div>
+                  {% endfor %}
+                </div>
+                <button type="button" class="add-item edit-add-item" data-slot="edit_{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
+              </div>
+              {% endfor %}
+            </div>
+
+            <div class="assembly-summary full-width">
+              <label>
+                Observações técnicas
+                <textarea name="technical_notes" rows="3">{{ montagem.technical_notes or '' }}</textarea>
+              </label>
+              <div class="class-menu">
+                <label><input type="checkbox" name="bios_updated" {% if montagem.bios_updated %}checked{% endif %}/> BIOS atualizada</label>
+                <label><input type="checkbox" name="stress_test_done" {% if montagem.stress_test_done %}checked{% endif %}/> Stress test realizado</label>
+                <label><input type="checkbox" name="os_installed" {% if montagem.os_installed %}checked{% endif %}/> Sistema operacional instalado</label>
+              </div>
+            </div>
+
             <button type="submit">Salvar alterações</button>
           </form>
         </div>
       </dialog>
       {% endif %}
       {% else %}
-      <tr><td colspan="9">Nenhuma montagem registrada.</td></tr>
+      <tr><td colspan="10">Nenhuma montagem registrada.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -170,10 +283,14 @@
     form.querySelectorAll('.multi-row').forEach((row) => {
       const select = row.querySelector('select');
       const qtyInput = row.querySelector('input[type="number"]');
+      const customCostInput = row.querySelector('input[name$="_custom_costs[]"]');
+      const customNameInput = row.querySelector('input[name$="_custom_names[]"]');
       const option = select.options[select.selectedIndex];
       const qty = Number(qtyInput.value || 0);
       if (option && option.value && qty > 0) {
         total += Number(option.dataset.cost || 0) * qty;
+      } else if (customNameInput && customNameInput.value.trim() && qty > 0) {
+        total += Number(customCostInput.value || 0) * qty;
       }
     });
 
@@ -181,6 +298,13 @@
       const option = select.options[select.selectedIndex];
       if (option && option.value) {
         total += Number(option.dataset.cost || 0);
+      } else {
+        const slot = select.name.replace('slot_', '');
+        const name = form.querySelector(`input[name="custom_${slot}_name"]`);
+        const cost = form.querySelector(`input[name="custom_${slot}_cost"]`);
+        if (name && name.value.trim()) {
+          total += Number(cost.value || 0);
+        }
       }
     });
 
@@ -196,7 +320,12 @@
       const firstRow = list.querySelector('.multi-row');
       const clone = firstRow.cloneNode(true);
       clone.querySelector('select').selectedIndex = 0;
-      clone.querySelector('input').value = 1;
+      const customName = clone.querySelector('input[name$="_custom_names[]"]');
+      const customCost = clone.querySelector('input[name$="_custom_costs[]"]');
+      const qtyInput = clone.querySelector('input[name$="_qtys[]"]');
+      if (customName) customName.value = '';
+      if (customCost) customCost.value = 0;
+      if (qtyInput) qtyInput.value = 1;
       list.appendChild(clone);
       atualizarTotais();
     });
@@ -251,6 +380,42 @@
       }
       atualizarTotais();
     }
+  });
+
+
+  document.querySelectorAll('.edit-add-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const list = btn.parentElement.querySelector(`.multi-list[data-slot="${btn.dataset.slot}"]`);
+      const firstRow = list.querySelector('.multi-row');
+      const clone = firstRow.cloneNode(true);
+      clone.querySelector('select').selectedIndex = 0;
+      const customName = clone.querySelector('input[name$="_custom_names[]"]');
+      const customCost = clone.querySelector('input[name$="_custom_costs[]"]');
+      const qtyInput = clone.querySelector('input[name$="_qtys[]"]');
+      if (customName) customName.value = '';
+      if (customCost) customCost.value = 0;
+      if (qtyInput) qtyInput.value = 1;
+      list.appendChild(clone);
+    });
+  });
+
+  document.querySelectorAll('.edit-assembly-form').forEach((editForm) => {
+    editForm.addEventListener('click', (event) => {
+      const target = event.target;
+      if (target.classList.contains('qty-decrease') || target.classList.contains('qty-increase')) {
+        const input = target.parentElement.querySelector('input[name$="_qtys[]"]');
+        const current = Number(input.value || 1);
+        const delta = target.classList.contains('qty-increase') ? 1 : -1;
+        input.value = Math.max(1, current + delta);
+      }
+      if (target.classList.contains('row-remove')) {
+        const list = target.closest('.multi-list');
+        const rows = list.querySelectorAll('.multi-row');
+        if (rows.length > 1) {
+          target.closest('.multi-row').remove();
+        }
+      }
+    });
   });
 
   form.addEventListener('change', atualizarTotais);
