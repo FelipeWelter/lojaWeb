@@ -2,7 +2,14 @@
 {% block content %}
 <section class="card">
   <h2>Novo produto</h2>
-  <form method="post" class="grid form-grid" enctype="multipart/form-data">
+
+  <div class="class-menu" id="new-product-mode-menu">
+    <button type="button" class="active" data-mode="piece">Cadastrar peça</button>
+    <button type="button" data-mode="assembled">Cadastrar computador montado</button>
+  </div>
+
+  <form method="post" class="grid form-grid" id="piece-form" enctype="multipart/form-data">
+    <input type="hidden" name="form_mode" value="piece" />
     <input name="name" placeholder="Nome" required />
     <select name="category" id="category-select"><option>Peça</option><option>Computador</option></select>
     <select name="component_class" id="component-class-select">
@@ -18,7 +25,89 @@
     <input name="price" type="number" min="0" step="0.01" placeholder="Preço de venda" required />
     <input name="cost_price" type="number" min="0" step="0.01" placeholder="Valor de compra" required />
     <input name="photo_file" type="file" accept="image/*" />
-    <button type="submit">Salvar</button>
+    <button type="submit">Salvar peça</button>
+  </form>
+
+  <form method="post" class="grid form-grid hidden" id="assembled-form" enctype="multipart/form-data">
+    <input type="hidden" name="form_mode" value="assembled_computer" />
+
+    <div class="pc-header full-width">
+      <label>
+        Nome do computador
+        <input name="computer_name" placeholder="Ex: Setup Gamer RTX" required />
+      </label>
+      <label>
+        Preço base (opcional)
+        <input name="computer_original_price" type="number" min="0" step="0.01" value="0" />
+      </label>
+      <label>
+        Foto do computador
+        <input name="photo_file" type="file" accept="image/*" />
+      </label>
+    </div>
+
+    <div class="slots-top full-width">
+      {% for slot_key, slot_label, allow_multiple in component_slots if not allow_multiple %}
+      <div class="slot-box">
+        <h3>{{ slot_label }}</h3>
+        <p class="slot-help">Selecione uma peça desta classe (opcional).</p>
+        <label>
+          Seleção
+          <select name="slot_{{ slot_key }}" class="piece-select">
+            <option value="">Sem seleção</option>
+            {% for part in parts_by_class[slot_key] %}
+            <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+              {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="slots-bottom full-width">
+      {% for slot_key, slot_label, allow_multiple in component_slots if allow_multiple %}
+      <div class="slot-box slot-multiple">
+        <h3>{{ slot_label }}</h3>
+        <p class="slot-help">Pode adicionar várias peças e quantidades.</p>
+        <div class="multi-list" data-slot="{{ slot_key }}">
+          <div class="multi-header">
+            <span>Item</span>
+            <span>Quantidade</span>
+            <span></span>
+          </div>
+
+          <div class="multi-row">
+            <select name="{{ slot_key }}_ids[]" class="piece-select">
+              <option value="">Sem seleção</option>
+              {% for part in parts_by_class[slot_key] %}
+              <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
+                {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+              </option>
+              {% endfor %}
+            </select>
+
+            <div class="qty-control" title="Quantidade">
+              <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
+              <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
+              <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+            </div>
+
+            <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
+          </div>
+        </div>
+        <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="assembly-summary full-width">
+      <p><strong>Custo total das peças:</strong> <span id="total-custo">R$ 0,00</span></p>
+      <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+    </div>
+
+    <button type="submit">Salvar computador montado</button>
   </form>
 </section>
 
@@ -106,6 +195,11 @@
   const categorySelect = document.getElementById('category-select');
   const classSelect = document.getElementById('component-class-select');
   const menu = document.getElementById('class-menu');
+  const modeMenu = document.getElementById('new-product-mode-menu');
+  const pieceForm = document.getElementById('piece-form');
+  const assembledForm = document.getElementById('assembled-form');
+  const custoEl = document.getElementById('total-custo');
+  const precoEl = document.getElementById('preco-sugerido');
 
   function togglePieceClass() {
     const isPiece = categorySelect.value === 'Peça';
@@ -119,11 +213,66 @@
     });
   }
 
+  function setMode(mode) {
+    const isPieceMode = mode === 'piece';
+    pieceForm.classList.toggle('hidden', !isPieceMode);
+    assembledForm.classList.toggle('hidden', isPieceMode);
+
+    modeMenu.querySelectorAll('button').forEach((button) => {
+      button.classList.toggle('active', button.dataset.mode === mode);
+    });
+  }
+
+  function formatBRL(value) {
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function atualizarTotaisMontado() {
+    let total = 0;
+    assembledForm.querySelectorAll('.multi-row').forEach((row) => {
+      const select = row.querySelector('select');
+      const qtyInput = row.querySelector('input[type="number"]');
+      const option = select.options[select.selectedIndex];
+      const qty = Number(qtyInput.value || 0);
+      if (option && option.value && qty > 0) {
+        total += Number(option.dataset.cost || 0) * qty;
+      }
+    });
+
+    assembledForm.querySelectorAll('.slot-box select[name^="slot_"]').forEach((select) => {
+      const option = select.options[select.selectedIndex];
+      if (option && option.value) {
+        total += Number(option.dataset.cost || 0);
+      }
+    });
+
+    const sugerido = total * 1.2;
+    custoEl.textContent = formatBRL(total);
+    precoEl.textContent = formatBRL(sugerido);
+  }
+
   menu.querySelectorAll('button').forEach((btn) => {
     btn.addEventListener('click', () => {
       menu.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       applyFilter(btn.dataset.filter);
+    });
+  });
+
+  modeMenu.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', () => setMode(btn.dataset.mode));
+  });
+
+  assembledForm.querySelectorAll('.add-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const slot = btn.dataset.slot;
+      const list = assembledForm.querySelector(`.multi-list[data-slot="${slot}"]`);
+      const firstRow = list.querySelector('.multi-row');
+      const clone = firstRow.cloneNode(true);
+      clone.querySelector('select').selectedIndex = 0;
+      clone.querySelector('input').value = 1;
+      list.appendChild(clone);
+      atualizarTotaisMontado();
     });
   });
 
@@ -153,7 +302,37 @@
     });
   });
 
+  assembledForm.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (target.classList.contains('qty-decrease') || target.classList.contains('qty-increase')) {
+      const input = target.parentElement.querySelector('input[type="number"]');
+      const current = Number(input.value || 1);
+      const delta = target.classList.contains('qty-increase') ? 1 : -1;
+      input.value = Math.max(1, current + delta);
+      atualizarTotaisMontado();
+    }
+
+    if (target.classList.contains('row-remove')) {
+      const list = target.closest('.multi-list');
+      const rows = list.querySelectorAll('.multi-row');
+      if (rows.length > 1) {
+        target.closest('.multi-row').remove();
+      } else {
+        const row = rows[0];
+        row.querySelector('select').selectedIndex = 0;
+        row.querySelector('input[type="number"]').value = 1;
+      }
+      atualizarTotaisMontado();
+    }
+  });
+
+  assembledForm.addEventListener('change', atualizarTotaisMontado);
+  assembledForm.addEventListener('input', atualizarTotaisMontado);
+
   categorySelect.addEventListener('change', togglePieceClass);
   togglePieceClass();
+  setMode('piece');
+  atualizarTotaisMontado();
 </script>
 {% endblock %}

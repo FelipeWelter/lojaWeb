@@ -129,6 +129,106 @@ def _remove_product_photo_files(photo_url: str | None):
         original_path.unlink()
 
 
+def _collect_selected_piece_ids(form_data):
+    selected_piece_ids = []
+    for slot_key, _, allow_multiple in COMPONENT_SLOTS:
+        if allow_multiple:
+            ids = form_data.getlist(f'{slot_key}_ids[]')
+            qtys = form_data.getlist(f'{slot_key}_qtys[]')
+            for piece_id, qty in zip(ids, qtys):
+                if piece_id and qty:
+                    selected_piece_ids.extend([int(piece_id)] * int(qty))
+        else:
+            value = form_data.get(f'slot_{slot_key}')
+            if value:
+                selected_piece_ids.append(int(value))
+    return selected_piece_ids
+
+
+def _build_computer_with_parts(computer_name, original_price_new, selected_piece_ids, photo_file=None):
+    piece_counter = Counter(selected_piece_ids)
+    photo_url = None
+    previous_photo_url = None
+
+    with db.session.begin_nested():
+        computer = Product.query.filter(
+            db.func.lower(Product.name) == computer_name.lower(),
+            Product.category == 'Computador',
+        ).first()
+
+        piece_ids = list(piece_counter.keys())
+        pieces = Product.query.filter(Product.id.in_(piece_ids)).all() if piece_ids else []
+        pieces_by_id = {piece.id: piece for piece in pieces}
+
+        for piece_id, qty in piece_counter.items():
+            piece = pieces_by_id.get(piece_id)
+            if not piece or piece.category != 'Peça':
+                raise ValueError('Uma das peças selecionadas é inválida.')
+            if piece.stock < qty:
+                raise ValueError(f'Não foi possível finalizar: {piece.name} insuficiente no estoque')
+
+        custo_total = Decimal('0.00')
+        for piece_id, qty in piece_counter.items():
+            piece = pieces_by_id[piece_id]
+            piece.stock -= qty
+            custo_total += Decimal(qty) * (piece.cost_price or piece.price)
+
+        preco_sugerido = (custo_total * Decimal('1.20')).quantize(Decimal('0.01'))
+
+        if not computer:
+            computer = Product(
+                name=computer_name,
+                category='Computador',
+                stock=0,
+                price=0,
+            )
+            db.session.add(computer)
+            db.session.flush()
+
+        if photo_file and photo_file.filename:
+            photo_url, _ = _save_product_photo(photo_file)
+            previous_photo_url = computer.photo_url
+            computer.photo_url = photo_url
+
+        computer.stock += 1
+        preco_base_informado = original_price_new
+        if computer.id and preco_base_informado == 0 and Decimal(computer.price) > 0:
+            preco_base_informado = Decimal(computer.price)
+
+        preco_original = preco_base_informado
+        preco_final = (preco_original + custo_total).quantize(Decimal('0.01'))
+        computer.price = preco_final
+
+        montagem = ComputerAssembly(
+            id_computador=computer.id,
+            nome_referencia=computer_name,
+            preco_original=preco_original,
+            custo_total=custo_total,
+            preco_sugerido=preco_sugerido,
+        )
+        db.session.add(montagem)
+        db.session.flush()
+
+        for piece_id, qty in piece_counter.items():
+            db.session.add(
+                ProductComposition(
+                    id_computador=computer.id,
+                    id_peca=piece_id,
+                    quantidade_utilizada=qty,
+                    id_montagem=montagem.id,
+                )
+            )
+
+    return {
+        'preco_original': preco_original,
+        'custo_total': custo_total,
+        'preco_final': preco_final,
+        'preco_sugerido': preco_sugerido,
+        'new_photo_url': photo_url,
+        'previous_photo_url': previous_photo_url,
+    }
+
+
 COMPONENT_SLOTS = [
     ('gabinete', 'Gabinete', False),
     ('placa_mae', 'Placa-mãe', False),
@@ -188,6 +288,38 @@ def dashboard():
 @app.route('/produtos', methods=['GET', 'POST'])
 def produtos():
     if request.method == 'POST':
+        form_mode = request.form.get('form_mode')
+        if form_mode == 'assembled_computer':
+            computer_name = (request.form.get('computer_name') or '').strip()
+            if not computer_name:
+                flash('Informe o nome do computador montado.', 'danger')
+                return redirect(url_for('produtos'))
+
+            original_price_new = Decimal(request.form.get('computer_original_price') or '0')
+            selected_piece_ids = _collect_selected_piece_ids(request.form)
+            photo_file = request.files.get('photo_file')
+
+            try:
+                result = _build_computer_with_parts(
+                    computer_name=computer_name,
+                    original_price_new=original_price_new,
+                    selected_piece_ids=selected_piece_ids,
+                    photo_file=photo_file,
+                )
+                db.session.commit()
+                _remove_product_photo_files(result['previous_photo_url'])
+                flash(
+                    f'Computador montado cadastrado! Preço base R$ {result["preco_original"]:.2f} + '
+                    f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
+                    f'Preço sugerido R$ {result["preco_sugerido"]:.2f}.',
+                    'success',
+                )
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), 'danger')
+
+            return redirect(url_for('produtos'))
+
         category = request.form['category']
         component_class = request.form.get('component_class') or None
         if category != 'Peça':
@@ -220,7 +352,16 @@ def produtos():
         return redirect(url_for('produtos'))
 
     products = Product.query.order_by(Product.category, Product.component_class, Product.name).all()
-    return render_template('products.html', products=products)
+    parts_by_class = {
+        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key).order_by(Product.name).all()
+        for slot_key, _, _ in COMPONENT_SLOTS
+    }
+    return render_template(
+        'products.html',
+        products=products,
+        parts_by_class=parts_by_class,
+        component_slots=COMPONENT_SLOTS,
+    )
 
 
 @app.route('/produtos/<int:product_id>/atualizar_foto', methods=['POST'])
@@ -312,91 +453,22 @@ def montar_pc():
 
         original_price_new = Decimal(request.form.get('computer_original_price') or '0')
 
-        selected_piece_ids = []
-        for slot_key, _, allow_multiple in COMPONENT_SLOTS:
-            if allow_multiple:
-                ids = request.form.getlist(f'{slot_key}_ids[]')
-                qtys = request.form.getlist(f'{slot_key}_qtys[]')
-                for piece_id, qty in zip(ids, qtys):
-                    if piece_id and qty:
-                        selected_piece_ids.extend([int(piece_id)] * int(qty))
-            else:
-                value = request.form.get(f'slot_{slot_key}')
-                if value:
-                    selected_piece_ids.append(int(value))
-
-        piece_counter = Counter(selected_piece_ids)
+        selected_piece_ids = _collect_selected_piece_ids(request.form)
+        photo_file = request.files.get('photo_file')
 
         try:
-            with db.session.begin_nested():
-                computer = Product.query.filter(
-                    db.func.lower(Product.name) == computer_name.lower(),
-                    Product.category == 'Computador',
-                ).first()
-
-                piece_ids = list(piece_counter.keys())
-                pieces = Product.query.filter(Product.id.in_(piece_ids)).all() if piece_ids else []
-                pieces_by_id = {piece.id: piece for piece in pieces}
-
-                for piece_id, qty in piece_counter.items():
-                    piece = pieces_by_id.get(piece_id)
-                    if not piece or piece.category != 'Peça':
-                        raise ValueError('Uma das peças selecionadas é inválida.')
-                    if piece.stock < qty:
-                        raise ValueError(f'Não foi possível finalizar: {piece.name} insuficiente no estoque')
-
-                custo_total = Decimal('0.00')
-                for piece_id, qty in piece_counter.items():
-                    piece = pieces_by_id[piece_id]
-                    piece.stock -= qty
-                    custo_total += Decimal(qty) * (piece.cost_price or piece.price)
-
-                preco_sugerido = (custo_total * Decimal('1.20')).quantize(Decimal('0.01'))
-
-                if not computer:
-                    computer = Product(
-                        name=computer_name,
-                        category='Computador',
-                        stock=0,
-                        price=0,
-                    )
-                    db.session.add(computer)
-                    db.session.flush()
-
-                computer.stock += 1
-                preco_base_informado = original_price_new
-                if computer.id and preco_base_informado == 0 and Decimal(computer.price) > 0:
-                    preco_base_informado = Decimal(computer.price)
-
-                preco_original = preco_base_informado
-                preco_final = (preco_original + custo_total).quantize(Decimal('0.01'))
-                computer.price = preco_final
-
-                montagem = ComputerAssembly(
-                    id_computador=computer.id,
-                    nome_referencia=computer_name,
-                    preco_original=preco_original,
-                    custo_total=custo_total,
-                    preco_sugerido=preco_sugerido,
-                )
-                db.session.add(montagem)
-                db.session.flush()
-
-                for piece_id, qty in piece_counter.items():
-                    db.session.add(
-                        ProductComposition(
-                            id_computador=computer.id,
-                            id_peca=piece_id,
-                            quantidade_utilizada=qty,
-                            id_montagem=montagem.id,
-                        )
-                    )
-
+            result = _build_computer_with_parts(
+                computer_name=computer_name,
+                original_price_new=original_price_new,
+                selected_piece_ids=selected_piece_ids,
+                photo_file=photo_file,
+            )
             db.session.commit()
+            _remove_product_photo_files(result['previous_photo_url'])
             flash(
-                f'Montagem concluída! Preço base R$ {preco_original:.2f} + '
-                f'peças R$ {custo_total:.2f} = preço final R$ {preco_final:.2f} | '
-                f'Preço sugerido R$ {preco_sugerido:.2f}.',
+                f'Montagem concluída! Preço base R$ {result["preco_original"]:.2f} + '
+                f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
+                f'Preço sugerido R$ {result["preco_sugerido"]:.2f}.',
                 'success',
             )
         except ValueError as exc:
@@ -474,6 +546,20 @@ def cancelar_montagem(assembly_id: int):
 
     db.session.commit()
     flash('Montagem cancelada e estoque estornado com sucesso!', 'success')
+    return redirect(url_for('montar_pc'))
+
+
+@app.route('/montagens/<int:assembly_id>/excluir', methods=['POST'])
+def excluir_montagem(assembly_id: int):
+    assembly = ComputerAssembly.query.get_or_404(assembly_id)
+
+    if not assembly.canceled:
+        flash('Só é possível excluir montagens canceladas.', 'danger')
+        return redirect(url_for('montar_pc'))
+
+    db.session.delete(assembly)
+    db.session.commit()
+    flash('Montagem excluída do histórico com sucesso!', 'success')
     return redirect(url_for('montar_pc'))
 
 
