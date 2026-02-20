@@ -9,9 +9,46 @@
       <h3>{{ service.name }}</h3>
       <p>{{ service.description }}</p>
       <p class="service-price">R$ {{ '%.2f'|format(service.price) }}</p>
-      <button type="button">Solicitar serviço</button>
+      <button type="button">Cadastrar serviço realizado</button>
     </article>
     {% endfor %}
   </div>
+</section>
+
+<section class="card">
+  <h2>Cadastrar serviço realizado</h2>
+  <form method="post" class="grid form-grid">
+    <input name="service_name" placeholder="Nome do serviço" required />
+    <input name="client_name" placeholder="Cliente" required />
+    <input name="equipment" placeholder="Equipamento" required />
+    <input name="total_price" type="number" min="0" step="0.01" placeholder="Valor cobrado" required />
+    <input name="cost" type="number" min="0" step="0.01" placeholder="Custo do serviço" required />
+    <input name="notes" placeholder="Observações (opcional)" />
+    <button type="submit">Salvar serviço realizado</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Últimos serviços realizados</h2>
+  <table>
+    <thead>
+      <tr><th>Data</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Valor</th><th>Custo</th><th>Lucro</th></tr>
+    </thead>
+    <tbody>
+      {% for service in recent_services %}
+      <tr>
+        <td>{{ service.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ service.service_name }}</td>
+        <td>{{ service.client_name }}</td>
+        <td>{{ service.equipment }}</td>
+        <td>R$ {{ '%.2f'|format(service.total_price) }}</td>
+        <td>R$ {{ '%.2f'|format(service.cost) }}</td>
+        <td>R$ {{ '%.2f'|format(service.total_price - service.cost) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7">Nenhum serviço realizado cadastrado ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </section>
 {% endblock %}

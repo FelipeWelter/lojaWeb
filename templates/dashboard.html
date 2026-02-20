@@ -1,12 +1,47 @@
 {% extends 'base.html' %}
 {% block content %}
+<section class="card">
+  <h2>Filtro de período</h2>
+  <form method="get" class="grid form-grid">
+    <select name="period">
+      <option value="today" {% if period == 'today' %}selected{% endif %}>Hoje</option>
+      <option value="7d" {% if period == '7d' %}selected{% endif %}>Últimos 7 dias</option>
+      <option value="month" {% if period == 'month' %}selected{% endif %}>Mês atual</option>
+    </select>
+    <button type="submit">Aplicar filtro</button>
+  </form>
+</section>
+
 <section class="grid cards">
   <article class="card"><h3>Produtos cadastrados</h3><strong>{{ product_count }}</strong></article>
   <article class="card"><h3>Itens em estoque</h3><strong>{{ total_stock }}</strong></article>
   <article class="card"><h3>Vendas registradas</h3><strong>{{ sales_count }}</strong></article>
+  <article class="card"><h3>Serviços realizados</h3><strong>{{ services_count }}</strong></article>
   <article class="card"><h3>Total em vendas</h3><strong>R$ {{ '%.2f'|format(total_sales_amount) }}</strong></article>
+  <article class="card"><h3>Total em serviços</h3><strong>R$ {{ '%.2f'|format(total_services_amount) }}</strong></article>
   <article class="card"><h3>Lucro estimado</h3><strong>R$ {{ '%.2f'|format(total_profit) }}</strong></article>
+  <article class="card"><h3>Custos fixos</h3><strong>R$ {{ '%.2f'|format(total_fixed_costs) }}</strong></article>
+  <article class="card"><h3>Lucro líquido</h3><strong>R$ {{ '%.2f'|format(net_profit) }}</strong></article>
   <article class="card"><h3>Cobranças pendentes</h3><strong>{{ pending_charges }}</strong></article>
+</section>
+
+<section class="card">
+  <h2>Financeiro: custos fixos</h2>
+  <form method="post" action="{{ url_for('cadastrar_custo_fixo') }}" class="grid form-grid">
+    <input name="description" placeholder="Descrição (ex: aluguel, energia)" required />
+    <input name="amount" type="number" min="0" step="0.01" placeholder="Valor" required />
+    <button type="submit">Cadastrar custo fixo</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Vendas por mês</h2>
+  <canvas id="sales-line-chart" height="100"></canvas>
+</section>
+
+<section class="card">
+  <h2>Produtos mais vendidos</h2>
+  <canvas id="top-products-chart" height="100"></canvas>
 </section>
 
 <section class="card">
@@ -54,4 +89,44 @@
     </tbody>
   </table>
 </section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const months = {{ chart_months|tojson }};
+  const salesTotals = {{ chart_sales_totals|tojson }};
+  const topLabels = {{ top_products_labels|tojson }};
+  const topValues = {{ top_products_values|tojson }};
+
+  const lineCtx = document.getElementById('sales-line-chart');
+  if (lineCtx) {
+    new Chart(lineCtx, {
+      type: 'line',
+      data: {
+        labels: months,
+        datasets: [{
+          label: 'Vendas (R$)',
+          data: salesTotals,
+          borderColor: '#3156d3',
+          backgroundColor: 'rgba(49, 86, 211, 0.18)',
+          tension: 0.25,
+          fill: true,
+        }],
+      },
+    });
+  }
+
+  const pieCtx = document.getElementById('top-products-chart');
+  if (pieCtx) {
+    new Chart(pieCtx, {
+      type: 'pie',
+      data: {
+        labels: topLabels,
+        datasets: [{
+          data: topValues,
+          backgroundColor: ['#3156d3', '#4c6fe0', '#6b8af2', '#8ea7ff', '#b0c1ff'],
+        }],
+      },
+    });
+  }
+</script>
 {% endblock %}
