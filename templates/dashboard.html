@@ -4,7 +4,27 @@
   <article class="card"><h3>Produtos cadastrados</h3><strong>{{ product_count }}</strong></article>
   <article class="card"><h3>Itens em estoque</h3><strong>{{ total_stock }}</strong></article>
   <article class="card"><h3>Vendas registradas</h3><strong>{{ sales_count }}</strong></article>
+  <article class="card"><h3>Total em vendas</h3><strong>R$ {{ '%.2f'|format(total_sales_amount) }}</strong></article>
+  <article class="card"><h3>Lucro estimado</h3><strong>R$ {{ '%.2f'|format(total_profit) }}</strong></article>
   <article class="card"><h3>Cobranças pendentes</h3><strong>{{ pending_charges }}</strong></article>
+</section>
+
+<section class="card">
+  <h2>Vendas por forma de pagamento</h2>
+  <table>
+    <thead><tr><th>Forma de pagamento</th><th>Qtd. cobranças</th><th>Total</th></tr></thead>
+    <tbody>
+      {% for method, count, amount in payment_method_summary %}
+      <tr>
+        <td>{{ payment_method_labels.get(method, method|capitalize) }}</td>
+        <td>{{ count }}</td>
+        <td>R$ {{ '%.2f'|format(amount) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3">Nenhuma cobrança registrada ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </section>
 
 <section class="card">

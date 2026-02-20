@@ -25,7 +25,7 @@
             <option value="">Sem seleção (cliente já possui)</option>
             {% for part in parts_by_class[slot_key] %}
             <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
-              #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+              {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
             </option>
             {% endfor %}
           </select>
@@ -51,7 +51,7 @@
               <option value="">Sem seleção</option>
               {% for part in parts_by_class[slot_key] %}
               <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
-                #{{ part.id }} - {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
+                {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
               </option>
               {% endfor %}
             </select>
@@ -90,7 +90,7 @@
         <th>Preço original</th>
         <th>Preço sugerido</th>
         <th>Custo peças</th>
-        <th>Peças utilizadas (ID x qtd)</th>
+        <th>Peças utilizadas</th>
       </tr>
     </thead>
     <tbody>
@@ -98,13 +98,13 @@
       <tr>
         <td>#{{ montagem.id }}</td>
         <td>{{ montagem.nome_referencia }}</td>
-        <td>#{{ montagem.computador.id }} - {{ montagem.computador.name }}</td>
+        <td>{{ montagem.computador.name }}</td>
         <td>R$ {{ '%.2f'|format(montagem.preco_original) }}</td>
         <td>R$ {{ '%.2f'|format(montagem.preco_sugerido) }}</td>
         <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
         <td>
           {% for item in montagem.composicao %}
-            [Peça #{{ item.peca.id }}: {{ item.peca.name }} x{{ item.quantidade_utilizada }}]{% if not loop.last %}, {% endif %}
+            <span class="assembly-part">{{ item.peca.name }} x{{ item.quantidade_utilizada }}</span>{% if not loop.last %}, {% endif %}
           {% endfor %}
         </td>
       </tr>
