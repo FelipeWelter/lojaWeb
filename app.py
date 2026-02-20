@@ -28,6 +28,7 @@ app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME'))
 app.config['SECURITY_PASSWORD_SALT'] = os.getenv('SECURITY_PASSWORD_SALT', 'lojaweb-reset-salt')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 db = SQLAlchemy(app)
 mail = Mail(app)
@@ -179,6 +180,32 @@ class AuditLog(db.Model):
     action = db.Column(db.String(180), nullable=False)
     details = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class LoginThrottle(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    failed_attempts = db.Column(db.Integer, nullable=False, default=0)
+    blocked_until = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+def _client_ip():
+    forwarded = request.headers.get('X-Forwarded-For')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.remote_addr or 'unknown'
+
+
+def _get_or_create_throttle(email: str, ip_address: str):
+    throttle = LoginThrottle.query.filter_by(email=email, ip_address=ip_address).first()
+    if throttle:
+        return throttle
+    throttle = LoginThrottle(email=email, ip_address=ip_address, failed_attempts=0)
+    db.session.add(throttle)
+    db.session.flush()
+    return throttle
 
 
 def _login_required(view):
@@ -511,11 +538,58 @@ def login():
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip().lower()
         password = request.form.get('password') or ''
+        remember_me = request.form.get('remember_me') == 'on'
+        ip_address = _client_ip()
+
+        if not email or not password:
+            flash('Preencha e-mail e senha para continuar.', 'danger')
+            return redirect(url_for('login'))
+
+        throttle = _get_or_create_throttle(email, ip_address)
+        now = datetime.utcnow()
+        blocked_by_email = LoginThrottle.query.filter(
+            LoginThrottle.email == email,
+            LoginThrottle.blocked_until.isnot(None),
+            LoginThrottle.blocked_until > now,
+        ).order_by(LoginThrottle.blocked_until.desc()).first()
+        blocked_by_ip = LoginThrottle.query.filter(
+            LoginThrottle.ip_address == ip_address,
+            LoginThrottle.blocked_until.isnot(None),
+            LoginThrottle.blocked_until > now,
+        ).order_by(LoginThrottle.blocked_until.desc()).first()
+        active_block = blocked_by_email or blocked_by_ip
+        if active_block:
+            remaining = int((active_block.blocked_until - now).total_seconds() // 60) + 1
+            flash(f'Muitas tentativas de login. Tente novamente em {remaining} minuto(s).', 'danger')
+            return redirect(url_for('login'))
+
         user = User.query.filter_by(email=email).first()
         if not user or not check_password_hash(user.password_hash, password):
-            flash('Credenciais inválidas.', 'danger')
+            throttle.failed_attempts += 1
+            throttle.updated_at = datetime.utcnow()
+            email_attempts = db.session.query(db.func.sum(LoginThrottle.failed_attempts)).filter(LoginThrottle.email == email).scalar() or 0
+            ip_attempts = db.session.query(db.func.sum(LoginThrottle.failed_attempts)).filter(LoginThrottle.ip_address == ip_address).scalar() or 0
+            if email_attempts >= 5 or ip_attempts >= 5:
+                block_until = now + timedelta(minutes=15)
+                LoginThrottle.query.filter(
+                    (LoginThrottle.email == email) | (LoginThrottle.ip_address == ip_address)
+                ).update(
+                    {
+                        LoginThrottle.blocked_until: block_until,
+                        LoginThrottle.updated_at: datetime.utcnow(),
+                    },
+                    synchronize_session=False,
+                )
+            db.session.commit()
+            flash('E-mail ou senha incorretos. Verifique os dados e tente novamente.', 'danger')
             return redirect(url_for('login'))
+
+        throttle.failed_attempts = 0
+        throttle.blocked_until = None
+        throttle.updated_at = datetime.utcnow()
+        session.permanent = remember_me
         session['user_id'] = user.id
+        db.session.commit()
         flash('Login realizado com sucesso!', 'success')
         return redirect(url_for('dashboard'))
     if session.get('user_id'):
@@ -1620,6 +1694,18 @@ with app.app_context():
             'quantity INTEGER NOT NULL DEFAULT 1, '
             'unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'FOREIGN KEY(assembly_id) REFERENCES montagem_computador (id)'
+            ')'
+        )
+    )
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS login_throttle ('
+            'id INTEGER PRIMARY KEY, '
+            'email VARCHAR(120) NOT NULL, '
+            'ip_address VARCHAR(45) NOT NULL, '
+            'failed_attempts INTEGER NOT NULL DEFAULT 0, '
+            'blocked_until DATETIME, '
+            'updated_at DATETIME NOT NULL'
             ')'
         )
     )
