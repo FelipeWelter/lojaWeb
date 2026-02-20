@@ -267,6 +267,38 @@
     });
   }
 
+
+  function atualizarVisibilidadeModos() {
+    form.querySelectorAll('.slots-top .slot-box').forEach((box) => {
+      const customRadio = box.querySelector('input[type="radio"][value="custom"]');
+      const stockFields = box.querySelector('.stock-fields');
+      const customFields = box.querySelector('.custom-fields');
+      const isCustom = customRadio?.checked;
+      stockFields.classList.toggle('hidden', isCustom);
+      customFields.classList.toggle('hidden', !isCustom);
+    });
+
+    form.querySelectorAll('.multi-row').forEach((row) => {
+      const customRadio = row.querySelector('input[type="radio"][value="custom"]');
+      const select = row.querySelector('select');
+      const customInput = row.querySelector('input[name$="_custom_names[]"]');
+      const isCustom = customRadio?.checked;
+      select.classList.toggle('hidden', isCustom);
+      customInput.classList.toggle('hidden', !isCustom);
+    });
+  }
+
+  function renumerarModosMultiplos() {
+    document.querySelectorAll('.multi-list').forEach((list) => {
+      const slot = list.dataset.slot;
+      list.querySelectorAll('.multi-row').forEach((row, index) => {
+        row.querySelectorAll('.piece-mode.compact input[type="radio"]').forEach((radio) => {
+          radio.name = `${slot}_mode_${index}`;
+        });
+      });
+    });
+  }
+
   document.querySelectorAll('.add-item').forEach((btn) => {
     btn.addEventListener('click', () => {
       const slot = btn.dataset.slot;
