@@ -56,6 +56,7 @@ class ComputerAssembly(db.Model):
 class Client(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
+    cpf = db.Column(db.String(14), nullable=True, unique=True)
     phone = db.Column(db.String(30), nullable=True)
     email = db.Column(db.String(120), nullable=True)
 
@@ -256,8 +257,19 @@ def montar_pc():
 @app.route('/clientes', methods=['GET', 'POST'])
 def clientes():
     if request.method == 'POST':
+        cpf = (request.form.get('cpf') or '').strip()
+        if not cpf:
+            flash('Informe o CPF do cliente.', 'danger')
+            return redirect(url_for('clientes'))
+
+        existing_client = Client.query.filter_by(cpf=cpf).first()
+        if existing_client:
+            flash('Este CPF já está cadastrado para outro cliente.', 'danger')
+            return redirect(url_for('clientes'))
+
         client = Client(
             name=request.form['name'],
+            cpf=cpf,
             phone=request.form.get('phone'),
             email=request.form.get('email'),
         )
@@ -268,6 +280,50 @@ def clientes():
 
     clients = Client.query.order_by(Client.id.desc()).all()
     return render_template('clients.html', clients=clients)
+
+
+@app.route('/clientes/<int:client_id>/editar', methods=['GET', 'POST'])
+def editar_cliente(client_id: int):
+    client = Client.query.get_or_404(client_id)
+
+    if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
+        cpf = (request.form.get('cpf') or '').strip()
+        if not name:
+            flash('Informe o nome do cliente.', 'danger')
+            return redirect(url_for('editar_cliente', client_id=client.id))
+        if not cpf:
+            flash('Informe o CPF do cliente.', 'danger')
+            return redirect(url_for('editar_cliente', client_id=client.id))
+
+        duplicate = Client.query.filter(Client.cpf == cpf, Client.id != client.id).first()
+        if duplicate:
+            flash('Este CPF já está cadastrado para outro cliente.', 'danger')
+            return redirect(url_for('editar_cliente', client_id=client.id))
+
+        client.name = name
+        client.cpf = cpf
+        client.phone = request.form.get('phone')
+        client.email = request.form.get('email')
+        db.session.commit()
+        flash('Cliente atualizado com sucesso!', 'success')
+        return redirect(url_for('clientes'))
+
+    return render_template('edit_client.html', client=client)
+
+
+@app.route('/clientes/<int:client_id>/remover', methods=['POST'])
+def remover_cliente(client_id: int):
+    client = Client.query.get_or_404(client_id)
+    has_sales = Sale.query.filter_by(client_id=client.id).first()
+    if has_sales:
+        flash('Não é possível remover cliente com vendas registradas.', 'danger')
+        return redirect(url_for('clientes'))
+
+    db.session.delete(client)
+    db.session.commit()
+    flash('Cliente removido com sucesso!', 'success')
+    return redirect(url_for('clientes'))
 
 
 @app.route('/vendas', methods=['GET', 'POST'])
@@ -365,6 +421,20 @@ def confirmar_cobranca(charge_id: int):
     return redirect(url_for('cobrancas'))
 
 
+@app.route('/cobrancas/<int:charge_id>/cancelar', methods=['POST'])
+def cancelar_cobranca(charge_id: int):
+    charge = Charge.query.get_or_404(charge_id)
+    if charge.status == 'cancelado':
+        flash('Esta cobrança já está cancelada.', 'danger')
+        return redirect(url_for('cobrancas'))
+
+    charge.status = 'cancelado'
+    charge.payment_confirmed_at = None
+    db.session.commit()
+    flash('Cobrança cancelada com sucesso!', 'success')
+    return redirect(url_for('cobrancas'))
+
+
 with app.app_context():
     db.create_all()
 
@@ -397,6 +467,12 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
     if 'canceled_at' not in sale_columns:
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled_at DATETIME'))
+    db.session.commit()
+
+    client_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(client)'))]
+    if 'cpf' not in client_columns:
+        db.session.execute(db.text('ALTER TABLE client ADD COLUMN cpf VARCHAR(14)'))
+    db.session.execute(db.text('CREATE UNIQUE INDEX IF NOT EXISTS ux_client_cpf ON client (cpf)'))
     db.session.commit()
 
 
