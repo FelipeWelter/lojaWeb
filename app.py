@@ -54,6 +54,8 @@ class ComputerAssembly(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    canceled = db.Column(db.Boolean, nullable=False, default=False)
+    canceled_at = db.Column(db.DateTime, nullable=True)
 
     computador = db.relationship('Product')
     composicao = db.relationship('ProductComposition', backref='montagem', cascade='all, delete-orphan')
@@ -413,6 +415,68 @@ def montar_pc():
     )
 
 
+@app.route('/montagens/<int:assembly_id>/editar', methods=['POST'])
+def editar_montagem(assembly_id: int):
+    assembly = ComputerAssembly.query.get_or_404(assembly_id)
+
+    if assembly.canceled:
+        flash('Não é possível editar uma montagem cancelada.', 'danger')
+        return redirect(url_for('montar_pc'))
+
+    nome_referencia = (request.form.get('nome_referencia') or '').strip()
+    if not nome_referencia:
+        flash('Informe um nome de referência para a montagem.', 'danger')
+        return redirect(url_for('montar_pc'))
+
+    try:
+        preco_original = Decimal(request.form.get('preco_original') or '0')
+    except Exception:
+        flash('Preço original inválido.', 'danger')
+        return redirect(url_for('montar_pc'))
+
+    if preco_original < 0:
+        flash('Preço original não pode ser negativo.', 'danger')
+        return redirect(url_for('montar_pc'))
+
+    assembly.nome_referencia = nome_referencia
+    assembly.preco_original = preco_original
+    assembly.preco_sugerido = (Decimal(assembly.custo_total) * Decimal('1.20')).quantize(Decimal('0.01'))
+
+    db.session.commit()
+    flash('Montagem atualizada com sucesso!', 'success')
+    return redirect(url_for('montar_pc'))
+
+
+@app.route('/montagens/<int:assembly_id>/cancelar', methods=['POST'])
+def cancelar_montagem(assembly_id: int):
+    assembly = ComputerAssembly.query.get_or_404(assembly_id)
+
+    if assembly.canceled:
+        flash('Esta montagem já está cancelada.', 'danger')
+        return redirect(url_for('montar_pc'))
+
+    computer = assembly.computador
+    if not computer:
+        flash('Computador associado à montagem não encontrado.', 'danger')
+        return redirect(url_for('montar_pc'))
+
+    if computer.stock <= 0:
+        flash('Não é possível cancelar: não há unidade em estoque para estorno.', 'danger')
+        return redirect(url_for('montar_pc'))
+
+    for item in assembly.composicao:
+        if item.peca:
+            item.peca.stock += item.quantidade_utilizada
+
+    computer.stock -= 1
+    assembly.canceled = True
+    assembly.canceled_at = datetime.utcnow()
+
+    db.session.commit()
+    flash('Montagem cancelada e estoque estornado com sucesso!', 'success')
+    return redirect(url_for('montar_pc'))
+
+
 @app.route('/clientes', methods=['GET', 'POST'])
 def clientes():
     if request.method == 'POST':
@@ -641,6 +705,10 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN nome_referencia VARCHAR(120)'))
     if 'preco_original' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN preco_original NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    if 'canceled' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
+    if 'canceled_at' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN canceled_at DATETIME'))
     db.session.execute(
         db.text(
             "UPDATE montagem_computador SET nome_referencia = (SELECT product.name FROM product "
