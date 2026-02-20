@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -27,6 +27,7 @@ class Product(db.Model):
     cost_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     photo_url = db.Column(db.String(255), nullable=True)
     component_class = db.Column(db.String(50), nullable=True)
+    serial_number = db.Column(db.String(120), nullable=True)
     images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
 
 
@@ -117,6 +118,35 @@ class Charge(db.Model):
 
     sale = db.relationship('Sale')
 
+
+class ServiceRecord(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    service_name = db.Column(db.String(120), nullable=False)
+    client_name = db.Column(db.String(120), nullable=False)
+    equipment = db.Column(db.String(120), nullable=False)
+    total_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class FixedCost(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.String(120), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class MaintenanceTicket(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    client_name = db.Column(db.String(120), nullable=False)
+    equipment = db.Column(db.String(120), nullable=False)
+    service_description = db.Column(db.String(180), nullable=False)
+    entry_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    exit_date = db.Column(db.DateTime, nullable=True)
+    waiting_parts = db.Column(db.Boolean, nullable=False, default=False)
+    status = db.Column(db.String(30), nullable=False, default='em_andamento')
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
 
@@ -346,14 +376,49 @@ PAYMENT_METHOD_LABELS = dict(PAYMENT_METHODS)
 
 @app.route('/')
 def dashboard():
+    period = request.args.get('period', 'month')
+    now = datetime.utcnow()
+    start_date = None
+    if period == 'today':
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == '7d':
+        start_date = now - timedelta(days=7)
+    elif period == 'month':
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        period = 'month'
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    sales_query = Sale.query.filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
+    service_query = ServiceRecord.query.filter(ServiceRecord.created_at >= start_date)
+    fixed_cost_query = FixedCost.query.filter(FixedCost.created_at >= start_date)
+    maintenance_query = MaintenanceTicket.query.filter(MaintenanceTicket.entry_date >= start_date)
+
     product_count = Product.query.count()
     total_stock = db.session.query(db.func.coalesce(db.func.sum(Product.stock), 0)).scalar()
-    sales_count = Sale.query.count()
+    sales_count = sales_query.count()
+    services_count = service_query.count()
     pending_charges = Charge.query.filter(Charge.status != 'confirmado').count()
-    total_sales_amount = db.session.query(db.func.coalesce(db.func.sum(Sale.total), 0)).filter(Sale.canceled.is_(False)).scalar()
-    total_profit = db.session.query(
+    total_sales_amount = db.session.query(db.func.coalesce(db.func.sum(Sale.total), 0)).filter(
+        Sale.canceled.is_(False), Sale.created_at >= start_date
+    ).scalar()
+    total_services_amount = db.session.query(db.func.coalesce(db.func.sum(ServiceRecord.total_price), 0)).filter(
+        ServiceRecord.created_at >= start_date
+    ).scalar()
+    sales_profit = db.session.query(
         db.func.coalesce(db.func.sum(Sale.total - (Product.cost_price * Sale.quantity)), 0)
-    ).join(Product, Product.id == Sale.product_id).filter(Sale.canceled.is_(False)).scalar()
+    ).join(Product, Product.id == Sale.product_id).filter(Sale.canceled.is_(False), Sale.created_at >= start_date).scalar()
+    service_profit = db.session.query(
+        db.func.coalesce(db.func.sum(ServiceRecord.total_price - ServiceRecord.cost), 0)
+    ).filter(ServiceRecord.created_at >= start_date).scalar()
+    total_fixed_costs = db.session.query(db.func.coalesce(db.func.sum(FixedCost.amount), 0)).filter(
+        FixedCost.created_at >= start_date
+    ).scalar()
+    total_profit = sales_profit + service_profit
+    net_profit = total_profit - total_fixed_costs
+    maintenance_in_progress = maintenance_query.filter(MaintenanceTicket.status != 'concluido').count()
+    maintenance_waiting_parts = maintenance_query.filter(MaintenanceTicket.waiting_parts.is_(True), MaintenanceTicket.status != 'concluido').count()
+
     payment_method_summary = (
         db.session.query(
             Charge.payment_method,
@@ -361,23 +426,59 @@ def dashboard():
             db.func.coalesce(db.func.sum(Sale.total), 0),
         )
         .join(Sale, Sale.id == Charge.sale_id)
-        .filter(Sale.canceled.is_(False))
+        .filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
         .group_by(Charge.payment_method)
         .all()
     )
-    latest_sales = Sale.query.order_by(Sale.created_at.desc()).limit(5).all()
+    latest_sales = sales_query.order_by(Sale.created_at.desc()).limit(5).all()
+
+    monthly_sales = (
+        db.session.query(
+            db.func.strftime('%Y-%m', Sale.created_at).label('month'),
+            db.func.coalesce(db.func.sum(Sale.total), 0),
+        )
+        .filter(Sale.canceled.is_(False))
+        .group_by('month')
+        .order_by('month')
+        .all()
+    )
+    chart_months = [row[0] for row in monthly_sales]
+    chart_sales_totals = [float(row[1]) for row in monthly_sales]
+
+    top_products = (
+        db.session.query(Product.name, db.func.coalesce(db.func.sum(Sale.quantity), 0).label('qty'))
+        .join(Sale, Sale.product_id == Product.id)
+        .filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
+        .group_by(Product.id)
+        .order_by(db.desc('qty'))
+        .limit(5)
+        .all()
+    )
+    top_products_labels = [row[0] for row in top_products]
+    top_products_values = [int(row[1]) for row in top_products]
 
     return render_template(
         'dashboard.html',
         product_count=product_count,
         total_stock=total_stock,
         sales_count=sales_count,
+        services_count=services_count,
         pending_charges=pending_charges,
         total_sales_amount=total_sales_amount,
+        total_services_amount=total_services_amount,
         total_profit=total_profit,
+        total_fixed_costs=total_fixed_costs,
+        net_profit=net_profit,
+        maintenance_in_progress=maintenance_in_progress,
+        maintenance_waiting_parts=maintenance_waiting_parts,
         payment_method_summary=payment_method_summary,
         payment_method_labels=PAYMENT_METHOD_LABELS,
         latest_sales=latest_sales,
+        period=period,
+        chart_months=chart_months,
+        chart_sales_totals=chart_sales_totals,
+        top_products_labels=top_products_labels,
+        top_products_values=top_products_values,
     )
 
 
@@ -451,6 +552,7 @@ def produtos():
             cost_price=Decimal(request.form.get('cost_price') or '0'),
             photo_url=photo_url,
             component_class=component_class,
+            serial_number=(request.form.get('serial_number') or '').strip() or None,
         )
         db.session.add(product)
         db.session.commit()
@@ -529,6 +631,7 @@ def editar_produto(product_id: int):
     product.price = Decimal(request.form.get('price') or '0')
     product.cost_price = Decimal(request.form.get('cost_price') or '0')
     product.component_class = component_class
+    product.serial_number = (request.form.get('serial_number') or '').strip() or None
 
     db.session.commit()
     flash('Produto atualizado com sucesso!', 'success')
@@ -826,14 +929,131 @@ def excluir_montagem(assembly_id: int):
 
 
 
-@app.route('/servicos')
+@app.route('/servicos', methods=['GET', 'POST'])
 def servicos():
-    services = [
+    service_catalog = [
         {'name': 'Montagem Premium', 'price': Decimal('199.90'), 'description': 'Montagem completa, organização de cabos e validação final.'},
         {'name': 'Upgrade e Limpeza', 'price': Decimal('149.90'), 'description': 'Troca de componentes com limpeza interna e pasta térmica.'},
         {'name': 'Diagnóstico Avançado', 'price': Decimal('99.90'), 'description': 'Checklist de desempenho, temperatura e estabilidade.'},
     ]
-    return render_template('services.html', services=services)
+
+    if request.method == 'POST':
+        form_type = request.form.get('form_type', 'service_record')
+
+        if form_type == 'maintenance_ticket':
+            client_name = (request.form.get('maintenance_client_name') or '').strip()
+            equipment = (request.form.get('maintenance_equipment') or '').strip()
+            service_description = (request.form.get('maintenance_service_description') or '').strip()
+            entry_date_raw = request.form.get('maintenance_entry_date')
+            waiting_parts = request.form.get('maintenance_waiting_parts') == 'on'
+
+            if not client_name or not equipment or not service_description:
+                flash('Preencha cliente, equipamento e serviço em manutenção.', 'danger')
+                return redirect(url_for('servicos'))
+
+            entry_date = datetime.utcnow()
+            if entry_date_raw:
+                try:
+                    entry_date = datetime.fromisoformat(entry_date_raw)
+                except ValueError:
+                    flash('Data de entrada inválida.', 'danger')
+                    return redirect(url_for('servicos'))
+
+            db.session.add(
+                MaintenanceTicket(
+                    client_name=client_name,
+                    equipment=equipment,
+                    service_description=service_description,
+                    entry_date=entry_date,
+                    waiting_parts=waiting_parts,
+                    status='aguardando_pecas' if waiting_parts else 'em_andamento',
+                )
+            )
+            db.session.commit()
+            flash('Computador em manutenção cadastrado com sucesso!', 'success')
+            return redirect(url_for('servicos'))
+
+        service_name = (request.form.get('service_name') or '').strip()
+        client_name = (request.form.get('client_name') or '').strip()
+        equipment = (request.form.get('equipment') or '').strip()
+        total_price = Decimal(request.form.get('total_price') or '0')
+        cost = Decimal(request.form.get('cost') or '0')
+        notes = (request.form.get('notes') or '').strip() or None
+
+        if not service_name or not client_name or not equipment:
+            flash('Preencha serviço, cliente e equipamento.', 'danger')
+            return redirect(url_for('servicos'))
+
+        if total_price < 0 or cost < 0:
+            flash('Preço e custo devem ser maiores ou iguais a zero.', 'danger')
+            return redirect(url_for('servicos'))
+
+        service = ServiceRecord(
+            service_name=service_name,
+            client_name=client_name,
+            equipment=equipment,
+            total_price=total_price,
+            cost=cost,
+            notes=notes,
+        )
+        db.session.add(service)
+        db.session.commit()
+        flash('Serviço realizado cadastrado com sucesso!', 'success')
+        return redirect(url_for('servicos'))
+
+    recent_services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).limit(10).all()
+    maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(20).all()
+    return render_template(
+        'services.html',
+        services=service_catalog,
+        recent_services=recent_services,
+        maintenance_tickets=maintenance_tickets,
+    )
+
+
+@app.route('/manutencoes/<int:ticket_id>/atualizar', methods=['POST'])
+def atualizar_manutencao(ticket_id: int):
+    ticket = MaintenanceTicket.query.get_or_404(ticket_id)
+    status = request.form.get('status') or ticket.status
+    waiting_parts = request.form.get('waiting_parts') == 'on'
+    exit_date_raw = request.form.get('exit_date')
+
+    if status == 'concluido' and not exit_date_raw:
+        ticket.exit_date = datetime.utcnow()
+    elif exit_date_raw:
+        try:
+            ticket.exit_date = datetime.fromisoformat(exit_date_raw)
+        except ValueError:
+            flash('Data de saída inválida.', 'danger')
+            return redirect(url_for('servicos'))
+
+    ticket.status = status
+    ticket.waiting_parts = waiting_parts
+    if waiting_parts and status != 'concluido':
+        ticket.status = 'aguardando_pecas'
+
+    db.session.commit()
+    flash('Status da manutenção atualizado!', 'success')
+    return redirect(url_for('servicos'))
+
+
+@app.route('/dashboard/custos-fixos', methods=['POST'])
+def cadastrar_custo_fixo():
+    description = (request.form.get('description') or '').strip()
+    amount = Decimal(request.form.get('amount') or '0')
+
+    if not description:
+        flash('Informe a descrição do custo fixo.', 'danger')
+        return redirect(url_for('dashboard'))
+    if amount < 0:
+        flash('O valor do custo fixo não pode ser negativo.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    db.session.add(FixedCost(description=description, amount=amount))
+    db.session.commit()
+    flash('Custo fixo adicionado ao financeiro!', 'success')
+    return redirect(url_for('dashboard'))
+
 
 @app.route('/clientes', methods=['GET', 'POST'])
 def clientes():
@@ -1056,6 +1276,8 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN component_class VARCHAR(50)'))
     if 'cost_price' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN cost_price NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    if 'serial_number' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN serial_number VARCHAR(120)'))
     db.session.commit()
 
     db.session.execute(
@@ -1079,6 +1301,47 @@ with app.app_context():
             'quantity INTEGER NOT NULL DEFAULT 1, '
             'unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'FOREIGN KEY(assembly_id) REFERENCES montagem_computador (id)'
+            ')'
+        )
+    )
+    db.session.commit()
+
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS service_record ('
+            'id INTEGER PRIMARY KEY, '
+            'service_name VARCHAR(120) NOT NULL, '
+            'client_name VARCHAR(120) NOT NULL, '
+            'equipment VARCHAR(120) NOT NULL, '
+            'total_price NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'cost NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'notes TEXT, '
+            'created_at DATETIME NOT NULL'
+            ')'
+        )
+    )
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS fixed_cost ('
+            'id INTEGER PRIMARY KEY, '
+            'description VARCHAR(120) NOT NULL, '
+            'amount NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'created_at DATETIME NOT NULL'
+            ')'
+        )
+    )
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS maintenance_ticket ('
+            'id INTEGER PRIMARY KEY, '
+            'client_name VARCHAR(120) NOT NULL, '
+            'equipment VARCHAR(120) NOT NULL, '
+            'service_description VARCHAR(180) NOT NULL, '
+            'entry_date DATETIME NOT NULL, '
+            'exit_date DATETIME, '
+            'waiting_parts BOOLEAN NOT NULL DEFAULT 0, '
+            "status VARCHAR(30) NOT NULL DEFAULT 'em_andamento', "
+            'created_at DATETIME NOT NULL'
             ')'
         )
     )
