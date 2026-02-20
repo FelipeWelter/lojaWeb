@@ -810,14 +810,30 @@ def excluir_montagem(assembly_id: int):
     assembly = ComputerAssembly.query.get_or_404(assembly_id)
 
     if not assembly.canceled:
-        flash('Só é possível excluir montagens canceladas.', 'danger')
-        return redirect(url_for('montar_pc'))
+        computer = assembly.computador
+        if computer and computer.stock > 0:
+            computer.stock -= 1
+
+        for item in assembly.composicao:
+            if item.peca:
+                item.peca.stock += item.quantidade_utilizada
 
     db.session.delete(assembly)
     db.session.commit()
-    flash('Montagem excluída do histórico com sucesso!', 'success')
+    flash('Montagem excluída com sucesso!', 'success')
     return redirect(url_for('montar_pc'))
 
+
+
+
+@app.route('/servicos')
+def servicos():
+    services = [
+        {'name': 'Montagem Premium', 'price': Decimal('199.90'), 'description': 'Montagem completa, organização de cabos e validação final.'},
+        {'name': 'Upgrade e Limpeza', 'price': Decimal('149.90'), 'description': 'Troca de componentes com limpeza interna e pasta térmica.'},
+        {'name': 'Diagnóstico Avançado', 'price': Decimal('99.90'), 'description': 'Checklist de desempenho, temperatura e estabilidade.'},
+    ]
+    return render_template('services.html', services=services)
 
 @app.route('/clientes', methods=['GET', 'POST'])
 def clientes():

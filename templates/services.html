@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Serviços</h2>
+  <p class="montage-subtitle">Portfólio de serviços técnicos da LojaWeb.</p>
+  <div class="cards service-cards">
+    {% for service in services %}
+    <article class="card service-card">
+      <h3>{{ service.name }}</h3>
+      <p>{{ service.description }}</p>
+      <p class="service-price">R$ {{ '%.2f'|format(service.price) }}</p>
+      <button type="button">Solicitar serviço</button>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

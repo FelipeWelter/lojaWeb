@@ -39,7 +39,7 @@
       </label>
       <label>
         Preço base (opcional)
-        <input name="computer_original_price" type="number" min="0" step="0.01" value="0" />
+        <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" />
       </label>
       <label>
         Fotos do computador
@@ -69,7 +69,7 @@
         </label>
         <label>
           Custo (R$)
-          <input name="custom_{{ slot_key }}_cost" type="number" min="0" step="0.01" value="0" />
+          <input name="custom_{{ slot_key }}_cost" type="number" min="0" step="0.01" placeholder="0,00" />
         </label>
       </div>
       {% endfor %}
@@ -97,7 +97,7 @@
               {% endfor %}
             </select>
             <input name="{{ slot_key }}_custom_names[]" placeholder="Ou peça personalizada" />
-            <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" value="0" placeholder="Custo" />
+            <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="Custo" />
 
             <div class="qty-control" title="Quantidade">
               <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
@@ -330,7 +330,7 @@
       const customCost = clone.querySelector('input[name$="_custom_costs[]"]');
       const qtyInput = clone.querySelector('input[name$="_qtys[]"]');
       if (customName) customName.value = '';
-      if (customCost) customCost.value = 0;
+      if (customCost) customCost.value = "";
       if (qtyInput) qtyInput.value = 1;
       list.appendChild(clone);
       atualizarTotaisMontado();
