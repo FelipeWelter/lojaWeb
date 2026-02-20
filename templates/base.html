@@ -9,13 +9,14 @@
   <body>
     <header class="header">
       <h1>LojaWeb</h1>
-      <nav>
-        <a href="{{ url_for('dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('produtos') }}">Estoque</a>
-        <a href="{{ url_for('clientes') }}">Clientes</a>
-        <a href="{{ url_for('vendas') }}">Vendas</a>
-        <a href="{{ url_for('montar_pc') }}">Montar PC</a>
-        <a href="{{ url_for('cobrancas') }}">Cobranças</a>
+            <nav>
+        <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="{{ url_for('produtos') }}" class="{% if request.endpoint == 'produtos' %}active{% endif %}">Estoque</a>
+        <a href="{{ url_for('servicos') }}" class="{% if request.endpoint == 'servicos' %}active{% endif %}">Serviços</a>
+        <a href="{{ url_for('clientes') }}" class="{% if request.endpoint in ['clientes','editar_cliente'] %}active{% endif %}">Clientes</a>
+        <a href="{{ url_for('vendas') }}" class="{% if request.endpoint == 'vendas' %}active{% endif %}">Vendas</a>
+        <a href="{{ url_for('montar_pc') }}" class="{% if request.endpoint == 'montar_pc' %}active{% endif %}">Montar PC</a>
+        <a href="{{ url_for('cobrancas') }}" class="{% if request.endpoint == 'cobrancas' %}active{% endif %}">Cobranças</a>
       </nav>
     </header>
 
