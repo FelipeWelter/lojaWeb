@@ -253,12 +253,13 @@ def _receipt_style():
     return """
     <style>
       body { font-family: Helvetica, Arial, sans-serif; color: #1f2937; font-size: 11px; line-height: 1.4; }
+      p { margin: 0 0 4px 0; }
       .header { border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 14px; }
-      .brand { font-size: 20px; color: #1d4ed8; font-weight: bold; }
-      .meta { color: #374151; display: block; margin-top: 3px; }
+      .brand { font-size: 20px; color: #1d4ed8; font-weight: bold; margin-bottom: 6px; }
+      .meta { color: #374151; }
       .box { border: 1px solid #d1d5db; padding: 10px; margin: 8px 0; }
       .title { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
-      .line { display: block; margin: 2px 0; }
+      .line { margin: 0 0 4px 0; }
       table { width: 100%; border-collapse: collapse; }
       th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; }
       th { background: #eff6ff; }
@@ -282,9 +283,9 @@ def _render_sale_receipt_html(sale: Sale):
         <p class='meta'>Loja: LojaWeb</p>
       </div>
       <div class='box'><div class='title'>Dados do cliente</div>
-        <span class='line'>Nome do cliente: {sale.client.name}</span>
-        <span class='line'>CPF: {sale.client.cpf or '-'}</span>
-        <span class='line'>Telefone: {sale.client.phone or '-'}</span>
+        <p class='line'><strong>Nome do cliente:</strong> {sale.client.name}</p>
+        <p class='line'><strong>CPF:</strong> {sale.client.cpf or '-'}</p>
+        <p class='line'><strong>Telefone:</strong> {sale.client.phone or '-'}</p>
       </div>
       <table><tr><th>Venda</th><th>Produto vendido</th><th>Qtd</th><th>Subtotal</th><th>Total</th></tr>
       <tr><td>{sale.sale_name}</td><td>{sale.product.name}</td><td>{sale.quantity}</td><td>R$ {Decimal(sale.subtotal):.2f}</td><td>R$ {Decimal(sale.total):.2f}</td></tr></table>
@@ -305,16 +306,16 @@ def _render_service_receipt_html(service: ServiceRecord):
         <p class='meta'>Loja: LojaWeb</p>
       </div>
       <div class='box'><div class='title'>Dados do cliente</div>
-        <span class='line'>Nome do cliente: {service.client_name}</span>
+        <p class='line'><strong>Nome do cliente:</strong> {service.client_name}</p>
       </div>
       <table>
         <tr><th>O que foi feito</th><th>Equipamento</th><th>Valor</th></tr>
         <tr><td>{service.service_name}</td><td>{service.equipment}</td><td>R$ {Decimal(service.total_price):.2f}</td></tr>
       </table>
       <div class='box'><div class='title'>Resumo financeiro</div>
-        <span class='line'>Valor cobrado: R$ {Decimal(service.total_price):.2f}</span>
-        <span class='line'>Custo: R$ {Decimal(service.cost):.2f}</span>
-        <span class='line'>Lucro: R$ {(Decimal(service.total_price) - Decimal(service.cost)):.2f}</span>
+        <p class='line'><strong>Valor cobrado:</strong> R$ {Decimal(service.total_price):.2f}</p>
+        <p class='line'><strong>Custo:</strong> R$ {Decimal(service.cost):.2f}</p>
+        <p class='line'><strong>Lucro:</strong> R$ {(Decimal(service.total_price) - Decimal(service.cost)):.2f}</p>
       </div>
       <div class='box'><div class='title'>Observações</div>{service.notes or '-'}</div>
       <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
@@ -335,8 +336,8 @@ def _render_assembly_receipt_html(assembly: ComputerAssembly):
         <p class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</p>
       </div>
       <div class='box'><div class='title'>Montagem #{assembly.id}</div>
-        <span class='line'>Referência: {assembly.nome_referencia}</span>
-        <span class='line'>Computador: {assembly.computador.name}</span>
+        <p class='line'><strong>Referência:</strong> {assembly.nome_referencia}</p>
+        <p class='line'><strong>Computador:</strong> {assembly.computador.name}</p>
       </div>
       <table><tr><th>Componente</th><th>Qtd</th><th>Origem</th></tr>{rows}</table>
       <div class='total'>Custo: R$ {Decimal(assembly.custo_total):.2f} | Sugerido: R$ {Decimal(assembly.preco_sugerido):.2f}</div>
