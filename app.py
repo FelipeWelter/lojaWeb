@@ -252,66 +252,111 @@ def _html_to_pdf(html: str):
 def _receipt_style():
     return """
     <style>
-      body { font-family: Helvetica, Arial, sans-serif; color: #1f2937; font-size: 11px; }
-      .header { border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 14px; }
-      .brand { font-size: 20px; color: #1d4ed8; font-weight: bold; }
-      .meta { color: #374151; }
-      .box { border: 1px solid #d1d5db; padding: 10px; margin: 8px 0; }
-      .title { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #d1d5db; padding: 6px; text-align: left; }
-      th { background: #eff6ff; }
-      .total { margin-top: 12px; font-size: 13px; font-weight: bold; text-align: right; }
-      .footer { margin-top: 20px; color: #6b7280; font-size: 10px; }
+      @page { size: A4; margin: 14mm; }
+      body { font-family: Helvetica, Arial, sans-serif; color: #111827; font-size: 11px; line-height: 1.35; }
+      .receipt { width: 100%; }
+      .header { border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 10px; }
+      .brand { font-size: 17px; color: #1d4ed8; font-weight: bold; margin: 0 0 6px 0; }
+      .meta-table, .info-table, .items-table { width: 100%; border-collapse: collapse; }
+      .meta-table td { padding: 2px 0; vertical-align: top; }
+      .box { border: 1px solid #d1d5db; padding: 8px; margin: 8px 0; }
+      .title { font-size: 12px; font-weight: bold; margin: 0 0 6px 0; }
+      .info-table td { padding: 2px 0; vertical-align: top; }
+      .label { width: 34%; font-weight: bold; }
+      .items-table th, .items-table td { border: 1px solid #d1d5db; padding: 5px; text-align: left; }
+      .items-table th { background: #eff6ff; }
+      .total { margin-top: 10px; font-size: 12px; font-weight: bold; text-align: right; }
+      .footer { margin-top: 16px; color: #6b7280; font-size: 10px; }
     </style>
     """
 
 
 def _render_sale_receipt_html(sale: Sale):
     return f"""
-    <html><head>{_receipt_style()}</head><body>
-      <div class='header'>
-        <div class='brand'>LojaWeb - Recibo de Venda</div>
-        <div class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</div>
-        <div class='meta'>Loja: LojaWeb</div>
-      </div>
-      <div class='box'><div class='title'>Dados do cliente</div>
-        Nome do cliente: {sale.client.name}<br/>CPF: {sale.client.cpf or '-'}<br/>Telefone: {sale.client.phone or '-'}
-      </div>
-      <table><tr><th>Venda</th><th>Produto vendido</th><th>Qtd</th><th>Subtotal</th><th>Total</th></tr>
-      <tr><td>{sale.sale_name}</td><td>{sale.product.name}</td><td>{sale.quantity}</td><td>R$ {Decimal(sale.subtotal):.2f}</td><td>R$ {Decimal(sale.total):.2f}</td></tr></table>
-      <div class='total'>Total do recibo: R$ {Decimal(sale.total):.2f}</div>
-      <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
-    </body></html>
-    """
+    <html>
+      <head>
+        <meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
+        {_receipt_style()}
+      </head>
+      <body>
+        <div class='receipt'>
+          <div class='header'>
+            <p class='brand'>LojaWeb - Recibo de Venda</p>
+            <table class='meta-table'>
+              <tr><td><strong>Emissão:</strong> {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</td></tr>
+              <tr><td><strong>Loja:</strong> LojaWeb</td></tr>
+            </table>
+          </div>
 
+          <div class='box'>
+            <p class='title'>Dados do cliente</p>
+            <table class='info-table'>
+              <tr><td class='label'>Nome do cliente:</td><td>{sale.client.name}</td></tr>
+              <tr><td class='label'>CPF:</td><td>{sale.client.cpf or '-'}</td></tr>
+              <tr><td class='label'>Telefone:</td><td>{sale.client.phone or '-'}</td></tr>
+            </table>
+          </div>
+
+          <table class='items-table'>
+            <tr><th>Venda</th><th>Produto vendido</th><th>Qtd</th><th>Subtotal</th><th>Total</th></tr>
+            <tr><td>{sale.sale_name}</td><td>{sale.product.name}</td><td>{sale.quantity}</td><td>R$ {Decimal(sale.subtotal):.2f}</td><td>R$ {Decimal(sale.total):.2f}</td></tr>
+          </table>
+
+          <div class='total'>Total do recibo: R$ {Decimal(sale.total):.2f}</div>
+          <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
+        </div>
+      </body>
+    </html>
+    """
 
 
 
 def _render_service_receipt_html(service: ServiceRecord):
     return f"""
-    <html><head>{_receipt_style()}</head><body>
-      <div class='header'>
-        <div class='brand'>LojaWeb - Recibo de Serviço</div>
-        <div class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</div>
-        <div class='meta'>Loja: LojaWeb</div>
-      </div>
-      <div class='box'><div class='title'>Dados do cliente</div>
-        Nome do cliente: {service.client_name}
-      </div>
-      <table>
-        <tr><th>O que foi feito</th><th>Equipamento</th><th>Valor</th></tr>
-        <tr><td>{service.service_name}</td><td>{service.equipment}</td><td>R$ {Decimal(service.total_price):.2f}</td></tr>
-      </table>
-      <div class='box'><div class='title'>Resumo financeiro</div>
-        Valor cobrado: R$ {Decimal(service.total_price):.2f}<br/>
-        Custo: R$ {Decimal(service.cost):.2f}<br/>
-        Lucro: R$ {(Decimal(service.total_price) - Decimal(service.cost)):.2f}
-      </div>
-      <div class='box'><div class='title'>Observações</div>{service.notes or '-'}</div>
-      <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
-    </body></html>
+    <html>
+      <head>
+        <meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
+        {_receipt_style()}
+      </head>
+      <body>
+        <div class='receipt'>
+          <div class='header'>
+            <p class='brand'>LojaWeb - Recibo de Serviço</p>
+            <table class='meta-table'>
+              <tr><td><strong>Emissão:</strong> {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</td></tr>
+              <tr><td><strong>Loja:</strong> LojaWeb</td></tr>
+            </table>
+          </div>
+
+          <div class='box'>
+            <p class='title'>Dados do cliente</p>
+            <table class='info-table'>
+              <tr><td class='label'>Nome do cliente:</td><td>{service.client_name}</td></tr>
+            </table>
+          </div>
+
+          <table class='items-table'>
+            <tr><th>O que foi feito</th><th>Equipamento</th><th>Valor</th></tr>
+            <tr><td>{service.service_name}</td><td>{service.equipment}</td><td>R$ {Decimal(service.total_price):.2f}</td></tr>
+          </table>
+
+          <div class='box'>
+            <p class='title'>Resumo financeiro</p>
+            <table class='info-table'>
+              <tr><td class='label'>Valor cobrado:</td><td>R$ {Decimal(service.total_price):.2f}</td></tr>
+              <tr><td class='label'>Custo:</td><td>R$ {Decimal(service.cost):.2f}</td></tr>
+              <tr><td class='label'>Lucro:</td><td>R$ {(Decimal(service.total_price) - Decimal(service.cost)):.2f}</td></tr>
+            </table>
+          </div>
+
+          <div class='box'><p class='title'>Observações</p>{service.notes or '-'}</div>
+          <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
+        </div>
+      </body>
+    </html>
     """
+
+
 def _render_assembly_receipt_html(assembly: ComputerAssembly):
     items = []
     for item in assembly.composicao:
@@ -321,18 +366,35 @@ def _render_assembly_receipt_html(assembly: ComputerAssembly):
         items.append(f"<tr><td>{custom.part_name}</td><td>{custom.quantity}</td><td>Personalizado</td></tr>")
     rows = ''.join(items) or '<tr><td colspan="3">Sem itens</td></tr>'
     return f"""
-    <html><head>{_receipt_style()}</head><body>
-      <div class='header'>
-        <div class='brand'>LojaWeb - Orçamento de Montagem</div>
-        <div class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</div>
-      </div>
-      <div class='box'><div class='title'>Montagem #{assembly.id}</div>
-        Referência: {assembly.nome_referencia}<br/>Computador: {assembly.computador.name}
-      </div>
-      <table><tr><th>Componente</th><th>Qtd</th><th>Origem</th></tr>{rows}</table>
-      <div class='total'>Custo: R$ {Decimal(assembly.custo_total):.2f} | Sugerido: R$ {Decimal(assembly.preco_sugerido):.2f}</div>
-      <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
-    </body></html>
+    <html>
+      <head>
+        <meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
+        {_receipt_style()}
+      </head>
+      <body>
+        <div class='receipt'>
+          <div class='header'>
+            <p class='brand'>LojaWeb - Orçamento de Montagem</p>
+            <table class='meta-table'>
+              <tr><td><strong>Emissão:</strong> {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</td></tr>
+              <tr><td><strong>Loja:</strong> LojaWeb</td></tr>
+            </table>
+          </div>
+
+          <div class='box'>
+            <p class='title'>Montagem #{assembly.id}</p>
+            <table class='info-table'>
+              <tr><td class='label'>Referência:</td><td>{assembly.nome_referencia}</td></tr>
+              <tr><td class='label'>Computador:</td><td>{assembly.computador.name}</td></tr>
+            </table>
+          </div>
+
+          <table class='items-table'><tr><th>Componente</th><th>Qtd</th><th>Origem</th></tr>{rows}</table>
+          <div class='total'>Custo: R$ {Decimal(assembly.custo_total):.2f} | Sugerido: R$ {Decimal(assembly.preco_sugerido):.2f}</div>
+          <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
+        </div>
+      </body>
+    </html>
     """
 
 
