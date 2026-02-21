@@ -181,7 +181,7 @@
           {% endif %}
         </td>
         <td>
-          <a href="{{ url_for('imprimir_montagem', assembly_id=montagem.id) }}"><button type="button">Imprimir</button></a>
+          <a class="btn-link" href="{{ url_for('imprimir_montagem', assembly_id=montagem.id) }}">Imprimir</a>
           <form method="post" action="{{ url_for('excluir_montagem', assembly_id=montagem.id) }}" onsubmit="return confirm('Deseja excluir esta montagem? Esta ação não pode ser desfeita.');">
             <button type="submit" class="btn-danger">Excluir montagem</button>
           </form>
