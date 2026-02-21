@@ -285,6 +285,27 @@ def _render_sale_receipt_html(sale: Sale):
     """
 
 
+
+
+def _render_service_receipt_html(service: ServiceRecord):
+    return f"""
+    <html><head>{_receipt_style()}</head><body>
+      <div class='header'>
+        <div class='brand'>LojaWeb - Recibo de Serviço</div>
+        <div class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</div>
+      </div>
+      <div class='box'><div class='title'>Dados do atendimento</div>
+        Cliente: {service.client_name}<br/>Serviço: {service.service_name}<br/>Equipamento: {service.equipment}
+      </div>
+      <div class='box'><div class='title'>Resumo financeiro</div>
+        Valor cobrado: R$ {Decimal(service.total_price):.2f}<br/>
+        Custo: R$ {Decimal(service.cost):.2f}<br/>
+        Lucro: R$ {(Decimal(service.total_price) - Decimal(service.cost)):.2f}
+      </div>
+      <div class='box'><div class='title'>Observações</div>{service.notes or '-'}</div>
+      <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
+    </body></html>
+    """
 def _render_assembly_receipt_html(assembly: ComputerAssembly):
     items = []
     for item in assembly.composicao:
@@ -344,6 +365,13 @@ def _collect_selected_piece_inputs(form_data, prefix=''):
     selected_piece_ids = []
     custom_items = []
 
+    def _safe_qty(raw_value):
+        try:
+            qty = int(raw_value)
+        except (TypeError, ValueError):
+            return 1
+        return max(1, qty)
+
     for slot_key, _, allow_multiple in COMPONENT_SLOTS:
         if allow_multiple:
             ids = form_data.getlist(f'{prefix}{slot_key}_ids[]')
@@ -352,8 +380,8 @@ def _collect_selected_piece_inputs(form_data, prefix=''):
             custom_costs = form_data.getlist(f'{prefix}{slot_key}_custom_costs[]')
 
             for piece_id, qty, custom_name, custom_cost in zip(ids, qtys, custom_names, custom_costs):
-                qty_value = int(qty) if qty else 0
-                if piece_id and qty:
+                qty_value = _safe_qty(qty)
+                if piece_id:
                     selected_piece_ids.extend([int(piece_id)] * qty_value)
                     continue
 
@@ -1618,6 +1646,15 @@ def imprimir_montagem(assembly_id: int):
     pdf = _html_to_pdf(_render_assembly_receipt_html(assembly))
     return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=f'orcamento-montagem-{assembly.id}.pdf')
 
+
+
+
+@app.route('/servicos/<int:service_id>/imprimir')
+@_login_required
+def imprimir_servico(service_id: int):
+    service = ServiceRecord.query.get_or_404(service_id)
+    pdf = _html_to_pdf(_render_service_receipt_html(service))
+    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=f'recibo-servico-{service.id}.pdf')
 
 @app.route('/clientes/<int:client_id>/historico')
 @_login_required
