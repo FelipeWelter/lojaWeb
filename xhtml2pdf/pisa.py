@@ -11,7 +11,11 @@ def _escape_pdf_text(text: str) -> str:
 
 
 def CreatePDF(src: str, dest):
-    text = re.sub(r'<[^>]+>', ' ', src or '')
+    html = src or ''
+    html = re.sub(r'<style\b[^>]*>.*?</style>', ' ', html, flags=re.IGNORECASE | re.DOTALL)
+    html = re.sub(r'<script\b[^>]*>.*?</script>', ' ', html, flags=re.IGNORECASE | re.DOTALL)
+
+    text = re.sub(r'<[^>]+>', ' ', html)
     text = re.sub(r'\s+', ' ', text).strip()[:1500] or 'Documento LojaWeb'
     safe = _escape_pdf_text(text)
 
