@@ -1,6 +1,6 @@
 from collections import Counter
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 from io import BytesIO
 import os
@@ -273,11 +273,12 @@ def _render_sale_receipt_html(sale: Sale):
       <div class='header'>
         <div class='brand'>LojaWeb - Recibo de Venda</div>
         <div class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</div>
+        <div class='meta'>Loja: LojaWeb</div>
       </div>
       <div class='box'><div class='title'>Dados do cliente</div>
-        Nome: {sale.client.name}<br/>CPF: {sale.client.cpf or '-'}<br/>Telefone: {sale.client.phone or '-'}
+        Nome do cliente: {sale.client.name}<br/>CPF: {sale.client.cpf or '-'}<br/>Telefone: {sale.client.phone or '-'}
       </div>
-      <table><tr><th>Venda</th><th>Produto</th><th>Qtd</th><th>Subtotal</th><th>Total</th></tr>
+      <table><tr><th>Venda</th><th>Produto vendido</th><th>Qtd</th><th>Subtotal</th><th>Total</th></tr>
       <tr><td>{sale.sale_name}</td><td>{sale.product.name}</td><td>{sale.quantity}</td><td>R$ {Decimal(sale.subtotal):.2f}</td><td>R$ {Decimal(sale.total):.2f}</td></tr></table>
       <div class='total'>Total do recibo: R$ {Decimal(sale.total):.2f}</div>
       <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
@@ -293,10 +294,15 @@ def _render_service_receipt_html(service: ServiceRecord):
       <div class='header'>
         <div class='brand'>LojaWeb - Recibo de Serviço</div>
         <div class='meta'>Emissão: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</div>
+        <div class='meta'>Loja: LojaWeb</div>
       </div>
-      <div class='box'><div class='title'>Dados do atendimento</div>
-        Cliente: {service.client_name}<br/>Serviço: {service.service_name}<br/>Equipamento: {service.equipment}
+      <div class='box'><div class='title'>Dados do cliente</div>
+        Nome do cliente: {service.client_name}
       </div>
+      <table>
+        <tr><th>O que foi feito</th><th>Equipamento</th><th>Valor</th></tr>
+        <tr><td>{service.service_name}</td><td>{service.equipment}</td><td>R$ {Decimal(service.total_price):.2f}</td></tr>
+      </table>
       <div class='box'><div class='title'>Resumo financeiro</div>
         Valor cobrado: R$ {Decimal(service.total_price):.2f}<br/>
         Custo: R$ {Decimal(service.cost):.2f}<br/>
@@ -1327,9 +1333,23 @@ def servicos():
         service_name = (request.form.get('service_name') or '').strip()
         client_name = (request.form.get('client_name') or '').strip()
         equipment = (request.form.get('equipment') or '').strip()
-        total_price = Decimal(request.form.get('total_price') or '0')
-        cost = Decimal(request.form.get('cost') or '0')
         notes = (request.form.get('notes') or '').strip() or None
+
+        client_id_raw = (request.form.get('client_id') or '').strip()
+        if client_id_raw:
+            try:
+                client = Client.query.get(int(client_id_raw))
+            except ValueError:
+                client = None
+            if client:
+                client_name = client.name
+
+        try:
+            total_price = Decimal(request.form.get('total_price') or '0')
+            cost = Decimal(request.form.get('cost') or '0')
+        except InvalidOperation:
+            flash('Preço e custo devem ser numéricos.', 'danger')
+            return redirect(url_for('servicos'))
 
         if not service_name or not client_name or not equipment:
             flash('Preencha serviço, cliente e equipamento.', 'danger')
@@ -1354,11 +1374,13 @@ def servicos():
 
     recent_services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).limit(10).all()
     maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(20).all()
+    clients = Client.query.order_by(Client.name.asc()).all()
     return render_template(
         'services.html',
         services=service_catalog,
         recent_services=recent_services,
         maintenance_tickets=maintenance_tickets,
+        clients=clients,
     )
 
 

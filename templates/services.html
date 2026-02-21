@@ -81,10 +81,19 @@
   <form method="post" class="grid form-grid">
     <input type="hidden" name="form_type" value="service_record" />
     <input name="service_name" placeholder="Nome do serviço" required />
-    <input name="client_name" placeholder="Cliente" required />
+    <label>
+      Cliente cadastrado
+      <select name="client_id">
+        <option value="">Selecionar cliente cadastrado (opcional)</option>
+        {% for client in clients %}
+        <option value="{{ client.id }}">{{ client.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <input name="client_name" placeholder="Cliente (ou digite manualmente)" />
     <input name="equipment" placeholder="Equipamento" required />
     <input name="total_price" type="number" min="0" step="0.01" placeholder="Valor cobrado" required />
-    <input name="cost" type="number" min="0" step="0.01" placeholder="Custo do serviço" required />
+    <input name="cost" type="number" min="0" step="0.01" placeholder="Custo do serviço (opcional)" />
     <input name="notes" placeholder="Observações (opcional)" />
     <button type="submit">Salvar serviço realizado</button>
   </form>
