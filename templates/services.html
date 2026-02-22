@@ -128,7 +128,9 @@
         <td>R$ {{ '%.2f'|format(service.total_price) }}</td>
         <td>R$ {{ '%.2f'|format(service.cost) }}</td>
         <td>R$ {{ '%.2f'|format(service.total_price - service.cost) }}</td>
-        <td>-</td>
+        <td>
+          <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='servico', record_id=service.id) }}', '_blank')">Imprimir</button>
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="10">Nenhum serviço realizado cadastrado ainda.</td></tr>

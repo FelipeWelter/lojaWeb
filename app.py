@@ -801,6 +801,32 @@ def imprimir(tipo: str, record_id: int):
             },
             'notes': data.technical_notes or 'Sem observações técnicas.',
         }
+    elif tipo == 'servico':
+        data = ServiceRecord.query.get_or_404(record_id)
+        subtotal = (Decimal(data.total_price or 0) + Decimal(data.discount_amount or 0)).quantize(Decimal('0.01'))
+        context = {
+            'document_title': f'Recibo de Serviço #{data.id}',
+            'store_name': 'LojaWeb',
+            'store_contact': 'contato@lojaweb.local',
+            'record_date': data.created_at,
+            'record_code': f'SER-{data.id}',
+            'client_name': data.client_name,
+            'items': [{
+                'item': data.service_name,
+                'quantity': 1,
+                'unit_price': subtotal,
+                'total': data.total_price,
+            }],
+            'subtotal': subtotal,
+            'discount_amount': data.discount_amount,
+            'total': data.total_price,
+            'technical': {
+                'bios': 'Não se aplica',
+                'stress': 'Não se aplica',
+                'os': 'Não se aplica',
+            },
+            'notes': data.notes or f'Equipamento atendido: {data.equipment}',
+        }
     else:
         flash('Tipo de impressão inválido.', 'danger')
         return redirect(url_for('dashboard'))
