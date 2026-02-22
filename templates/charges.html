@@ -1,7 +1,23 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
-  <h2>Nova cobrança (Mercado Pago)</h2>
+<section class="card charges-funnel-card">
+  <h2>Central de Cobranças</h2>
+
+  <div class="charges-kpi-grid">
+    <article class="charges-kpi danger">
+      <small>🔴 Vencidas</small>
+      <strong>R$ {{ '%.2f'|format(overdue_total) }}</strong>
+    </article>
+    <article class="charges-kpi warning">
+      <small>🟡 Pendentes (7 dias)</small>
+      <strong>R$ {{ '%.2f'|format(pending_total) }}</strong>
+    </article>
+    <article class="charges-kpi success">
+      <small>🟢 Recebidas</small>
+      <strong>R$ {{ '%.2f'|format(received_total) }}</strong>
+    </article>
+  </div>
+
   <form method="post" class="grid form-grid">
     <label>
       Venda (opcional)
@@ -17,49 +33,126 @@
         {% for srv in services %}<option value="{{ srv.id }}">#{{ srv.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>{% endfor %}
       </select>
     </label>
+    <label>
+      Data de vencimento
+      <input name="due_date" type="date" />
+    </label>
+    <label>
+      Valor total (avulso)
+      <input name="amount" type="number" min="0" step="0.01" placeholder="0,00" />
+    </label>
+    <label>
+      Valor pago
+      <input name="amount_paid" type="number" min="0" step="0.01" placeholder="0,00" />
+    </label>
     <input name="mercado_pago_reference" placeholder="ID/referência no Mercado Pago" required />
     <select name="payment_method" required>
       {% for value, label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
     </select>
     <select name="status">
       <option value="pendente">Pendente</option>
+      <option value="atrasado">Atrasado</option>
+      <option value="parcial">Parcial</option>
       <option value="confirmado">Confirmado</option>
       <option value="cancelado">Cancelado</option>
     </select>
     <button type="submit">Registrar cobrança</button>
   </form>
+
+  <div class="charges-print-actions">
+    <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='cobranca_relatorio', record_id=0) }}', '_blank')">Imprimir relatório de inadimplência</button>
+  </div>
 </section>
+
 <section class="card">
-  <h2>Cobranças</h2>
-  <table>
-    <thead><tr><th>Origem</th><th>Ref. Mercado Pago</th><th>Pagamento</th><th>Status</th><th>Confirmação</th><th>Ações</th></tr></thead>
-    <tbody>
-      {% for c in charges %}
-      <tr>
-        <td>{% if c.sale %}Venda: {{ c.sale.sale_name }} - {{ c.sale.client.name }}{% elif c.service %}Serviço: {{ c.service.service_name }} - {{ c.service.client_name }}{% else %}-{% endif %}</td>
-        <td>{{ c.mercado_pago_reference }}</td>
-        <td>{{ c.payment_method|capitalize }}</td>
-        <td>{{ c.status }}</td>
-        <td>{{ c.payment_confirmed_at.strftime('%d/%m/%Y %H:%M') if c.payment_confirmed_at else '-' }}</td>
-        <td>
-          <form method="post" action="{{ url_for('editar_cobranca', charge_id=c.id) }}" class="inline-form">
-            <input name="mercado_pago_reference" value="{{ c.mercado_pago_reference }}" required />
-            <select name="payment_method">
-              {% for value, label in payment_methods %}
-              <option value="{{ value }}" {% if c.payment_method == value %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-            <select name="status">
-              <option value="pendente" {% if c.status == 'pendente' %}selected{% endif %}>Pendente</option>
-              <option value="confirmado" {% if c.status == 'confirmado' %}selected{% endif %}>Confirmado</option>
-              <option value="cancelado" {% if c.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
-            </select>
-            <button type="submit">Salvar</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}<tr><td colspan="6">Sem cobranças.</td></tr>{% endfor %}
-    </tbody>
-  </table>
+  <h2>Lançamentos</h2>
+
+  <div class="charges-filter-bar">
+    <input id="filter-client" type="text" placeholder="Filtrar por Cliente" />
+    <input id="filter-month" type="month" />
+    <label class="checkbox-inline"><input id="filter-overdue" type="checkbox" /> Mostrar apenas atrasados</label>
+  </div>
+
+  <div class="table-wrap charges-table-wrap">
+    <table id="charges-table">
+      <thead><tr><th>Data de Vencimento</th><th>Cliente</th><th>Valor</th><th>Status</th><th>Pagamento</th><th>Ref.</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for c in charges %}
+        {% set ui_status = charge_ui_status(c) %}
+        {% set total_amount = charge_total_amount(c) %}
+        {% set balance = charge_balance(c) %}
+        <tr class="{% if ui_status == 'vencido' %}charge-overdue-row{% endif %}" data-client="{{ (c.sale.client.name if c.sale and c.sale.client else (c.service.client_name if c.service else 'Sem cliente'))|lower }}" data-month="{{ c.due_date.strftime('%Y-%m') if c.due_date else '' }}" data-overdue="{{ '1' if ui_status == 'vencido' else '0' }}">
+          <td>{{ c.due_date.strftime('%d/%m/%Y') if c.due_date else '-' }}</td>
+          <td>{% if c.sale %}{{ c.sale.client.name }}{% elif c.service %}{{ c.service.client_name }}{% else %}Sem cliente{% endif %}</td>
+          <td>R$ {{ '%.2f'|format(total_amount) }}<br><small>Pago: R$ {{ '%.2f'|format(c.amount_paid) }} | Saldo: R$ {{ '%.2f'|format(balance) }}</small></td>
+          <td>
+            <span class="status-pill {{ ui_status }}">{{ ui_status|capitalize }}</span>
+          </td>
+          <td>{{ c.payment_method|capitalize }}</td>
+          <td>{{ c.mercado_pago_reference }}</td>
+          <td>
+            <details class="actions-menu">
+              <summary>⋮</summary>
+              <div class="actions-menu-content">
+                <form method="post" action="{{ url_for('editar_cobranca', charge_id=c.id) }}" class="inline-form">
+                  <input name="mercado_pago_reference" value="{{ c.mercado_pago_reference }}" required />
+                  <input name="due_date" type="date" value="{{ c.due_date.strftime('%Y-%m-%d') if c.due_date else '' }}" />
+                  <input name="amount" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount) }}" />
+                  <input name="amount_paid" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount_paid) }}" />
+                  <select name="payment_method">
+                    {% for value, label in payment_methods %}
+                    <option value="{{ value }}" {% if c.payment_method == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <select name="status">
+                    <option value="pendente" {% if c.status == 'pendente' %}selected{% endif %}>Pendente</option>
+                    <option value="atrasado" {% if c.status == 'atrasado' %}selected{% endif %}>Atrasado</option>
+                    <option value="parcial" {% if c.status == 'parcial' %}selected{% endif %}>Parcial</option>
+                    <option value="confirmado" {% if c.status == 'confirmado' %}selected{% endif %}>Confirmado</option>
+                    <option value="cancelado" {% if c.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
+                  </select>
+                  <button type="submit">Salvar</button>
+                </form>
+                {% if c.amount_paid > 0 and charge_balance(c) > 0 %}
+                <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}', '_blank')">Imprimir recibo parcial</button>
+                {% endif %}
+              </div>
+            </details>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="7">Sem cobranças.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
+
+<script>
+  const filterClient = document.getElementById('filter-client');
+  const filterMonth = document.getElementById('filter-month');
+  const filterOverdue = document.getElementById('filter-overdue');
+  const tableRows = document.querySelectorAll('#charges-table tbody tr[data-client]');
+
+  function applyChargeFilters() {
+    const clientValue = (filterClient?.value || '').trim().toLowerCase();
+    const monthValue = filterMonth?.value || '';
+    const overdueOnly = filterOverdue?.checked;
+
+    tableRows.forEach((row) => {
+      const client = row.dataset.client || '';
+      const month = row.dataset.month || '';
+      const overdue = row.dataset.overdue === '1';
+
+      const matchClient = !clientValue || client.includes(clientValue);
+      const matchMonth = !monthValue || month === monthValue;
+      const matchOverdue = !overdueOnly || overdue;
+
+      row.style.display = matchClient && matchMonth && matchOverdue ? '' : 'none';
+    });
+  }
+
+  [filterClient, filterMonth, filterOverdue].forEach((el) => {
+    el?.addEventListener('input', applyChargeFilters);
+    el?.addEventListener('change', applyChargeFilters);
+  });
+</script>
 {% endblock %}

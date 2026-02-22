@@ -153,13 +153,13 @@
       <tr>
         <td>#{{ montagem.id }}</td>
         <td>{{ montagem.nome_referencia }}</td>
-        <td>{{ montagem.computador.name }}</td>
+        <td>{{ montagem.computador.name if montagem.computador else "Computador removido" }}</td>
         <td>R$ {{ '%.2f'|format(montagem.preco_original) }}</td>
         <td>R$ {{ '%.2f'|format(montagem.preco_sugerido) }}</td>
         <td>R$ {{ '%.2f'|format(montagem.custo_total) }}</td>
         <td>
           {% for item in montagem.composicao %}
-            <span class="assembly-part">{{ item.peca.name }} x{{ item.quantidade_utilizada }}</span>{% if not loop.last or montagem.custom_parts %}, {% endif %}
+            <span class="assembly-part">{{ item.peca.name if item.peca else "Peça removida" }} x{{ item.quantidade_utilizada }}</span>{% if not loop.last or montagem.custom_parts %}, {% endif %}
           {% endfor %}
           {% for custom in montagem.custom_parts %}
             <span class="assembly-part">{{ custom.part_name }} x{{ custom.quantity }} (custom)</span>{% if not loop.last %}, {% endif %}
