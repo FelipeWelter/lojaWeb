@@ -2,6 +2,7 @@
 {% block content %}
 <section class="card">
   <h2>Logs de Auditoria</h2>
+  <div class="table-wrap">
   <table>
     <thead><tr><th>Data</th><th>Ação</th><th>Usuário</th><th>Detalhes</th></tr></thead>
     <tbody>
@@ -10,5 +11,6 @@
       {% else %}<tr><td colspan="4">Sem registros.</td></tr>{% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 {% endblock %}

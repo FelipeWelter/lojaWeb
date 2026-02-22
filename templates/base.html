@@ -21,8 +21,9 @@
         <a href="{{ url_for('montar_pc') }}" class="{% if request.endpoint == 'montar_pc' %}active{% endif %}">Montar PC</a>
         <a href="{{ url_for('cobrancas') }}" class="{% if request.endpoint == 'cobrancas' %}active{% endif %}">Cobranças</a>
         <a href="{{ url_for('logs_auditoria') }}" class="{% if request.endpoint == 'logs_auditoria' %}active{% endif %}">Logs</a>
-        <a href="{{ url_for('usuarios') }}" class="{% if request.endpoint == 'usuarios' %}active{% endif %}">Usuários</a>
-        <a href="{{ url_for('logout') }}">Sair</a>
+        <span class="nav-divider" aria-hidden="true"></span>
+        <a href="{{ url_for('usuarios') }}" class="nav-admin {% if request.endpoint == 'usuarios' %}active{% endif %}">Usuários</a>
+        <a href="{{ url_for('logout') }}" class="nav-admin">Sair</a>
         {% else %}
         <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Login</a>
         {% endif %}

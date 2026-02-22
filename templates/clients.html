@@ -47,9 +47,9 @@
         <tr class="client-letter-row"><td colspan="5">{{ c.initial }}</td></tr>
         {% set ns.last = c.initial %}
         {% endif %}
-        <tr class="client-row" data-search="{{ (c.name ~ ' ' ~ (c.cpf or '') ~ ' ' ~ (c.phone or '') ~ ' ' ~ (c.email or ''))|lower }}">
+        <tr class="client-row" data-search="{{ (c.name ~ ' ' ~ (c.cpf or '') ~ ' ' ~ (c.phone or '') ~ ' ' ~ (c.email or ''))|lower }}" data-client-id="{{ c.id }}">
           <td>
-            <button type="button" class="client-link" onclick="openClientDrawer({{ c.id }})">
+            <button type="button" class="client-link accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false">
               <span class="client-avatar">{{ c.initials }}</span>
               <span>{{ c.name }} <span class="service-badge">[{{ c.service_count }}]</span></span>
             </button>
@@ -60,7 +60,7 @@
           <td>
             <div class="table-actions">
               <a class="btn-link" href="{{ url_for('vendas') }}">Nova Venda</a>
-              <button type="button" class="btn-secondary" onclick="openClientDrawer({{ c.id }})">Ver Histórico</button>
+              <button type="button" class="btn-secondary accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false">Ver Histórico</button>
               <a class="btn-secondary" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank">🖨️ Inadimplentes</a>
               <a class="btn-secondary" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='compras', via='gerente') }}" target="_blank">🖨️ Rel. Gerente</a>
               <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" onsubmit="return confirm('Deseja remover este cliente?');">
@@ -69,111 +69,73 @@
             </div>
           </td>
         </tr>
+        <tr id="history-{{ c.id }}" class="client-history-row">
+          <td colspan="5">
+            <div class="client-history-accordion">
+              <div>
+                <h4>Histórico de Compras</h4>
+                <ul class="drawer-list">
+                  {% for s in c.sales %}
+                  <li><strong>{{ s.sale_name }}</strong><br><small>{{ s.created_at.strftime('%d/%m/%Y %H:%M') }}</small> · R$ {{ '%.2f'|format(s.total) }}</li>
+                  {% else %}
+                  <li>Sem compras registradas.</li>
+                  {% endfor %}
+                </ul>
+              </div>
+              <div>
+                <h4>Status de Débitos</h4>
+                <ul class="drawer-list">
+                  {% for charge in c.pending_charges %}
+                  <li>
+                    Cobrança {{ charge.mercado_pago_reference }}
+                    <span class="status-pill {{ charge.status|lower }}">{{ charge.status }}</span>
+                    <a class="btn-link" target="_blank" href="{{ url_for('imprimir', tipo='cliente_quitacao', record_id=charge.id) }}">Imprimir Recibo</a>
+                  </li>
+                  {% else %}
+                  <li>Sem cobranças pendentes.</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+          </td>
+        </tr>
         {% else %}<tr><td colspan="5">Sem clientes.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-
-  <div class="client-cards" id="client-cards">
-    {% for c in clients %}
-    <article class="client-mini-card client-row" data-search="{{ (c.name ~ ' ' ~ (c.cpf or '') ~ ' ' ~ (c.phone or '') ~ ' ' ~ (c.email or ''))|lower }}">
-      <header>
-        <span class="client-avatar">{{ c.initials }}</span>
-        <strong>{{ c.name }}</strong>
-      </header>
-      <p><strong>CPF/CNPJ:</strong> {{ c.cpf or '-' }}</p>
-      <p><strong>WhatsApp:</strong> {{ c.phone or '-' }}</p>
-      <p><strong>E-mail:</strong> {{ c.email or '-' }}</p>
-      <div class="action-group">
-        <button type="button" class="btn-secondary" onclick="openClientDrawer({{ c.id }})">Ver Histórico</button>
-        <a class="btn-link" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id) }}" target="_blank">🖨️ Imprimir</a>
-      </div>
-    </article>
-    {% endfor %}
-  </div>
 </section>
 
-<aside id="client-drawer" class="client-drawer" aria-hidden="true">
-  <div class="drawer-header">
-    <h3 id="drawer-client-name">Cliente</h3>
-    <button type="button" class="btn-secondary" onclick="closeClientDrawer()">Fechar</button>
-  </div>
-  <p id="drawer-client-meta"></p>
-  <p><strong>Total gasto:</strong> <span id="drawer-total"></span></p>
-
-  <h4>Histórico de Compras</h4>
-  <ul id="drawer-sales" class="drawer-list"></ul>
-
-  <h4>Status de Débitos</h4>
-  <ul id="drawer-debts" class="drawer-list"></ul>
-</aside>
-
 <script>
-  const clientsData = {
-    {% for c in clients %}
-    "{{ c.id }}": {
-      name: {{ c.name|tojson }},
-      cpf: {{ (c.cpf or '-')|tojson }},
-      phone: {{ (c.phone or '-')|tojson }},
-      email: {{ (c.email or '-')|tojson }},
-      total: "R$ {{ '%.2f'|format(c.total_spent) }}",
-      sales: [
-        {% for s in c.sales %}
-        {
-          date: {{ s.created_at.strftime('%d/%m/%Y %H:%M')|tojson }},
-          name: {{ s.sale_name|tojson }},
-          total: {{ ('R$ %.2f'|format(s.total))|tojson }}
-        },
-        {% endfor %}
-      ],
-      debts: [
-        {% for charge in c.pending_charges %}
-        {
-          ref: {{ charge.mercado_pago_reference|tojson }},
-          status: {{ charge.status|tojson }},
-          printUrl: {{ url_for('imprimir', tipo='cliente_quitacao', record_id=charge.id)|tojson }}
-        },
-        {% endfor %}
-      ]
-    },
-    {% endfor %}
-  };
-
   const searchInput = document.getElementById('client-search');
   const searchableRows = document.querySelectorAll('.client-row');
+
   searchInput?.addEventListener('input', (event) => {
     const term = event.target.value.toLowerCase().trim();
-    searchableRows.forEach((el) => {
-      const haystack = el.dataset.search || '';
-      el.style.display = haystack.includes(term) ? '' : 'none';
+    searchableRows.forEach((row) => {
+      const haystack = row.dataset.search || '';
+      const visible = haystack.includes(term);
+      row.style.display = visible ? '' : 'none';
+      const historyRow = document.getElementById(`history-${row.dataset.clientId}`);
+      if (historyRow && !visible) {
+        historyRow.classList.remove('is-open');
+        row.querySelectorAll('.accordion-toggle').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
+      }
     });
   });
 
-  const drawer = document.getElementById('client-drawer');
-  function openClientDrawer(clientId) {
-    const data = clientsData[String(clientId)];
-    if (!data) return;
-    document.getElementById('drawer-client-name').textContent = data.name;
-    document.getElementById('drawer-client-meta').textContent = `${data.cpf} • ${data.phone} • ${data.email}`;
-    document.getElementById('drawer-total').textContent = data.total;
+  document.querySelectorAll('.accordion-toggle').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.dataset.target;
+      const targetRow = document.getElementById(targetId);
+      if (!targetRow) return;
 
-    const salesList = document.getElementById('drawer-sales');
-    salesList.innerHTML = data.sales.length
-      ? data.sales.map(s => `<li><strong>${s.name}</strong><br><small>${s.date}</small> · ${s.total}</li>`).join('')
-      : '<li>Sem compras registradas.</li>';
-
-    const debtsList = document.getElementById('drawer-debts');
-    debtsList.innerHTML = data.debts.length
-      ? data.debts.map(d => `<li class="debt-warning">Cobrança ${d.ref} - ${d.status} <a class="btn-link" target="_blank" href="${d.printUrl}">Imprimir Recibo</a></li>`).join('')
-      : '<li>Sem cobranças pendentes.</li>';
-
-    drawer.classList.add('open');
-    drawer.setAttribute('aria-hidden', 'false');
-  }
-
-  function closeClientDrawer() {
-    drawer.classList.remove('open');
-    drawer.setAttribute('aria-hidden', 'true');
-  }
+      const isOpen = targetRow.classList.contains('is-open');
+      targetRow.classList.toggle('is-open', !isOpen);
+      const row = button.closest('.client-row');
+      if (row) {
+        row.querySelectorAll('.accordion-toggle').forEach((btn) => btn.setAttribute('aria-expanded', String(!isOpen)));
+      }
+    });
+  });
 </script>
 {% endblock %}
