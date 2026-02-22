@@ -115,7 +115,7 @@
         <td>R$ {{ '%.2f'|format(service.total_price) }}</td>
         <td>R$ {{ '%.2f'|format(service.cost) }}</td>
         <td>R$ {{ '%.2f'|format(service.total_price - service.cost) }}</td>
-        <td><a class="btn-link" href="{{ url_for('imprimir_servico', service_id=service.id) }}">Imprimir</a></td>
+        <td>-</td>
       </tr>
       {% else %}
       <tr><td colspan="8">Nenhum serviço realizado cadastrado ainda.</td></tr>
