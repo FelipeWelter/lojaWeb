@@ -4,22 +4,25 @@
   <h2>Montagem de Computadores</h2>
   <p class="montage-subtitle">Monte uma configuração profissional em poucos cliques.</p>
   <form method="post" class="grid form-grid" id="form-montagem" enctype="multipart/form-data">
-    <div class="pc-header full-width">
-      <label>
-        Nome do computador (novo ou existente)
-        <input name="computer_name" placeholder="Ex: GAMER" required />
-      </label>
-      <label>
-        Preço base (opcional para existente)
-        <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" />
-      </label>
-      <label>
-        Fotos do computador (opcional)
-        <input name="photo_files" type="file" accept="image/*" multiple />
-      </label>
-    </div>
+    <div class="pc-layout full-width">
+      <section class="pc-builder-area">
+        <div class="pc-header full-width">
+          <label>
+            Nome do computador (novo ou existente)
+            <input name="computer_name" placeholder="Ex: GAMER" required />
+          </label>
+          <label>
+            Preço base (opcional para existente)
+            <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" />
+          </label>
+          <label>
+            Fotos do computador (opcional)
+            <input name="photo_files" type="file" accept="image/*" multiple />
+          </label>
+        </div>
 
-    <div class="slots-top full-width">
+        <div class="components-scroll-area full-width">
+          <div class="slots-top full-width">
       {% for slot_key, slot_label, allow_multiple in component_slots if not allow_multiple %}
       <div class="slot-box">
         <div class="slot-heading">
@@ -55,9 +58,9 @@
         </div>
       </div>
       {% endfor %}
-    </div>
+          </div>
 
-    <div class="slots-bottom full-width">
+          <div class="slots-bottom full-width">
       {% for slot_key, slot_label, allow_multiple in component_slots if allow_multiple %}
       <div class="slot-box slot-multiple">
         <div class="slot-heading">
@@ -105,27 +108,42 @@
         <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
       </div>
       {% endfor %}
+          </div>
+        </div>
+
+        <div class="assembly-summary notes-panel full-width">
+          <label>
+            Observações técnicas
+            <textarea name="technical_notes" rows="4" placeholder="Ex: curva de fan ajustada, XMP ativado..."></textarea>
+          </label>
+          <div class="class-menu technical-checklist">
+            <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
+            <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
+            <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
+            <label><input type="checkbox" name="create_stock_item" checked /> Criar item automaticamente em "Computador" no estoque</label>
+          </div>
+        </div>
+      </section>
+
+      <aside class="assembly-summary summary-highlight summary-sidebar">
+        <div>
+          <p class="summary-title">Resumo do Orçamento</p>
+          <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
+          <p><strong>Preço Sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+        </div>
+        <button type="submit" class="summary-submit">Finalizar montagem</button>
+        <p class="summary-hint">Use o modo <strong>P</strong> para peças manuais e informe um custo numérico para atualizar o lucro em tempo real.</p>
+      </aside>
     </div>
 
-    <div class="assembly-summary summary-highlight full-width">
-      <div>
-        <p class="summary-title">Resumo do Orçamento</p>
-        <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
-        <p><strong>Preço Sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
-      </div>
-      <button type="submit" class="summary-submit">Finalizar montagem</button>
-    </div>
-
-    <div class="assembly-summary full-width">
-      <label>
-        Observações técnicas
-        <textarea name="technical_notes" rows="3" placeholder="Ex: curva de fan ajustada, XMP ativado..."></textarea>
-      </label>
-      <div class="class-menu">
-        <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
-        <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
-        <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
-        <label><input type="checkbox" name="create_stock_item" checked /> Criar item automaticamente em "Computador" no estoque</label>
+    <div class="full-width summary-sticky-mobile">
+      <div class="assembly-summary summary-highlight">
+        <div>
+          <p class="summary-title">Resumo do Orçamento</p>
+          <p><strong>Custo Total:</strong> <span id="total-custo-mobile">R$ 0,00</span></p>
+          <p><strong>Preço Sugerido (+20%):</strong> <span id="preco-sugerido-mobile">R$ 0,00</span></p>
+        </div>
+        <button type="submit" class="summary-submit">Finalizar montagem</button>
       </div>
     </div>
   </form>
@@ -202,6 +220,8 @@
   const form = document.getElementById('form-montagem');
   const custoEl = document.getElementById('total-custo');
   const precoEl = document.getElementById('preco-sugerido');
+  const custoMobileEl = document.getElementById('total-custo-mobile');
+  const precoMobileEl = document.getElementById('preco-sugerido-mobile');
 
   function formatBRL(value) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -222,7 +242,7 @@
       if (!isCustom && option && option.value && qty > 0) {
         total += Number(option.dataset.cost || 0) * qty;
       } else if (isCustom && customNameInput && customNameInput.value.trim() && qty > 0) {
-        total += Number(customCostInput.value || 0) * qty;
+        total += toNumber(customCostInput.value) * qty;
       }
     });
 
@@ -238,40 +258,23 @@
         const name = form.querySelector(`input[name="custom_${slot}_name"]`);
         const cost = form.querySelector(`input[name="custom_${slot}_cost"]`);
         if (name && name.value.trim()) {
-          total += Number(cost.value || 0);
+          total += toNumber(cost.value);
         }
       }
     });
 
     custoEl.textContent = formatBRL(total);
     precoEl.textContent = formatBRL(total * 1.2);
+    if (custoMobileEl && precoMobileEl) {
+      custoMobileEl.textContent = formatBRL(total);
+      precoMobileEl.textContent = formatBRL(total * 1.2);
+    }
   }
 
-  function atualizarVisibilidadeModos() {
-    form.querySelectorAll('.slots-top .slot-box').forEach((box) => {
-      const isCustom = box.querySelector('input[type="radio"][value="custom"]')?.checked;
-      box.querySelector('.stock-fields').classList.toggle('hidden', isCustom);
-      box.querySelector('.custom-fields').classList.toggle('hidden', !isCustom);
-    });
-
-    form.querySelectorAll('.multi-row').forEach((row) => {
-      const isCustom = row.querySelector('input[type="radio"][value="custom"]')?.checked;
-      row.querySelector('select').classList.toggle('hidden', isCustom);
-      row.querySelector('input[name$="_custom_names[]"]').classList.toggle('hidden', !isCustom);
-    });
+  function toNumber(value) {
+    if (typeof value === 'number') return value;
+    return Number(String(value || '0').replace(',', '.')) || 0;
   }
-
-  function renumerarModosMultiplos() {
-    document.querySelectorAll('.multi-list').forEach((list) => {
-      const slot = list.dataset.slot;
-      list.querySelectorAll('.multi-row').forEach((row, index) => {
-        row.querySelectorAll('.piece-mode.compact input[type="radio"]').forEach((radio) => {
-          radio.name = `${slot}_mode_${index}`;
-        });
-      });
-    });
-  }
-
 
   function atualizarVisibilidadeModos() {
     form.querySelectorAll('.slots-top .slot-box').forEach((box) => {
