@@ -155,6 +155,9 @@ class Charge(db.Model):
     sale_id = db.Column(db.Integer, db.ForeignKey('sale.id'), nullable=True)
     service_id = db.Column(db.Integer, db.ForeignKey('service_record.id'), nullable=True)
     mercado_pago_reference = db.Column(db.String(120), nullable=False)
+    due_date = db.Column(db.Date, nullable=True)
+    amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    amount_paid = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     status = db.Column(db.String(30), nullable=False, default='pendente')
     payment_method = db.Column(db.String(30), nullable=False, default='pix')
     payment_confirmed_at = db.Column(db.DateTime, nullable=True)
@@ -988,6 +991,86 @@ def imprimir(tipo: str, record_id: int):
                 'os': (charge.payment_confirmed_at.strftime('%d/%m/%Y %H:%M') if charge.payment_confirmed_at else datetime.utcnow().strftime('%d/%m/%Y %H:%M')),
             },
             'notes': 'Recibo emitido para comprovação de pagamento da dívida pendente.',
+            'performed_by_name': _current_user().name if _current_user() else 'Sistema',
+        }
+
+    elif tipo == 'cobranca_relatorio':
+        pending_charges = Charge.query.order_by(Charge.id.desc()).all()
+        today = datetime.utcnow().date()
+        items = []
+        subtotal = Decimal('0.00')
+
+        for charge in pending_charges:
+            balance = _charge_balance(charge)
+            if balance <= 0 or charge.status == 'cancelado':
+                continue
+
+            due_date_label = charge.due_date.strftime('%d/%m/%Y') if charge.due_date else 'Sem vencimento'
+            overdue_days = (today - charge.due_date).days if charge.due_date and charge.due_date < today else 0
+            source = charge.sale.client.name if charge.sale and charge.sale.client else (charge.service.client_name if charge.service else 'Origem avulsa')
+            subtotal += balance
+            items.append({
+                'item': f'{source} - Ref: {charge.mercado_pago_reference}',
+                'serial_number': f'Vencto: {due_date_label}',
+                'quantity': 1,
+                'unit_price': balance,
+                'total': balance,
+                'source_label': f'{overdue_days} dia(s) em atraso' if overdue_days > 0 else 'No prazo',
+            })
+
+        context = {
+            'document_title': 'Relatório de Inadimplência',
+            'store_name': 'LojaWeb',
+            'store_contact': 'contato@lojaweb.local',
+            'record_date': datetime.utcnow(),
+            'record_code': f'REL-COB-{datetime.utcnow().strftime("%Y%m%d%H%M")}',
+            'client_name': 'Uso interno',
+            'items': items or [{
+                'item': 'Sem débitos pendentes',
+                'serial_number': '-',
+                'quantity': 0,
+                'unit_price': Decimal('0.00'),
+                'total': Decimal('0.00'),
+                'source_label': '-',
+            }],
+            'subtotal': subtotal,
+            'discount_amount': Decimal('0.00'),
+            'total': subtotal,
+            'technical': {'bios': 'N/A', 'stress': 'N/A', 'os': 'N/A'},
+            'notes': 'Documento interno para acompanhamento de inadimplência.',
+            'performed_by_name': _current_user().name if _current_user() else 'Sistema',
+        }
+    elif tipo == 'cobranca_recibo_parcial':
+        charge = Charge.query.get_or_404(record_id)
+        total_amount = _charge_total_amount(charge)
+        paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        balance = (total_amount - paid_amount).quantize(Decimal('0.01'))
+        source = charge.sale.client.name if charge.sale and charge.sale.client else (charge.service.client_name if charge.service else 'Cliente avulso')
+
+        context = {
+            'document_title': f'Recibo de Pagamento Parcial #{charge.id}',
+            'store_name': 'LojaWeb',
+            'store_contact': 'contato@lojaweb.local',
+            'record_date': datetime.utcnow(),
+            'record_code': f'PARC-{charge.id}',
+            'client_name': source,
+            'items': [{
+                'item': f'Cobrança {charge.mercado_pago_reference}',
+                'serial_number': f'Total: R$ {total_amount:.2f}',
+                'quantity': 1,
+                'unit_price': paid_amount,
+                'total': paid_amount,
+                'source_label': f'Saldo devedor: R$ {balance:.2f}',
+            }],
+            'subtotal': total_amount,
+            'discount_amount': Decimal('0.00'),
+            'total': paid_amount,
+            'technical': {
+                'bios': f'Valor Total: R$ {total_amount:.2f}',
+                'stress': f'Valor Pago: R$ {paid_amount:.2f}',
+                'os': f'Saldo Devedor: R$ {balance:.2f}',
+            },
+            'notes': 'Recibo parcial: [Valor Total] - [Valor Pago] = [Saldo Devedor].',
             'performed_by_name': _current_user().name if _current_user() else 'Sistema',
         }
     else:
@@ -2228,6 +2311,68 @@ def excluir_venda(sale_id: int):
     return redirect(request.referrer or url_for('vendas'))
 
 
+def _parse_date_input(value: str | None):
+    raw = (value or '').strip()
+    if not raw:
+        return None
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y'):
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError('Data de vencimento inválida. Use o formato AAAA-MM-DD.')
+
+
+def _charge_total_amount(charge: Charge) -> Decimal:
+    if charge.sale:
+        return Decimal(charge.sale.total or 0).quantize(Decimal('0.01'))
+    if charge.service:
+        return Decimal(charge.service.total_price or 0).quantize(Decimal('0.01'))
+    return Decimal(charge.amount or 0).quantize(Decimal('0.01'))
+
+
+def _charge_balance(charge: Charge) -> Decimal:
+    total = _charge_total_amount(charge)
+    paid = Decimal(charge.amount_paid or 0)
+    return (total - paid).quantize(Decimal('0.01'))
+
+
+def _normalize_charge_status(charge: Charge):
+    balance = _charge_balance(charge)
+    if charge.status == 'cancelado':
+        charge.payment_confirmed_at = None
+        return
+
+    if balance <= 0:
+        charge.status = 'confirmado'
+        charge.payment_confirmed_at = charge.payment_confirmed_at or datetime.utcnow()
+    elif Decimal(charge.amount_paid or 0) > 0:
+        charge.status = 'parcial'
+        charge.payment_confirmed_at = None
+    elif charge.status not in {'pendente', 'atrasado'}:
+        charge.status = 'pendente'
+        charge.payment_confirmed_at = None
+
+
+def _charge_ui_status(charge: Charge):
+    if charge.status == 'cancelado':
+        return 'cancelado'
+
+    balance = _charge_balance(charge)
+    if balance <= 0:
+        return 'recebido'
+
+    if charge.due_date and charge.due_date < datetime.utcnow().date():
+        return 'vencido'
+
+    if charge.due_date and charge.due_date <= (datetime.utcnow().date() + timedelta(days=7)):
+        return 'pendente'
+
+    return 'pendente'
+
+
+
+
 @app.route('/cobrancas', methods=['GET', 'POST'])
 @_login_required
 def cobrancas():
@@ -2250,14 +2395,30 @@ def cobrancas():
             flash('Selecione apenas uma origem: venda ou serviço.', 'danger')
             return redirect(url_for('cobrancas'))
 
+        try:
+            due_date = _parse_date_input(request.form.get('due_date'))
+            amount = Decimal((request.form.get('amount') or '0').replace(',', '.')).quantize(Decimal('0.01'))
+            amount_paid = Decimal((request.form.get('amount_paid') or '0').replace(',', '.')).quantize(Decimal('0.01'))
+        except (ValueError, InvalidOperation) as exc:
+            flash(str(exc) if isinstance(exc, ValueError) else 'Valor inválido para cobrança.', 'danger')
+            return redirect(url_for('cobrancas'))
+
+        if amount < 0 or amount_paid < 0:
+            flash('Valores de cobrança não podem ser negativos.', 'danger')
+            return redirect(url_for('cobrancas'))
+
         charge = Charge(
             sale_id=sale_id,
             service_id=service_id,
             mercado_pago_reference=request.form['mercado_pago_reference'],
             status=request.form['status'],
             payment_method=request.form['payment_method'],
-            payment_confirmed_at=datetime.utcnow() if request.form['status'] == 'confirmado' else None,
+            due_date=due_date,
+            amount=amount,
+            amount_paid=amount_paid,
         )
+        _normalize_charge_status(charge)
+
         db.session.add(charge)
         db.session.commit()
         flash('Cobrança registrada com sucesso!', 'success')
@@ -2266,7 +2427,38 @@ def cobrancas():
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
     services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).limit(200).all()
     charges = Charge.query.order_by(Charge.id.desc()).all()
-    return render_template('charges.html', charges=charges, sales=sales, services=services, payment_methods=PAYMENT_METHODS)
+
+    today = datetime.utcnow().date()
+    next_week = today + timedelta(days=7)
+    overdue_total = Decimal('0.00')
+    pending_total = Decimal('0.00')
+    received_total = Decimal('0.00')
+
+    for charge in charges:
+        status_ui = _charge_ui_status(charge)
+        balance = _charge_balance(charge)
+        total_amount = _charge_total_amount(charge)
+        if status_ui == 'vencido' and balance > 0:
+            overdue_total += balance
+        elif status_ui == 'pendente' and charge.due_date and today <= charge.due_date <= next_week and balance > 0:
+            pending_total += balance
+        if status_ui == 'recebido':
+            received_total += total_amount
+
+    return render_template(
+        'charges.html',
+        charges=charges,
+        sales=sales,
+        services=services,
+        payment_methods=PAYMENT_METHODS,
+        overdue_total=overdue_total,
+        pending_total=pending_total,
+        received_total=received_total,
+        today=today,
+        charge_ui_status=_charge_ui_status,
+        charge_balance=_charge_balance,
+        charge_total_amount=_charge_total_amount,
+    )
 
 
 @app.route('/cobrancas/<int:charge_id>/editar', methods=['POST'])
@@ -2281,7 +2473,20 @@ def editar_cobranca(charge_id: int):
         flash('Informe a referência da cobrança.', 'danger')
         return redirect(url_for('cobrancas'))
 
-    charge.payment_confirmed_at = datetime.utcnow() if charge.status == 'confirmado' else None
+    try:
+        charge.due_date = _parse_date_input(request.form.get('due_date'))
+        charge.amount = Decimal((request.form.get('amount') or '0').replace(',', '.')).quantize(Decimal('0.01'))
+        charge.amount_paid = Decimal((request.form.get('amount_paid') or '0').replace(',', '.')).quantize(Decimal('0.01'))
+    except (ValueError, InvalidOperation) as exc:
+        flash(str(exc) if isinstance(exc, ValueError) else 'Valor inválido para cobrança.', 'danger')
+        return redirect(url_for('cobrancas'))
+
+    if charge.amount < 0 or charge.amount_paid < 0:
+        flash('Valores de cobrança não podem ser negativos.', 'danger')
+        return redirect(url_for('cobrancas'))
+
+    _normalize_charge_status(charge)
+
     db.session.commit()
     flash('Cobrança atualizada com sucesso!', 'success')
     return redirect(url_for('cobrancas'))
@@ -2291,6 +2496,7 @@ def editar_cobranca(charge_id: int):
 @_login_required
 def confirmar_cobranca(charge_id: int):
     charge = Charge.query.get_or_404(charge_id)
+    charge.amount_paid = _charge_total_amount(charge)
     charge.status = 'confirmado'
     charge.payment_confirmed_at = datetime.utcnow()
     db.session.commit()
@@ -2546,6 +2752,12 @@ with app.app_context():
         db.session.execute(db.text("ALTER TABLE charge ADD COLUMN payment_method VARCHAR(30) NOT NULL DEFAULT 'pix'"))
     if 'service_id' not in charge_columns:
         db.session.execute(db.text('ALTER TABLE charge ADD COLUMN service_id INTEGER'))
+    if 'due_date' not in charge_columns:
+        db.session.execute(db.text('ALTER TABLE charge ADD COLUMN due_date DATE'))
+    if 'amount' not in charge_columns:
+        db.session.execute(db.text('ALTER TABLE charge ADD COLUMN amount NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    if 'amount_paid' not in charge_columns:
+        db.session.execute(db.text('ALTER TABLE charge ADD COLUMN amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0'))
 
     sale_id_info = next((row for row in charge_columns_info if row[1] == 'sale_id'), None)
     sale_id_is_not_null = bool(sale_id_info and sale_id_info[3] == 1)
@@ -2558,6 +2770,9 @@ with app.app_context():
                 'sale_id INTEGER, '
                 'service_id INTEGER, '
                 'mercado_pago_reference VARCHAR(120) NOT NULL, '
+                'due_date DATE, '
+                'amount NUMERIC(10,2) NOT NULL DEFAULT 0, '
+                'amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0, '
                 "status VARCHAR(30) NOT NULL DEFAULT 'pendente', "
                 "payment_method VARCHAR(30) NOT NULL DEFAULT 'pix', "
                 'payment_confirmed_at DATETIME, '
@@ -2568,8 +2783,8 @@ with app.app_context():
         )
         db.session.execute(
             db.text(
-                'INSERT INTO charge (id, sale_id, mercado_pago_reference, status, payment_method, payment_confirmed_at) '
-                'SELECT id, sale_id, mercado_pago_reference, status, payment_method, payment_confirmed_at FROM charge_old'
+                'INSERT INTO charge (id, sale_id, mercado_pago_reference, due_date, amount, amount_paid, status, payment_method, payment_confirmed_at) '
+                'SELECT id, sale_id, mercado_pago_reference, NULL, 0, 0, status, payment_method, payment_confirmed_at FROM charge_old'
             )
         )
         db.session.execute(db.text('DROP TABLE charge_old'))
