@@ -127,3 +127,12 @@
     margin: 6px auto 0;
   }
 }
+
+@media print {
+  .btn,
+  .btn-premium,
+  .table-actions,
+  .table-actions--client {
+    display: none !important;
+  }
+}
