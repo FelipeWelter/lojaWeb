@@ -402,33 +402,33 @@ def _collect_selected_piece_inputs(form_data, prefix=''):
 
     for slot_key, _, allow_multiple in COMPONENT_SLOTS:
         if allow_multiple:
-            ids = form_data.getlist(f'{prefix}{slot_key}_ids[]')
+            stock_ids = form_data.getlist(f'{prefix}{slot_key}_stock_ids[]')
+            entries = form_data.getlist(f'{prefix}{slot_key}_entries[]')
             qtys = form_data.getlist(f'{prefix}{slot_key}_qtys[]')
-            custom_names = form_data.getlist(f'{prefix}{slot_key}_custom_names[]')
             custom_costs = form_data.getlist(f'{prefix}{slot_key}_custom_costs[]')
 
-            for piece_id, qty, custom_name, custom_cost in zip(ids, qtys, custom_names, custom_costs):
+            for stock_id, entry, qty, custom_cost in zip(stock_ids, entries, qtys, custom_costs):
                 qty_value = _safe_qty(qty)
-                if piece_id:
-                    selected_piece_ids.extend([int(piece_id)] * qty_value)
+                if stock_id:
+                    selected_piece_ids.extend([int(stock_id)] * qty_value)
                     continue
 
-                custom_name = (custom_name or '').strip()
-                if custom_name and qty_value > 0:
+                entry = (entry or '').strip()
+                if entry and qty_value > 0:
                     custom_items.append({
                         'slot_key': slot_key,
-                        'name': custom_name,
+                        'name': entry,
                         'qty': qty_value,
                         'unit_cost': Decimal(custom_cost or '0'),
                     })
         else:
-            value = form_data.get(f'{prefix}slot_{slot_key}')
-            if value:
-                selected_piece_ids.append(int(value))
+            stock_id = form_data.get(f'{prefix}slot_{slot_key}_stock_id')
+            if stock_id:
+                selected_piece_ids.append(int(stock_id))
                 continue
 
-            custom_name = (form_data.get(f'{prefix}custom_{slot_key}_name') or '').strip()
-            custom_cost = form_data.get(f'{prefix}custom_{slot_key}_cost') or '0'
+            custom_name = (form_data.get(f'{prefix}slot_{slot_key}_entry') or '').strip()
+            custom_cost = form_data.get(f'{prefix}slot_{slot_key}_cost') or '0'
             if custom_name:
                 custom_items.append({
                     'slot_key': slot_key,
@@ -804,7 +804,8 @@ def imprimir(tipo: str, record_id: int):
         items = [
             {
                 'item': item.peca.name,
-                'serial_number': item.peca.serial_number,
+                'source_label': 'Estoque',
+                'sku': item.peca.serial_number,
                 'quantity': item.quantidade_utilizada,
                 'unit_price': item.peca.price,
                 'total': Decimal(item.quantidade_utilizada) * Decimal(item.peca.price),
@@ -814,7 +815,8 @@ def imprimir(tipo: str, record_id: int):
         items.extend(
             {
                 'item': custom.part_name,
-                'serial_number': None,
+                'source_label': 'Item Personalizado',
+                'sku': None,
                 'quantity': custom.quantity,
                 'unit_price': custom.unit_cost,
                 'total': Decimal(custom.quantity) * Decimal(custom.unit_cost),
