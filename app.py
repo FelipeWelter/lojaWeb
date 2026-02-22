@@ -778,6 +778,7 @@ def imprimir(tipo: str, record_id: int):
         items = [
             {
                 'item': item.peca.name,
+                'serial_number': item.peca.serial_number,
                 'quantity': item.quantidade_utilizada,
                 'unit_price': item.peca.price,
                 'total': Decimal(item.quantidade_utilizada) * Decimal(item.peca.price),
@@ -787,6 +788,7 @@ def imprimir(tipo: str, record_id: int):
         items.extend(
             {
                 'item': custom.part_name,
+                'serial_number': None,
                 'quantity': custom.quantity,
                 'unit_price': custom.unit_cost,
                 'total': Decimal(custom.quantity) * Decimal(custom.unit_cost),
