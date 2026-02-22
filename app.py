@@ -655,15 +655,20 @@ def _to_decimal(value, default: str = '0') -> Decimal:
     if not raw:
         raw = default
     try:
-        return Decimal(raw)
+        parsed = Decimal(raw)
     except (InvalidOperation, ValueError):
         return Decimal(default)
+
+    if not parsed.is_finite():
+        return Decimal(default)
+    return parsed
 
 
 DEFAULT_MAINTENANCE_CHECKLIST = [
     'Limpeza interna',
     'Troca de pasta térmica',
     'Teste de stress',
+    'Instalação de sistema operacional',
 ]
 
 
@@ -681,10 +686,14 @@ def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user
     parts_total = Decimal('0')
     parts_desc = []
     for part in parts_items:
+        if not isinstance(part, dict):
+            continue
         qty = _to_decimal(part.get('quantity') or 1, default='1')
         unit = _to_decimal(part.get('unit_price') or 0)
-        parts_total += qty * unit
-        parts_desc.append(f"{part.get('name', 'Peça')} x{max(1, int(qty))}")
+        qty_int = max(1, int(qty)) if qty > 0 else 1
+        unit_value = unit if unit >= 0 else Decimal('0')
+        parts_total += Decimal(qty_int) * unit_value
+        parts_desc.append(f"{part.get('name', 'Peça')} x{qty_int}")
 
     labor = Decimal(ticket.labor_cost or 0)
     total_price = (labor + parts_total).quantize(Decimal('0.01'))
@@ -1460,7 +1469,7 @@ def dashboard():
 def gestao_inventario():
     products = Product.query.order_by(Product.category, Product.name).all()
     categories = sorted({p.category for p in products})
-    return render_template('inventory_management.html', products=products, categories=categories)
+    return render_template('inventory_management.html', products=products, categories=categories, component_slots=COMPONENT_SLOTS)
 
 
 @app.route('/produtos', methods=['GET', 'POST'])
@@ -1646,21 +1655,14 @@ def editar_produto(product_id: int):
 def remover_produto(product_id: int):
     product = Product.query.get_or_404(product_id)
 
-    linked_sale = Sale.query.filter_by(product_id=product.id).first()
-    linked_composition = ProductComposition.query.filter(
-        (ProductComposition.id_peca == product.id) | (ProductComposition.id_computador == product.id)
-    ).first()
+    if not product.active:
+        flash('Produto já está inativo.', 'danger')
+    else:
+        product_service.soft_delete(product)
+        db.session.commit()
+        flash('Produto inativado com sucesso!', 'success')
 
-    if linked_sale or linked_composition:
-        flash('Não é possível remover produto com histórico de vendas ou montagem.', 'danger')
-        return redirect(url_for('produtos'))
-
-    old_photo_url = product.photo_url
-    product_service.soft_delete(product)
-    db.session.commit()
-    _remove_product_photo_files(old_photo_url)
-    flash('Produto removido com sucesso!', 'success')
-    return redirect(url_for('produtos'))
+    return redirect(request.referrer or url_for('produtos'))
 
 
 
@@ -2126,6 +2128,35 @@ def servicos():
 
     recent_services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).all()
     maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(80).all()
+    maintenance_parts_map = {}
+    maintenance_checklist_map = {}
+    for ticket in maintenance_tickets:
+        parts_items = []
+        if ticket.parts_json:
+            try:
+                loaded_parts = json.loads(ticket.parts_json)
+                if isinstance(loaded_parts, list):
+                    parts_items = [item for item in loaded_parts if isinstance(item, dict)]
+            except json.JSONDecodeError:
+                parts_items = []
+        maintenance_parts_map[ticket.id] = parts_items
+
+        checklist_items = []
+        if ticket.checklist_json:
+            try:
+                loaded_checklist = json.loads(ticket.checklist_json)
+                if isinstance(loaded_checklist, list):
+                    checklist_items = [item for item in loaded_checklist if isinstance(item, dict)]
+            except json.JSONDecodeError:
+                checklist_items = []
+
+        done_labels = {
+            (item.get('label') or '').strip()
+            for item in checklist_items
+            if item.get('done') and (item.get('label') or '').strip()
+        }
+        maintenance_checklist_map[ticket.id] = done_labels
+
     active_tickets = [
         ticket for ticket in maintenance_tickets
         if _normalize_maintenance_status(ticket.status) in {'em_analise', 'aguardando_pecas'}
@@ -2138,12 +2169,49 @@ def servicos():
         ticket for ticket in maintenance_tickets
         if _normalize_maintenance_status(ticket.status) == 'concluido'
     ]
+
+    linked_service_ids = {ticket.service_record_id for ticket in maintenance_tickets if ticket.service_record_id}
+    standalone_services = [service for service in recent_services if service.id not in linked_service_ids]
+    service_by_id = {service.id: service for service in recent_services}
+    maintenance_service_map = {
+        ticket.id: service_by_id.get(ticket.service_record_id)
+        for ticket in maintenance_tickets
+        if ticket.service_record_id
+    }
+
+    unified_completed_history = []
+    for ticket in concluded_tickets:
+        linked_service = service_by_id.get(ticket.service_record_id)
+        unified_completed_history.append({
+            'type': 'os_concluida',
+            'date': ticket.exit_date or ticket.entry_date,
+            'ticket': ticket,
+            'service': linked_service,
+            'service_name': linked_service.service_name if linked_service else f"OS #{ticket.id} - {ticket.service_description}",
+            'client_name': linked_service.client_name if linked_service else ticket.client_name,
+            'equipment': linked_service.equipment if linked_service else ticket.equipment,
+            'total_price': Decimal(linked_service.total_price or 0) if linked_service else Decimal('0.00'),
+        })
+
+    for service in standalone_services:
+        unified_completed_history.append({
+            'type': 'servico_avulso',
+            'date': service.created_at,
+            'ticket': None,
+            'service': service,
+            'service_name': service.service_name,
+            'client_name': service.client_name,
+            'equipment': service.equipment,
+            'total_price': Decimal(service.total_price or 0),
+        })
+
+    unified_completed_history.sort(key=lambda item: item.get('date') or datetime.min, reverse=True)
+
     clients = Client.query.order_by(Client.name.asc()).all()
     products = Product.query.order_by(Product.name.asc()).all()
     return render_template(
         'services.html',
         services=service_catalog,
-        recent_services=recent_services,
         maintenance_tickets=maintenance_tickets,
         active_tickets=active_tickets,
         ready_for_pickup_tickets=ready_for_pickup_tickets,
@@ -2151,6 +2219,10 @@ def servicos():
         maintenance_status_labels=MAINTENANCE_STATUS_LABELS,
         maintenance_status_options=MAINTENANCE_STATUS_OPTIONS,
         maintenance_checklist=DEFAULT_MAINTENANCE_CHECKLIST,
+        maintenance_parts_map=maintenance_parts_map,
+        maintenance_checklist_map=maintenance_checklist_map,
+        maintenance_service_map=maintenance_service_map,
+        unified_completed_history=unified_completed_history,
         clients=clients,
         products=products,
         payment_methods=PAYMENT_METHODS,
@@ -2265,6 +2337,65 @@ def atualizar_manutencao(ticket_id: int):
     ticket.waiting_parts = status == 'aguardando_pecas'
     db.session.commit()
     flash('Status da manutenção atualizado!', 'success')
+    return redirect(url_for('servicos'))
+
+
+
+
+@app.route('/servicos/<int:service_id>/editar', methods=['POST'])
+@_login_required
+def editar_servico(service_id: int):
+    service = ServiceRecord.query.get_or_404(service_id)
+
+    service_name = (request.form.get('service_name') or '').strip()
+    client_name = (request.form.get('client_name') or '').strip()
+    equipment = (request.form.get('equipment') or '').strip()
+    notes = (request.form.get('notes') or '').strip() or None
+
+    if not service_name or not client_name or not equipment:
+        flash('Preencha serviço, cliente e equipamento para editar.', 'danger')
+        return redirect(url_for('servicos'))
+
+    try:
+        total_price = Decimal((request.form.get('total_price') or '0').replace(',', '.')).quantize(Decimal('0.01'))
+        cost = Decimal((request.form.get('cost') or '0').replace(',', '.')).quantize(Decimal('0.01'))
+    except InvalidOperation:
+        flash('Valores inválidos para edição do serviço.', 'danger')
+        return redirect(url_for('servicos'))
+
+    if total_price < 0 or cost < 0:
+        flash('Preço e custo devem ser maiores ou iguais a zero.', 'danger')
+        return redirect(url_for('servicos'))
+
+    service.service_name = service_name
+    service.client_name = client_name
+    service.equipment = equipment
+    service.total_price = total_price
+    service.cost = cost
+    service.notes = notes
+
+    db.session.commit()
+    flash('Serviço atualizado com sucesso!', 'success')
+    return redirect(url_for('servicos'))
+
+
+@app.route('/servicos/<int:service_id>/excluir', methods=['POST'])
+@_login_required
+def excluir_servico(service_id: int):
+    service = ServiceRecord.query.get_or_404(service_id)
+
+    linked_tickets = MaintenanceTicket.query.filter_by(service_record_id=service.id).all()
+    for ticket in linked_tickets:
+        ticket.service_record_id = None
+
+    Charge.query.filter_by(service_id=service.id).update(
+        {Charge.service_id: None},
+        synchronize_session=False,
+    )
+
+    db.session.delete(service)
+    db.session.commit()
+    flash('Serviço excluído com sucesso!', 'success')
     return redirect(url_for('servicos'))
 
 
@@ -2853,6 +2984,17 @@ def cancelar_cobranca(charge_id: int):
     flash('Cobrança cancelada com sucesso!', 'success')
     return redirect(url_for('cobrancas'))
 
+
+
+
+@app.route('/cobrancas/<int:charge_id>/excluir', methods=['POST'])
+@_login_required
+def excluir_cobranca(charge_id: int):
+    charge = Charge.query.get_or_404(charge_id)
+    db.session.delete(charge)
+    db.session.commit()
+    flash('Cobrança excluída com sucesso!', 'success')
+    return redirect(url_for('cobrancas'))
 
 @app.route('/clientes/<int:client_id>/historico')
 @_login_required
