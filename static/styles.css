@@ -730,3 +730,93 @@ details > summary::-webkit-details-marker {
 .slots-bottom {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
+
+
+body.dashboard-page {
+  background: #2C3E50;
+  color: #ECF0F1;
+}
+
+body.dashboard-page .header {
+  background: rgba(44, 62, 80, 0.95);
+  border-bottom-color: rgba(236, 240, 241, 0.15);
+}
+
+body.dashboard-page .header h1,
+body.dashboard-page .header a {
+  color: #ECF0F1;
+}
+
+body.dashboard-page .header a:hover {
+  background: rgba(236, 240, 241, 0.12);
+}
+
+body.dashboard-page .header a.active {
+  background: #3498DB;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
+}
+
+body.dashboard-page .card {
+  background: #34495E;
+  border: 1px solid rgba(236, 240, 241, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+body.dashboard-page .card h2,
+body.dashboard-page .card h3,
+body.dashboard-page .card td,
+body.dashboard-page .card th {
+  color: #ECF0F1;
+}
+
+.dashboard-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 1rem;
+}
+
+.dashboard-kpis .kpi-card {
+  margin-bottom: 0;
+}
+
+.dashboard-kpis .kpi-card strong {
+  font-size: 1.3rem;
+  color: #ECF0F1;
+}
+
+.dashboard-kpis .kpi-profit strong { color: #2ECC71; }
+.dashboard-kpis .kpi-sales strong { color: #3498DB; }
+
+.dashboard-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.chart-card {
+  margin-bottom: 0;
+}
+
+.pie-wrapper {
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+body.dashboard-page table {
+  background: #2f4357;
+}
+
+body.dashboard-page th {
+  background: #3d566e;
+  color: #ECF0F1;
+}
+
+body.dashboard-page td {
+  border-bottom-color: rgba(236, 240, 241, 0.1);
+}
+
+body.dashboard-page tbody tr:hover {
+  background: rgba(236, 240, 241, 0.06);
+}

@@ -46,3 +46,40 @@
     padding: 6px;
   }
 }
+
+
+@media print {
+  body.dashboard-page {
+    color: #111 !important;
+  }
+
+  body.dashboard-page .dashboard-actions,
+  body.dashboard-page .dashboard-charts,
+  body.dashboard-page canvas,
+  body.dashboard-page .no-print,
+  body.dashboard-page form,
+  body.dashboard-page .badge {
+    display: none !important;
+  }
+
+  body.dashboard-page .dashboard-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  body.dashboard-page .dashboard-kpis .card,
+  body.dashboard-page .card {
+    border: 1px solid #222 !important;
+    padding: 8px !important;
+    margin-bottom: 8px !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  body.dashboard-page table,
+  body.dashboard-page th,
+  body.dashboard-page td {
+    color: #111 !important;
+  }
+}
