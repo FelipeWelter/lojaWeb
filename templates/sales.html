@@ -6,12 +6,15 @@
     <div class="checkout-main">
       <div class="grid form-grid sale-header-fields">
         <input name="sale_name" placeholder="Nome da venda (ex: Venda João - Combo)" required />
-        <select name="client_id" required>
-          <option value="">Selecione o cliente</option>
-          {% for client in clients %}
-          <option value="{{ client.id }}">{{ client.name }}</option>
-          {% endfor %}
-        </select>
+        <div class="client-selector-group">
+          <select name="client_id" required>
+            <option value="">Selecione o cliente</option>
+            {% for client in clients %}
+            <option value="{{ client.id }}">{{ client.name }}</option>
+            {% endfor %}
+          </select>
+          <a class="btn-secondary add-client-btn" href="{{ url_for('clientes') }}">+ Adicionar novo cliente</a>
+        </div>
       </div>
 
       <div id="sale-lines" class="sale-lines-list">
@@ -52,7 +55,7 @@
         <input name="amount_received" id="sale-amount-received" type="number" min="0" step="0.01" value="0" placeholder=" " />
         <label for="sale-amount-received">Valor recebido (R$)</label>
       </div>
-      <small id="sale-change-view" class="sale-change">Troco: R$ 0,00</small>
+      <small id="sale-change-view" class="sale-change neutral">Troco: R$ 0,00</small>
 
       <div class="payment-methods" role="radiogroup" aria-label="Forma de pagamento">
         <label class="payment-btn"><input type="radio" name="payment_method" value="credito" required><span>💳 Cartão</span></label>
@@ -136,12 +139,15 @@
     const discount = Math.max(0, Number(discountInput?.value || 0));
     const total = Math.max(0, subtotal - discount);
     const received = Math.max(0, Number(amountReceivedInput?.value || 0));
-    const change = Math.max(0, received - total);
+    const change = received - total;
     subtotalEl.textContent = formatBRL(subtotal);
     discountViewEl.textContent = formatBRL(discount);
     totalEl.textContent = formatBRL(total);
     if (changeViewEl) {
       changeViewEl.textContent = `Troco: ${formatBRL(change)}`;
+      changeViewEl.classList.toggle('positive', change > 0);
+      changeViewEl.classList.toggle('negative', change < 0);
+      changeViewEl.classList.toggle('neutral', change === 0);
     }
   }
 

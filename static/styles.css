@@ -1417,3 +1417,137 @@ input, select, textarea { background: #34495e; border-color: #4a6572; color: #ec
 .margin-pill.ok { background: #2ecc71; color: #fff; }
 .margin-pill.warn { background: #f1c40f; color: #2c3e50; }
 .margin-pill.bad { background: #e74c3c; color: #fff; }
+
+/* Ajustes visuais da refatoração UI */
+body {
+  background: #2C3E50;
+}
+
+.header {
+  background: rgba(44, 62, 80, 0.96);
+  border-bottom-color: rgba(236, 240, 241, 0.15);
+}
+
+.header h1,
+.header a {
+  color: #ECF0F1;
+}
+
+.header a:hover {
+  background: rgba(236, 240, 241, 0.12);
+}
+
+.nav-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(236, 240, 241, 0.3);
+  margin: 0 .15rem 0 .35rem;
+  align-self: center;
+}
+
+.card,
+.checkout-main,
+.checkout-summary,
+table,
+th {
+  background: #34495E;
+  border-color: rgba(236, 240, 241, 0.14);
+}
+
+.card h2,
+.card h3,
+.card p,
+th,
+td,
+label {
+  color: #ECF0F1;
+}
+
+input, select, textarea {
+  background: #2C3E50;
+  border-color: #4A6572;
+  color: #ECF0F1;
+}
+
+.btn-edit,
+.btn-danger,
+.table-actions .btn-danger {
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  padding: 0.48rem 0.72rem;
+}
+
+.btn-edit {
+  background: #3498DB;
+}
+
+.btn-edit:hover {
+  background: #5dade2;
+}
+
+.btn-danger {
+  background: #E74C3C;
+}
+
+.btn-danger:hover {
+  background: #ec7063;
+}
+
+.field-grid.single-item-grid {
+  grid-template-columns: 2fr 1fr;
+}
+
+.summary-submit:hover {
+  background: #5DADE2;
+}
+
+.client-history-row > td {
+  padding: 0;
+  border-bottom: none;
+}
+
+.client-history-accordion {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .28s ease;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .9rem;
+  padding: 0 0.8rem;
+}
+
+.client-history-row.is-open .client-history-accordion {
+  max-height: 520px;
+  padding: .8rem;
+}
+
+.client-history-row:nth-child(even) .client-history-accordion {
+  background: #34495E;
+}
+
+.client-history-row:nth-child(odd) .client-history-accordion {
+  background: #2C3E50;
+}
+
+.client-selector-group {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) auto;
+  gap: .6rem;
+  align-items: center;
+}
+
+.add-client-btn {
+  white-space: nowrap;
+}
+
+.sale-change.neutral { color: #9fb6ca; }
+.sale-change.negative { color: #E74C3C; font-weight: 700; }
+.sale-change.positive { color: #F1C40F; font-weight: 700; }
+
+@media (max-width: 860px) {
+  .client-history-accordion,
+  .client-selector-group {
+    grid-template-columns: 1fr;
+  }
+}
