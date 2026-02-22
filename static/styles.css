@@ -303,11 +303,11 @@ body.auth-page .alert.danger {
 .action-stack { display: grid; gap: 0.5rem; }
 
 .stock-thumb {
-  width: 64px;
-  height: 64px;
-  border-radius: 10px;
+  width: 50px;
+  height: 50px;
+  border-radius: 4px;
   object-fit: cover;
-  border: 1px solid #e4e8f4;
+  border: 1px solid rgba(236, 240, 241, 0.2);
 }
 
 .class-menu {
@@ -819,4 +819,77 @@ body.dashboard-page td {
 
 body.dashboard-page tbody tr:hover {
   background: rgba(236, 240, 241, 0.06);
+}
+
+
+/* Estoque - refinamento dark e responsivo */
+body.dashboard-page .piece-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+body.dashboard-page .stock-filter-menu button {
+  background: #4A6572;
+  color: #ECF0F1;
+}
+
+body.dashboard-page .stock-filter-menu button.active {
+  background: #3498DB;
+  color: #fff;
+}
+
+body.dashboard-page .stock-table-wrap {
+  overflow-x: auto;
+}
+
+body.dashboard-page .stock-table {
+  min-width: 980px;
+}
+
+body.dashboard-page .stock-table td,
+body.dashboard-page .stock-table th {
+  vertical-align: middle;
+}
+
+body.dashboard-page input,
+body.dashboard-page select,
+body.dashboard-page textarea {
+  background: #2C3E50;
+  color: #ECF0F1;
+  border: 1px solid rgba(236, 240, 241, 0.25);
+}
+
+body.dashboard-page input::placeholder,
+body.dashboard-page textarea::placeholder {
+  color: rgba(236, 240, 241, 0.65);
+}
+
+.table-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: nowrap;
+}
+
+.table-actions button {
+  white-space: nowrap;
+}
+
+.table-actions form {
+  margin: 0;
+}
+
+.stock-print-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin: 0.6rem 0 0.85rem;
+}
+
+.stock-print-form {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.stock-print-form small {
+  color: rgba(236, 240, 241, 0.75);
 }
