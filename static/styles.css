@@ -1954,22 +1954,41 @@ body.dashboard-page textarea:focus {
 
 .charges-form-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: start;
 }
 
-.charges-form-row:last-of-type {
-  grid-template-columns: repeat(6, minmax(180px, 1fr));
+.charges-form-row--details {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.charges-form-grid .field-stack > label {
+  font-size: 0.82rem;
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+
+.charges-form-grid .field-stack input,
+.charges-form-grid .field-stack select {
+  width: 100%;
 }
 
 .charges-installments-box {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   align-content: start;
   background: #2C3E50;
   border: 1px solid #3f5973;
   border-radius: 8px;
-  padding: 8px;
+  padding: 10px;
+  min-height: 100%;
+}
+
+.charges-installments-box legend {
+  padding: 0 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .charges-form-actions {
@@ -1995,6 +2014,18 @@ body.dashboard-page textarea:focus {
 
 .actions-menu-content {
   z-index: 999;
+  width: min(380px, calc(100vw - 48px));
+  max-height: 75vh;
+  overflow: auto;
+}
+
+.actions-menu-content .field-stack > label {
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.charge-edit-form {
+  gap: 8px;
 }
 
 .charges-funnel-card option,
@@ -2013,7 +2044,7 @@ body.dashboard-page textarea:focus {
 
 @media (max-width: 1100px) {
   .charges-form-row,
-  .charges-form-row:last-of-type {
+  .charges-form-row--details {
     grid-template-columns: 1fr;
   }
 

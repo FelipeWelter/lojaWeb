@@ -19,66 +19,67 @@
   </div>
 
   <form method="post" class="grid form-grid charges-form-grid">
-    <div class="charges-form-row">
-      <label>
-        Venda (opcional)
-        <select name="sale_id">
+    <div class="charges-form-row charges-form-row--primary">
+      <div class="field-stack">
+        <label for="sale_id">Venda (opcional)</label>
+        <select id="sale_id" name="sale_id">
           <option value="">Sem venda</option>
           {% for s in sales %}<option value="{{ s.id }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
         </select>
-      </label>
-      <label>
-        Serviço de OS pronto para retirada (opcional)
-        <select name="service_id">
+      </div>
+      <div class="field-stack">
+        <label for="service_id">Serviço de OS pronto para retirada (opcional)</label>
+        <select id="service_id" name="service_id">
           <option value="">Sem serviço</option>
           {% for ticket, srv in ready_ticket_services %}
           <option value="{{ srv.id }}">OS #{{ ticket.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>
           {% endfor %}
         </select>
-      </label>
-      <label>
-        Valor total
+      </div>
+      <div class="field-stack">
+        <label for="charge-amount">Valor total</label>
         <input id="charge-amount" name="amount" type="number" min="0" step="0.01" placeholder="0,00" />
-      </label>
+      </div>
     </div>
 
-    <div class="charges-form-row">
-      <label>
-        Data de vencimento
-        <input name="due_date" type="date" />
-      </label>
-      <label>
-        Valor pago
-        <input name="amount_paid" type="number" min="0" step="0.01" placeholder="0,00" />
-      </label>
-      <label>
-        Referência Mercado Pago
-        <input name="mercado_pago_reference" placeholder="ID/referência no Mercado Pago" required />
-      </label>
-      <label>
-        Forma de pagamento
-        <select name="payment_method" required>
+    <div class="charges-form-row charges-form-row--details">
+      <div class="field-stack">
+        <label for="due_date">Data de vencimento</label>
+        <input id="due_date" name="due_date" type="date" />
+      </div>
+      <div class="field-stack">
+        <label for="amount_paid">Valor pago</label>
+        <input id="amount_paid" name="amount_paid" type="number" min="0" step="0.01" placeholder="0,00" />
+      </div>
+      <div class="field-stack">
+        <label for="mercado_pago_reference">Referência Mercado Pago</label>
+        <input id="mercado_pago_reference" name="mercado_pago_reference" placeholder="ID/referência no Mercado Pago" required />
+      </div>
+      <div class="field-stack">
+        <label for="payment_method">Forma de pagamento</label>
+        <select id="payment_method" name="payment_method" required>
           {% for value, label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
         </select>
-      </label>
-      <label>
-        Status
-        <select name="status">
+      </div>
+      <div class="field-stack">
+        <label for="status">Status</label>
+        <select id="status" name="status">
           <option value="pendente">Pendente</option>
           <option value="atrasado">Atrasado</option>
           <option value="parcial">Parcial</option>
           <option value="confirmado">Confirmado</option>
           <option value="cancelado">Cancelado</option>
         </select>
-      </label>
-      <div class="charges-installments-box">
-        <label class="checkbox-inline"><input type="checkbox" id="is-installment" name="is_installment" /> Pagamento parcelado</label>
-        <label>
-          Parcelas
-          <input id="installment-count" name="installment_count" type="number" min="1" value="1" />
-        </label>
-        <small id="installment-preview">Parcela: R$ 0,00</small>
       </div>
+      <fieldset class="charges-installments-box">
+        <legend>Parcelamento</legend>
+        <label class="checkbox-inline"><input type="checkbox" id="is-installment" name="is_installment" /> Pagamento parcelado</label>
+        <div class="field-stack">
+          <label for="installment-count">Parcelas</label>
+          <input id="installment-count" name="installment_count" type="number" min="1" value="1" />
+        </div>
+        <small id="installment-preview">Parcela: R$ 0,00</small>
+      </fieldset>
     </div>
 
     <div class="charges-form-actions">
@@ -124,33 +125,57 @@
             <details class="actions-menu">
               <summary>⋮</summary>
               <div class="actions-menu-content">
-                <form method="post" action="{{ url_for('editar_cobranca', charge_id=c.id) }}" class="inline-form">
-                  <input name="mercado_pago_reference" value="{{ c.mercado_pago_reference }}" required />
-                  <input name="due_date" type="date" value="{{ c.due_date.strftime('%Y-%m-%d') if c.due_date else '' }}" />
-                  <input name="amount" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount) }}" />
-                  <input name="amount_paid" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount_paid) }}" />
+                <form method="post" action="{{ url_for('editar_cobranca', charge_id=c.id) }}" class="inline-form charge-edit-form">
+                  <div class="field-stack">
+                    <label>Referência Mercado Pago</label>
+                    <input name="mercado_pago_reference" value="{{ c.mercado_pago_reference }}" required />
+                  </div>
+                  <div class="field-stack">
+                    <label>Data de vencimento</label>
+                    <input name="due_date" type="date" value="{{ c.due_date.strftime('%Y-%m-%d') if c.due_date else '' }}" />
+                  </div>
+                  <div class="field-stack">
+                    <label>Valor total</label>
+                    <input name="amount" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount) }}" />
+                  </div>
+                  <div class="field-stack">
+                    <label>Valor pago</label>
+                    <input name="amount_paid" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount_paid) }}" />
+                  </div>
                   <label class="checkbox-inline"><input type="checkbox" name="is_installment" {% if c.is_installment %}checked{% endif %} /> Parcelado</label>
-                  <input name="installment_count" type="number" min="1" value="{{ c.installment_count or 1 }}" />
-                  <select name="payment_method">
-                    {% for value, label in payment_methods %}
-                    <option value="{{ value }}" {% if c.payment_method == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                  </select>
-                  <select name="status">
-                    <option value="pendente" {% if c.status == 'pendente' %}selected{% endif %}>Pendente</option>
-                    <option value="atrasado" {% if c.status == 'atrasado' %}selected{% endif %}>Atrasado</option>
-                    <option value="parcial" {% if c.status == 'parcial' %}selected{% endif %}>Parcial</option>
-                    <option value="confirmado" {% if c.status == 'confirmado' %}selected{% endif %}>Confirmado</option>
-                    <option value="cancelado" {% if c.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
-                  </select>
+                  <div class="field-stack">
+                    <label>Parcelas</label>
+                    <input name="installment_count" type="number" min="1" value="{{ c.installment_count or 1 }}" />
+                  </div>
+                  <div class="field-stack">
+                    <label>Forma de pagamento</label>
+                    <select name="payment_method">
+                      {% for value, label in payment_methods %}
+                      <option value="{{ value }}" {% if c.payment_method == value %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="field-stack">
+                    <label>Status</label>
+                    <select name="status">
+                      <option value="pendente" {% if c.status == 'pendente' %}selected{% endif %}>Pendente</option>
+                      <option value="atrasado" {% if c.status == 'atrasado' %}selected{% endif %}>Atrasado</option>
+                      <option value="parcial" {% if c.status == 'parcial' %}selected{% endif %}>Parcial</option>
+                      <option value="confirmado" {% if c.status == 'confirmado' %}selected{% endif %}>Confirmado</option>
+                      <option value="cancelado" {% if c.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
+                    </select>
+                  </div>
                   <button type="submit" class="btn-loja btn-loja--primary">Salvar</button>
                 </form>
-                
+
                 {% if c.status != 'confirmado' and c.status != 'cancelado' %}
                 <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
                   <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
                 </form>
                 {% endif %}
+                <form method="post" action="{{ url_for('excluir_cobranca', charge_id=c.id) }}" onsubmit="return confirm('Deseja excluir esta cobrança? Esta ação não pode ser desfeita.');">
+                  <button type="submit" class="btn-loja btn-loja--danger">Excluir cobrança</button>
+                </form>
                 {% if c.amount_paid > 0 and charge_balance(c) > 0 %}
                 <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}">Imprimir recibo parcial</button>
                 {% endif %}
