@@ -1222,3 +1222,112 @@ body.dashboard-page textarea::placeholder {
   .checkout-summary { position: static; }
   .sale-line { grid-template-columns: 1fr; }
 }
+
+/* Montagem de PC - refatoração de interface dark */
+.montaje-card {
+  background: #34495E;
+  border: 1px solid #4A6572;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.montaje-card .pc-header,
+.montaje-card .slot-box,
+.montaje-card .assembly-summary {
+  background: #34495E;
+  border: 1px solid #4A6572;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.montaje-card .slot-box {
+  margin-bottom: 25px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.montaje-card .slot-heading h3 {
+  color: #5DADE2;
+}
+
+.field-grid.single-item-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 140px;
+  gap: 10px;
+}
+
+.multi-row {
+  display: grid;
+  grid-template-columns: 1.7fr 130px 150px 34px;
+  gap: 10px;
+  align-items: end;
+}
+
+.field-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.field-stack > label,
+.field-grid label,
+.file-upload-field .field-label {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: #ECF0F1;
+}
+
+.hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.upload-dropzone {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #4A6572;
+  border: 1px dashed rgba(236, 240, 241, 0.45);
+  color: #ECF0F1;
+  cursor: pointer;
+  transition: background .2s ease;
+}
+
+.upload-dropzone.has-file {
+  background: #3498DB;
+}
+
+.upload-icon {
+  font-size: 1.1rem;
+}
+
+#upload-feedback {
+  display: block;
+  margin-top: 5px;
+  color: rgba(236, 240, 241, 0.8);
+}
+
+.montaje-card input,
+.montaje-card select,
+.montaje-card textarea {
+  background: #2C3E50;
+  color: #ECF0F1;
+  border: 1px solid #4A6572;
+}
+
+.montaje-card input::placeholder,
+.montaje-card textarea::placeholder {
+  color: rgba(236,240,241,0.65);
+}
+
+@media (max-width: 980px) {
+  .field-grid.single-item-grid,
+  .multi-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -20,12 +20,13 @@
       <h3>Itens</h3>
       <table>
         <thead>
-          <tr><th>Nome</th><th>Qtd</th><th>Subtotal</th></tr>
+          <tr><th>Nome</th><th>Origem/SKU</th><th>Qtd</th><th>Subtotal</th></tr>
         </thead>
         <tbody>
           {% for row in items %}
           <tr>
             <td>{{ row.item }}</td>
+            <td>{% if row.source_label is defined %}{{ row.source_label }}{% if row.sku %} · SKU: {{ row.sku }}{% endif %}{% else %}-{% endif %}</td>
             <td>{{ row.quantity }}</td>
             <td>R$ {{ '%.2f'|format(row.total) }}</td>
           </tr>

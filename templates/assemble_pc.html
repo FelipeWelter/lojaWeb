@@ -15,10 +15,15 @@
             Preço base (opcional para existente)
             <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" />
           </label>
-          <label>
-            Fotos do computador (opcional)
-            <input name="photo_files" type="file" accept="image/*" multiple />
-          </label>
+          <div class="file-upload-field">
+            <span class="field-label">Fotos do computador (opcional)</span>
+            <input id="photo-files" name="photo_files" type="file" accept="image/*" multiple class="hidden-file-input" />
+            <label for="photo-files" class="upload-dropzone" id="upload-trigger">
+              <span class="upload-icon" aria-hidden="true">📷</span>
+              <span>Clique para enviar a foto do PC</span>
+            </label>
+            <small id="upload-feedback">Nenhum arquivo selecionado.</small>
+          </div>
         </div>
 
         <div class="components-scroll-area full-width">
@@ -29,31 +34,20 @@
           <h3>{{ slot_label }}</h3>
           <span class="slot-icon" aria-hidden="true">🧩</span>
         </div>
-        <div class="piece-mode" role="group" aria-label="Modo de peça">
-          <label><input type="radio" name="mode_{{ slot_key }}" value="stock" checked /> Estoque</label>
-          <label><input type="radio" name="mode_{{ slot_key }}" value="custom" /> Personalizado</label>
-        </div>
-        <div class="stock-fields">
+        <div class="field-grid single-item-grid">
           <label>
-            Peça
-            <select name="slot_{{ slot_key }}" class="piece-select">
-              <option value="">Sem seleção (cliente já possui)</option>
-              {% for part in parts_by_class[slot_key] %}
-              <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
-                {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
-              </option>
+            Item
+            <input name="slot_{{ slot_key }}_entry" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione do estoque ou digite manualmente" />
+            <input type="hidden" name="slot_{{ slot_key }}_stock_id" class="stock-id-input" />
+            <datalist id="datalist-{{ slot_key }}">
+              {% for part in parts_by_class[slot_key] if part.stock > 0 %}
+              <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})"></option>
               {% endfor %}
-            </select>
-          </label>
-        </div>
-        <div class="custom-fields hidden">
-          <label>
-            Nome personalizado
-            <input name="custom_{{ slot_key }}_name" placeholder="Ex: {{ slot_label }} do cliente" />
+            </datalist>
           </label>
           <label>
             Custo (R$)
-            <input name="custom_{{ slot_key }}_cost" type="number" min="0" step="0.01" placeholder="0,00" />
+            <input name="slot_{{ slot_key }}_cost" type="number" min="0" step="0.01" placeholder="0,00" />
           </label>
         </div>
       </div>
@@ -68,38 +62,25 @@
           <span class="slot-icon" aria-hidden="true">⚙️</span>
         </div>
         <div class="multi-list" data-slot="{{ slot_key }}">
-          <div class="multi-header">
-            <span>Modo</span>
-            <span>Item</span>
-            <span>Custo (R$)</span>
-            <span>Quantidade</span>
-            <span></span>
-          </div>
-
           <div class="multi-row">
-            <div class="piece-mode compact" role="group" aria-label="Modo do item">
-              <label><input type="radio" name="{{ slot_key }}_mode_0" value="stock" checked />E</label>
-              <label><input type="radio" name="{{ slot_key }}_mode_0" value="custom" />P</label>
+            <div class="field-stack multi-item-field">
+              <label>Item</label>
+              <input name="{{ slot_key }}_entries[]" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione ou escreva" />
+              <input type="hidden" name="{{ slot_key }}_stock_ids[]" class="stock-id-input" />
             </div>
 
-            <div class="multi-item multi-stock-fields">
-              <select name="{{ slot_key }}_ids[]" class="piece-select">
-                <option value="">Sem seleção</option>
-                {% for part in parts_by_class[slot_key] %}
-                <option value="{{ part.id }}" data-cost="{{ part.price }}" {% if part.stock <= 0 %}disabled{% endif %}>
-                  {{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})
-                </option>
-                {% endfor %}
-              </select>
-              <input name="{{ slot_key }}_custom_names[]" class="hidden" placeholder="Peça personalizada" />
+            <div class="field-stack multi-cost-field">
+              <label>Custo (R$)</label>
+              <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="0,00" />
             </div>
 
-            <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="0,00" />
-
-            <div class="qty-control" title="Quantidade">
-              <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
-              <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
-              <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+            <div class="field-stack multi-qty-field">
+              <label>Quantidade</label>
+              <div class="qty-control" title="Quantidade">
+                <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
+                <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
+                <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+              </div>
             </div>
 
             <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
@@ -227,39 +208,52 @@
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
+  function syncPieceEntry(input) {
+    if (!input) return;
+    const row = input.closest('.multi-row, .slot-box');
+    const hiddenId = row?.querySelector('.stock-id-input');
+    const costInput = row?.querySelector('input[name$="_cost"], input[name$="_custom_costs[]"]');
+    const listId = input.getAttribute('list');
+    const list = listId ? document.getElementById(listId) : null;
+    const match = list ? Array.from(list.options).find((option) => option.value === input.value) : null;
+
+    if (match && hiddenId) {
+      hiddenId.value = match.dataset.id || '';
+      if (costInput) {
+        costInput.value = Number(match.dataset.cost || 0).toFixed(2);
+      }
+      return;
+    }
+
+    if (hiddenId) hiddenId.value = '';
+  }
+
   function atualizarTotais() {
     let total = 0;
 
     form.querySelectorAll('.multi-row').forEach((row) => {
-      const select = row.querySelector('select');
+      const stockId = row.querySelector('input[name$="_stock_ids[]"]')?.value;
+      const entryInput = row.querySelector('input[name$="_entries[]"]');
       const qtyInput = row.querySelector('input[name$="_qtys[]"]');
       const customCostInput = row.querySelector('input[name$="_custom_costs[]"]');
-      const customNameInput = row.querySelector('input[name$="_custom_names[]"]');
-      const isCustom = row.querySelector('input[type="radio"][value="custom"]')?.checked;
-      const option = select.options[select.selectedIndex];
       const qty = Number(qtyInput?.value || 0);
+      const isStock = Boolean(stockId);
 
-      if (!isCustom && option && option.value && qty > 0) {
-        total += Number(option.dataset.cost || 0) * qty;
-      } else if (isCustom && customNameInput && customNameInput.value.trim() && qty > 0) {
+      if (isStock && qty > 0) {
+        total += toNumber(customCostInput.value) * qty;
+      } else if (entryInput && entryInput.value.trim() && qty > 0) {
         total += toNumber(customCostInput.value) * qty;
       }
     });
 
     form.querySelectorAll('.slots-top .slot-box').forEach((box) => {
-      const select = box.querySelector('select[name^="slot_"]');
-      const isCustom = box.querySelector('input[type="radio"][value="custom"]')?.checked;
-      const option = select.options[select.selectedIndex];
+      const entryInput = box.querySelector('input[name^="slot_"][name$="_entry"]');
+      const stockId = box.querySelector('input[name^="slot_"][name$="_stock_id"]')?.value;
+      const cost = box.querySelector('input[name^="slot_"][name$="_cost"]');
 
-      if (!isCustom && option && option.value) {
-        total += Number(option.dataset.cost || 0);
-      } else {
-        const slot = select.name.replace('slot_', '');
-        const name = form.querySelector(`input[name="custom_${slot}_name"]`);
-        const cost = form.querySelector(`input[name="custom_${slot}_cost"]`);
-        if (name && name.value.trim()) {
-          total += toNumber(cost.value);
-        }
+      if (!entryInput || !entryInput.value.trim()) return;
+      if (stockId || entryInput.value.trim()) {
+        total += toNumber(cost?.value || 0);
       }
     });
 
@@ -276,52 +270,17 @@
     return Number(String(value || '0').replace(',', '.')) || 0;
   }
 
-  function atualizarVisibilidadeModos() {
-    form.querySelectorAll('.slots-top .slot-box').forEach((box) => {
-      const customRadio = box.querySelector('input[type="radio"][value="custom"]');
-      const stockFields = box.querySelector('.stock-fields');
-      const customFields = box.querySelector('.custom-fields');
-      const isCustom = customRadio?.checked;
-      stockFields.classList.toggle('hidden', isCustom);
-      customFields.classList.toggle('hidden', !isCustom);
-    });
-
-    form.querySelectorAll('.multi-row').forEach((row) => {
-      const customRadio = row.querySelector('input[type="radio"][value="custom"]');
-      const select = row.querySelector('select');
-      const customInput = row.querySelector('input[name$="_custom_names[]"]');
-      const isCustom = customRadio?.checked;
-      select.classList.toggle('hidden', isCustom);
-      customInput.classList.toggle('hidden', !isCustom);
-    });
-  }
-
-  function renumerarModosMultiplos() {
-    document.querySelectorAll('.multi-list').forEach((list) => {
-      const slot = list.dataset.slot;
-      list.querySelectorAll('.multi-row').forEach((row, index) => {
-        row.querySelectorAll('.piece-mode.compact input[type="radio"]').forEach((radio) => {
-          radio.name = `${slot}_mode_${index}`;
-        });
-      });
-    });
-  }
-
   document.querySelectorAll('.add-item').forEach((btn) => {
     btn.addEventListener('click', () => {
       const slot = btn.dataset.slot;
       const list = document.querySelector(`.multi-list[data-slot="${slot}"]`);
       const firstRow = list.querySelector('.multi-row');
       const clone = firstRow.cloneNode(true);
-      clone.querySelector('select').selectedIndex = 0;
-      clone.querySelector('input[name$="_custom_names[]"]').value = '';
+      clone.querySelector('input[name$="_entries[]"]').value = '';
+      clone.querySelector('input[name$="_stock_ids[]"]').value = '';
       clone.querySelector('input[name$="_custom_costs[]"]').value = '';
       clone.querySelector('input[name$="_qtys[]"]').value = 1;
-      const stockRadio = clone.querySelector('input[type="radio"][value="stock"]');
-      if (stockRadio) stockRadio.checked = true;
       list.appendChild(clone);
-      renumerarModosMultiplos();
-      atualizarVisibilidadeModos();
       atualizarTotais();
     });
   });
@@ -342,11 +301,10 @@
       const rows = list.querySelectorAll('.multi-row');
       if (rows.length > 1) {
         target.closest('.multi-row').remove();
-        renumerarModosMultiplos();
       } else {
         const row = rows[0];
-        row.querySelector('select').selectedIndex = 0;
-        row.querySelector('input[name$="_custom_names[]"]').value = '';
+        row.querySelector('input[name$="_entries[]"]').value = '';
+        row.querySelector('input[name$="_stock_ids[]"]').value = '';
         row.querySelector('input[name$="_custom_costs[]"]').value = '';
         row.querySelector('input[name$="_qtys[]"]').value = 1;
       }
@@ -354,14 +312,27 @@
     }
   });
 
-  form.addEventListener('change', () => {
-    atualizarVisibilidadeModos();
+  form.addEventListener('change', (event) => {
+    if (event.target.classList.contains('piece-entry')) {
+      syncPieceEntry(event.target);
+    }
+    if (event.target.id === 'photo-files') {
+      const feedback = document.getElementById('upload-feedback');
+      const trigger = document.getElementById('upload-trigger');
+      const total = event.target.files?.length || 0;
+      feedback.textContent = total ? `${total} arquivo(s) selecionado(s).` : 'Nenhum arquivo selecionado.';
+      trigger.classList.toggle('has-file', total > 0);
+    }
     atualizarTotais();
   });
-  form.addEventListener('input', atualizarTotais);
+  form.addEventListener('input', (event) => {
+    if (event.target.classList.contains('piece-entry')) {
+      syncPieceEntry(event.target);
+    }
+    atualizarTotais();
+  });
 
-  renumerarModosMultiplos();
-  atualizarVisibilidadeModos();
+  form.querySelectorAll('.piece-entry').forEach(syncPieceEntry);
   atualizarTotais();
 </script>
 {% endblock %}
