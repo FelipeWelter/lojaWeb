@@ -67,14 +67,14 @@
 <section class="card">
   <h2>Últimas vendas</h2>
   <table>
-    <thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead>
+    <thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Qtd. linhas</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead>
     <tbody>
       {% for sale in latest_sales %}
       <tr>
         <td>{{ sale.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
         <td>{{ sale.client.name }}</td>
-        <td>{{ sale.product.name }}</td>
-        <td>{{ sale.quantity }}</td>
+        <td>{% if sale.items %}{{ sale.items[0].description }}{% else %}{{ sale.product.name }}{% endif %}</td>
+        <td>{% if sale.items %}{{ sale.items|length }}{% else %}{{ sale.quantity }}{% endif %}</td>
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
         <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
         <td>

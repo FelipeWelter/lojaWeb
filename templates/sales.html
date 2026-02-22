@@ -2,24 +2,38 @@
 {% block content %}
 <section class="card">
   <h2>Nova venda</h2>
-  <form method="post" class="grid form-grid">
-    <input name="sale_name" placeholder="Nome da venda (ex: Venda João - Notebook)" required />
+  <form method="post" class="grid form-grid" id="sale-form">
+    <input name="sale_name" placeholder="Nome da venda (ex: Venda João - Combo)" required />
     <select name="client_id" required>
       <option value="">Selecione o cliente</option>
       {% for client in clients %}
       <option value="{{ client.id }}">{{ client.name }}</option>
       {% endfor %}
     </select>
-    <select name="product_id" id="sale-product" required>
-      <option value="">Selecione o produto</option>
-      {% for product in products %}
-      <option value="{{ product.id }}" data-price="{{ product.price }}">{{ product.name }} (estoque: {{ product.stock }})</option>
-      {% endfor %}
-    </select>
-    <input name="quantity" id="sale-qty" type="number" min="1" value="1" required />
-    <input name="custom_total" id="sale-total" type="number" min="0" step="0.01" placeholder="Valor final (opcional, desconto)" />
-    <div class="sale-summary">
-      <small>Subtotal automático: <strong id="sale-subtotal">R$ 0,00</strong></small>
+
+    <div id="sale-lines" class="grid" style="grid-column: 1 / -1; gap: .5rem;">
+      <div class="sale-line" style="display:grid;grid-template-columns:130px 1fr 1fr 90px 130px 130px auto;gap:.5rem;align-items:center;">
+        <select name="item_type[]" class="line-type">
+          <option value="produto">Produto</option>
+          <option value="servico">Serviço</option>
+        </select>
+        <select name="item_product_id[]" class="line-product">
+          <option value="">Selecione o produto</option>
+          {% for product in products %}
+          <option value="{{ product.id }}" data-price="{{ product.price }}" data-cost="{{ product.cost_price }}">{{ product.name }} (estoque: {{ product.stock }})</option>
+          {% endfor %}
+        </select>
+        <input name="item_description[]" class="line-description" placeholder="Descrição do item/serviço" />
+        <input name="item_quantity[]" class="line-qty" type="number" min="1" value="1" required />
+        <input name="item_unit_price[]" class="line-price" type="number" min="0" step="0.01" placeholder="Preço unit." required />
+        <input name="item_unit_cost[]" class="line-cost" type="number" min="0" step="0.01" placeholder="Custo unit." value="0" />
+        <button type="button" class="btn-danger remove-line">Remover</button>
+      </div>
+    </div>
+
+    <button type="button" id="add-line" class="btn-secondary" style="grid-column: 1 / -1;">+ Adicionar item/serviço</button>
+    <div class="sale-summary" style="grid-column: 1 / -1;">
+      <small>Total automático: <strong id="sale-total">R$ 0,00</strong></small>
     </div>
     <button type="submit">Registrar venda</button>
   </form>
@@ -29,15 +43,20 @@
   <h2>Histórico de vendas</h2>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>Data</th><th>Nome da venda</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Subtotal</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Data</th><th>Nome da venda</th><th>Cliente</th><th>Itens</th><th>Subtotal</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>
       {% for sale in sales %}
       <tr>
         <td>{{ sale.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
         <td>{{ sale.sale_name }}</td>
         <td>{{ sale.client.name }}</td>
-        <td>{{ sale.product.name }}</td>
-        <td>{{ sale.quantity }}</td>
+        <td>
+          {% if sale.items %}
+            {{ sale.items|length }} item(ns)
+          {% else %}
+            {{ sale.product.name }} x{{ sale.quantity }}
+          {% endif %}
+        </td>
         <td>R$ {{ '%.2f'|format(sale.subtotal) }}</td>
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
         <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
@@ -56,30 +75,84 @@
           </div>
         </td>
       </tr>
-      {% else %}<tr><td colspan="9">Sem vendas.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="8">Sem vendas.</td></tr>{% endfor %}
     </tbody>
   </table>
   </div>
 </section>
 
 <script>
-  const pSel = document.getElementById('sale-product');
-  const qInput = document.getElementById('sale-qty');
-  const subtotalEl = document.getElementById('sale-subtotal');
+  const saleLines = document.getElementById('sale-lines');
+  const addLineBtn = document.getElementById('add-line');
+  const totalEl = document.getElementById('sale-total');
 
   function formatBRL(v) {
     return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  function updateSubtotal() {
-    const opt = pSel.options[pSel.selectedIndex];
-    const unit = Number(opt?.dataset?.price || 0);
-    const qty = Number(qInput.value || 0);
-    subtotalEl.textContent = formatBRL(unit * qty);
+  function recalcTotal() {
+    const lines = saleLines.querySelectorAll('.sale-line');
+    let total = 0;
+    lines.forEach((line) => {
+      const qty = Number(line.querySelector('.line-qty')?.value || 0);
+      const price = Number(line.querySelector('.line-price')?.value || 0);
+      total += qty * price;
+    });
+    totalEl.textContent = formatBRL(total);
   }
 
-  pSel.addEventListener('change', updateSubtotal);
-  qInput.addEventListener('input', updateSubtotal);
-  updateSubtotal();
+  function bindLine(line) {
+    const typeSel = line.querySelector('.line-type');
+    const productSel = line.querySelector('.line-product');
+    const descInput = line.querySelector('.line-description');
+    const priceInput = line.querySelector('.line-price');
+    const costInput = line.querySelector('.line-cost');
+
+    const syncLine = () => {
+      const isService = typeSel.value === 'servico';
+      productSel.disabled = isService;
+      productSel.required = !isService;
+      if (isService) {
+        productSel.value = '';
+      }
+      if (!isService && productSel.value) {
+        const opt = productSel.options[productSel.selectedIndex];
+        if (!priceInput.value) priceInput.value = opt?.dataset?.price || '';
+        if (!costInput.value || Number(costInput.value) === 0) costInput.value = opt?.dataset?.cost || '0';
+        if (!descInput.value) descInput.value = opt?.textContent?.split(' (estoque')[0] || '';
+      }
+      recalcTotal();
+    };
+
+    typeSel.addEventListener('change', syncLine);
+    productSel.addEventListener('change', syncLine);
+    line.querySelectorAll('input').forEach((input) => input.addEventListener('input', recalcTotal));
+    line.querySelector('.remove-line').addEventListener('click', () => {
+      if (saleLines.querySelectorAll('.sale-line').length > 1) {
+        line.remove();
+        recalcTotal();
+      }
+    });
+
+    syncLine();
+  }
+
+  addLineBtn.addEventListener('click', () => {
+    const firstLine = saleLines.querySelector('.sale-line');
+    const clone = firstLine.cloneNode(true);
+    clone.querySelectorAll('input').forEach((input) => {
+      if (input.classList.contains('line-qty')) input.value = '1';
+      else if (input.classList.contains('line-cost')) input.value = '0';
+      else input.value = '';
+    });
+    clone.querySelector('.line-type').value = 'produto';
+    clone.querySelector('.line-product').value = '';
+    saleLines.appendChild(clone);
+    bindLine(clone);
+    recalcTotal();
+  });
+
+  saleLines.querySelectorAll('.sale-line').forEach(bindLine);
+  recalcTotal();
 </script>
 {% endblock %}
