@@ -112,3 +112,18 @@
     margin: 0 0 4px;
   }
 }
+
+
+@media print {
+  .assembly-label-print {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed #222;
+    text-align: center;
+  }
+
+  .assembly-label-print img {
+    display: block;
+    margin: 6px auto 0;
+  }
+}

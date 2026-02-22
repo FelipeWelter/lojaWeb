@@ -43,6 +43,16 @@
 
       <p><strong>Observações:</strong> {{ notes }}</p>
       <p><strong>Técnico responsável:</strong> {{ performed_by_name }}</p>
+
+      {% if is_assembly_label is defined and is_assembly_label %}
+      <section class="assembly-label-print">
+        <h3>Etiqueta de Identificação</h3>
+        <p><strong>Montagem:</strong> {{ assembly_name }}</p>
+        <p><strong>Valor de Venda:</strong> R$ {{ '%.2f'|format(sale_price) }}</p>
+        <p><strong>ID:</strong> {{ assembly_id }}</p>
+        <img src="{{ assembly_qr_url }}" alt="QR Code da montagem {{ assembly_id }}" width="120" height="120" />
+      </section>
+      {% endif %}
     </section>
   </main>
 </body>

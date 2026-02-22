@@ -8,7 +8,7 @@
 
     <label class="floating-field">
       <span>Nome do cliente</span>
-      <input name="maintenance_client_name" required />
+      <input name="maintenance_client_name" placeholder="Opcional na abertura" />
     </label>
     <label class="floating-field">
       <span>Telefone</span>
@@ -16,11 +16,11 @@
     </label>
     <label class="floating-field">
       <span>Equipamento</span>
-      <input name="maintenance_equipment" required />
+      <input name="maintenance_equipment" placeholder="Opcional na abertura" />
     </label>
     <label class="floating-field">
       <span>Serviço solicitado</span>
-      <input name="maintenance_service_description" required />
+      <input name="maintenance_service_description" placeholder="Opcional na abertura" />
     </label>
     <label class="floating-field">
       <span>Status inicial</span>
@@ -58,7 +58,7 @@
     </div>
     <label class="floating-field">
       <span>Mão de obra (R$)</span>
-      <input name="maintenance_labor_cost" type="number" min="0" step="0.01" value="0" />
+      <input name="maintenance_labor_cost" type="number" min="0" step="0.01" placeholder="0,00" />
     </label>
 
     <label class="floating-field full-width">
@@ -115,19 +115,42 @@
           <details class="service-actions-menu">
             <summary>⋯</summary>
             <div class="service-actions-list">
-              <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}" class="inline-form">
-                <input type="hidden" name="action" value="editar" />
-                <select name="status">
-                  {% for value, label in maintenance_status_options %}
-                  <option value="{{ value }}" {% if ticket.status == value %}selected{% endif %}>{{ label }}</option>
-                  {% endfor %}
-                </select>
-                <button type="submit" class="btn-secondary">⚙️ Editar</button>
-              </form>
+              <details>
+                <summary>⚙️ Editar OS completa</summary>
+                <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}" class="inline-form service-edit-form">
+                  <input type="hidden" name="action" value="editar" />
+                  <input name="maintenance_client_name" value="{{ ticket.client_name }}" placeholder="Nome do cliente" />
+                  <input name="maintenance_client_phone" value="{{ ticket.client_phone or '' }}" placeholder="Telefone" />
+                  <input name="maintenance_equipment" value="{{ ticket.equipment }}" placeholder="Equipamento" />
+                  <input name="maintenance_service_description" value="{{ ticket.service_description }}" placeholder="Serviço" />
+                  <input name="maintenance_labor_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(ticket.labor_cost or 0) }}" placeholder="Mão de obra" />
+                  <select name="status">
+                    {% for value, label in maintenance_status_options %}
+                    <option value="{{ value }}" {% if maintenance_status_labels.get(ticket.status, ticket.status) == label %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <textarea name="maintenance_customer_report" rows="2" placeholder="Relato do cliente">{{ ticket.customer_report or '' }}</textarea>
+                  <textarea name="maintenance_technical_diagnosis" rows="2" placeholder="Diagnóstico técnico">{{ ticket.technical_diagnosis or '' }}</textarea>
+                  <textarea name="maintenance_observations" rows="2" placeholder="Observações">{{ ticket.observations or '' }}</textarea>
+                  <div>
+                    <small>Peças da OS</small>
+                    <div class="grid form-grid">
+                      <select name="maintenance_part_id[]">
+                        <option value="">Sem troca de peça</option>
+                        {% for product in products %}
+                        <option value="{{ product.id }}">{{ product.name }}</option>
+                        {% endfor %}
+                      </select>
+                      <input name="maintenance_part_qty[]" type="number" min="1" value="1" />
+                    </div>
+                  </div>
+                  <button type="submit" class="btn-secondary">Salvar alterações</button>
+                </form>
+              </details>
               <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}">🖨️ Imprimir OS</button>
               <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}">
                 <input type="hidden" name="action" value="finalizar" />
-                <button type="submit" class="btn-success">✅ Finalizar</button>
+                <button type="submit" class="btn-success">✅ Finalizar e enviar ao histórico</button>
               </form>
             </div>
           </details>
@@ -135,6 +158,34 @@
       </tr>
       {% else %}
       <tr><td colspan="6">Nenhum equipamento em manutenção ativa.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card services-shell">
+  <h2>Histórico de OS (Pronto para retirada)</h2>
+  <table>
+    <thead>
+      <tr><th>Entrada</th><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Status</th><th>Ações</th></tr>
+    </thead>
+    <tbody>
+      {% for ticket in closed_tickets %}
+      <tr>
+        <td>{{ ticket.entry_date.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ ticket.client_name }}</td>
+        <td>{{ ticket.equipment }}</td>
+        <td>{{ ticket.service_description }}</td>
+        <td><span class="badge success">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span></td>
+        <td>
+          <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}">🖨️ Imprimir OS</button>
+          {% if ticket.service_record_id %}
+          <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='servico', record_id=ticket.service_record_id) }}">🧾 Imprimir recibo</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Nenhuma OS finalizada.</td></tr>
       {% endfor %}
     </tbody>
   </table>
