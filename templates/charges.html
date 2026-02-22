@@ -60,7 +60,7 @@
   </form>
 
   <div class="charges-print-actions">
-    <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='cobranca_relatorio', record_id=0) }}', '_blank')">Imprimir relatório de inadimplência</button>
+    <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_relatorio', record_id=0) }}">Imprimir relatório de inadimplência</button>
   </div>
 </section>
 
@@ -114,7 +114,7 @@
                   <button type="submit">Salvar</button>
                 </form>
                 {% if c.amount_paid > 0 and charge_balance(c) > 0 %}
-                <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}', '_blank')">Imprimir recibo parcial</button>
+                <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}">Imprimir recibo parcial</button>
                 {% endif %}
               </div>
             </details>

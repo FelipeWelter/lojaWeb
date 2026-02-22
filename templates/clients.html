@@ -61,8 +61,8 @@
             <div class="table-actions">
               <a class="btn-link" href="{{ url_for('vendas') }}">Nova Venda</a>
               <button type="button" class="btn-secondary accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false">Ver Histórico</button>
-              <a class="btn-secondary" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank">🖨️ Inadimplentes</a>
-              <a class="btn-secondary" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='compras', via='gerente') }}" target="_blank">🖨️ Rel. Gerente</a>
+              <a class="btn-secondary js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank">🖨️ Inadimplentes</a>
+              <a class="btn-secondary js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='compras', via='gerente') }}" target="_blank">🖨️ Rel. Gerente</a>
               <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" onsubmit="return confirm('Deseja remover este cliente?');">
                 <button type="submit" class="btn-trash" title="Remover cliente">🗑</button>
               </form>
@@ -89,7 +89,7 @@
                   <li>
                     Cobrança {{ charge.mercado_pago_reference }}
                     <span class="status-pill {{ charge.status|lower }}">{{ charge.status }}</span>
-                    <a class="btn-link" target="_blank" href="{{ url_for('imprimir', tipo='cliente_quitacao', record_id=charge.id) }}">Imprimir Recibo</a>
+                    <a class="btn-link js-print-trigger" target="_blank" href="{{ url_for('imprimir', tipo='cliente_quitacao', record_id=charge.id) }}">Imprimir Recibo</a>
                   </li>
                   {% else %}
                   <li>Sem cobranças pendentes.</li>

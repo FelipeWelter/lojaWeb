@@ -182,7 +182,7 @@
         </td>
         <td>
           <div class="action-group">
-            <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='montagem', record_id=montagem.id) }}', '_blank')">Imprimir</button>
+            <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='montagem', record_id=montagem.id) }}">Imprimir</button>
             <form method="post" action="{{ url_for('excluir_montagem', assembly_id=montagem.id) }}" onsubmit="return confirm('Deseja excluir esta montagem? Esta ação não pode ser desfeita.');">
               <button type="submit" class="btn-danger">Excluir montagem</button>
             </form>
