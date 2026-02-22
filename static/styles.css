@@ -1123,3 +1123,102 @@ body.dashboard-page textarea::placeholder {
   gap: .75rem;
   align-items: center;
 }
+
+/* PDV */
+.checkout-card {
+  background: #34495e;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.checkout-card h2 { color: #fff; }
+
+.checkout-grid {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 20px;
+  align-items: start;
+}
+
+.checkout-main,
+.checkout-summary {
+  background: #2c3e50;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: .9rem;
+}
+
+.sale-header-fields input,
+.sale-header-fields select,
+.sale-line input,
+.sale-line select,
+.checkout-summary input {
+  background: #243342;
+  border-color: #3f5367;
+  color: #e8eff6;
+}
+
+.sale-lines-list {
+  display: grid;
+  gap: .5rem;
+  max-height: 400px;
+  overflow-y: auto;
+  margin: .75rem 0;
+  padding-right: .25rem;
+}
+
+.sale-line {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 80px 120px 120px auto;
+  gap: .5rem;
+  align-items: center;
+}
+
+.sale-line .remove-line { flex-shrink: 0; }
+
+.checkout-summary {
+  position: sticky;
+  top: 78px;
+  display: grid;
+  gap: .75rem;
+}
+
+.sale-summary-totals p { margin: 0 0 .35rem; color: #c8d5e2; display: flex; justify-content: space-between; }
+.sale-total-highlight strong {
+  font-size: 1.65rem;
+  color: #2ecc71;
+}
+
+.floating-field { position: relative; }
+.floating-field input { width: 100%; padding-top: 1.1rem; }
+.floating-field label {
+  position: absolute;
+  top: .35rem;
+  left: .75rem;
+  font-size: .72rem;
+  color: #9bb1c5;
+  pointer-events: none;
+}
+
+.sale-change { color: #9fb6ca; }
+
+.payment-methods { display: grid; gap: .45rem; }
+.payment-btn span {
+  display: block;
+  width: 100%;
+  background: #213140;
+  border: 1px solid #3f5367;
+  color: #f2f6fa;
+  border-radius: 10px;
+  padding: .65rem .7rem;
+  font-weight: 700;
+}
+.payment-btn input { position: absolute; opacity: 0; pointer-events: none; }
+.payment-btn input:checked + span { border-color: #2ecc71; box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.22); }
+
+#finalize-sale-btn { width: 100%; }
+
+@media (max-width: 980px) {
+  .checkout-grid { grid-template-columns: 1fr; }
+  .checkout-summary { position: static; }
+  .sale-line { grid-template-columns: 1fr; }
+}
