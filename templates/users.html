@@ -12,13 +12,36 @@
 </section>
 <section class="card">
   <h2>Usuários cadastrados</h2>
-  <table>
-    <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Criação</th></tr></thead>
-    <tbody>
-      {% for u in users %}
-      <tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ 'Admin' if u.is_admin else 'Operador' }}</td><td>{{ u.created_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>
-      {% else %}<tr><td colspan="4">Sem usuários.</td></tr>{% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Criação</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.name }}</td>
+          <td>{{ u.email }}</td>
+          <td>{{ 'Admin' if u.is_admin else 'Operador' }}</td>
+          <td>{{ u.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>
+            <div class="action-group">
+              <details>
+                <summary class="btn-secondary">Editar</summary>
+                <form method="post" action="{{ url_for('editar_usuario', user_id=u.id) }}" class="inline-form user-edit-form">
+                  <input name="name" value="{{ u.name }}" required />
+                  <input type="email" name="email" value="{{ u.email }}" required />
+                  <label><input type="checkbox" name="is_admin" {% if u.is_admin %}checked{% endif %}/> Administrador</label>
+                  <button type="submit">Salvar</button>
+                </form>
+              </details>
+              <form method="post" action="{{ url_for('remover_usuario', user_id=u.id) }}" onsubmit="return confirm('Deseja remover este usuário?');">
+                <button type="submit" class="btn-danger">Remover</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="5">Sem usuários.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 {% endblock %}

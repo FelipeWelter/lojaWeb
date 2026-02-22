@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ document_title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
+</head>
+<body>
+  <main class="container print-receipt">
+    <section class="card">
+      <header>
+        <h2>{{ store_name }}</h2>
+        <p><strong>Contato:</strong> {{ store_contact }}</p>
+        <p><strong>Documento:</strong> {{ record_code }} | <strong>Data:</strong> {{ record_date.strftime('%d/%m/%Y %H:%M') }}</p>
+        <p><strong>Cliente/Referência:</strong> {{ client_name }}</p>
+      </header>
+
+      <h3>Itens</h3>
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Qtd</th><th>Preço Unitário</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+          {% for row in items %}
+          <tr>
+            <td>{{ row.item }}</td>
+            <td>{{ row.quantity }}</td>
+            <td>R$ {{ '%.2f'|format(row.unit_price) }}</td>
+            <td>R$ {{ '%.2f'|format(row.total) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <p><strong>Subtotal:</strong> R$ {{ '%.2f'|format(subtotal) }}</p>
+      <p><strong>Total:</strong> R$ {{ '%.2f'|format(total) }}</p>
+
+      <h3>Destaque Técnico</h3>
+      <p>BIOS: {{ technical.bios }} | Stress Test: {{ technical.stress }} | SO: {{ technical.os }}</p>
+      <p><strong>Observações:</strong> {{ notes }}</p>
+
+      <footer style="margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <div>
+          <p>______________________________</p>
+          <p>Assinatura do técnico</p>
+        </div>
+        <div>
+          <p>______________________________</p>
+          <p>Assinatura do cliente</p>
+        </div>
+      </footer>
+    </section>
+  </main>
+</body>
+</html>
