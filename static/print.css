@@ -83,3 +83,32 @@
     color: #111 !important;
   }
 }
+
+@page {
+  size: 80mm auto;
+  margin: 4mm;
+}
+
+@media print {
+  .thermal-receipt,
+  .thermal-receipt .card {
+    width: 72mm;
+    max-width: 72mm;
+    margin: 0;
+    padding: 0;
+    font-size: 11px;
+  }
+
+  .thermal-receipt table,
+  .thermal-receipt th,
+  .thermal-receipt td {
+    border: 1px dashed #222 !important;
+    font-size: 10px;
+    padding: 3px;
+  }
+
+  .thermal-receipt h2,
+  .thermal-receipt h3 {
+    margin: 0 0 4px;
+  }
+}

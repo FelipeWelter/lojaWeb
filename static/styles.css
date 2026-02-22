@@ -1124,139 +1124,101 @@ body.dashboard-page textarea::placeholder {
   align-items: center;
 }
 
-/* CRM clientes */
-.crm-toolbar {
-  position: sticky;
-  top: 70px;
-  z-index: 25;
+/* PDV */
+.checkout-card {
+  background: #34495e;
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
-.crm-search-wrap {
-  width: 100%;
-  max-width: 600px;
-  position: relative;
+.checkout-card h2 { color: #fff; }
+
+.checkout-grid {
+  display: grid;
+  grid-template-columns: 1fr 350px;
+  gap: 20px;
+  align-items: start;
 }
 
-.crm-search-wrap input {
-  width: 100%;
-  box-sizing: border-box;
-  padding-left: 2.2rem;
+.checkout-main,
+.checkout-summary {
+  background: #2c3e50;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: .9rem;
 }
 
-.crm-search-icon {
-  position: absolute;
-  left: .7rem;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: .8;
+.sale-header-fields input,
+.sale-header-fields select,
+.sale-line input,
+.sale-line select,
+.checkout-summary input {
+  background: #243342;
+  border-color: #3f5367;
+  color: #e8eff6;
 }
 
-.crm-form-grid label span {
-  display: block;
-}
-
-.crm-client-table .client-link {
-  background: transparent;
-  color: inherit;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
+.sale-lines-list {
+  display: grid;
   gap: .5rem;
+  max-height: 400px;
+  overflow-y: auto;
+  margin: .75rem 0;
+  padding-right: .25rem;
 }
 
-.client-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #2C3E50;
-  color: #ECF0F1;
-  display: inline-grid;
-  place-items: center;
-  font-size: .82rem;
+.sale-line {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 80px 120px 120px auto;
+  gap: .5rem;
+  align-items: center;
+}
+
+.sale-line .remove-line { flex-shrink: 0; }
+
+.checkout-summary {
+  position: sticky;
+  top: 78px;
+  display: grid;
+  gap: .75rem;
+}
+
+.sale-summary-totals p { margin: 0 0 .35rem; color: #c8d5e2; display: flex; justify-content: space-between; }
+.sale-total-highlight strong {
+  font-size: 1.65rem;
+  color: #2ecc71;
+}
+
+.floating-field { position: relative; }
+.floating-field input { width: 100%; padding-top: 1.1rem; }
+.floating-field label {
+  position: absolute;
+  top: .35rem;
+  left: .75rem;
+  font-size: .72rem;
+  color: #9bb1c5;
+  pointer-events: none;
+}
+
+.sale-change { color: #9fb6ca; }
+
+.payment-methods { display: grid; gap: .45rem; }
+.payment-btn span {
+  display: block;
+  width: 100%;
+  background: #213140;
+  border: 1px solid #3f5367;
+  color: #f2f6fa;
+  border-radius: 10px;
+  padding: .65rem .7rem;
   font-weight: 700;
 }
+.payment-btn input { position: absolute; opacity: 0; pointer-events: none; }
+.payment-btn input:checked + span { border-color: #2ecc71; box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.22); }
 
-.btn-trash {
-  background: transparent;
-  color: #E74C3C;
-  padding: .45rem .5rem;
-  border: 1px solid rgba(231, 76, 60, 0.4);
-}
+#finalize-sale-btn { width: 100%; }
 
-.client-cards {
-  display: none;
-  gap: .7rem;
-}
-
-.client-mini-card {
-  border: 1px solid rgba(236, 240, 241, 0.15);
-  border-radius: 10px;
-  padding: .7rem;
-  background: #2f4357;
-}
-
-.client-mini-card header {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  margin-bottom: .55rem;
-}
-
-.client-drawer {
-  position: fixed;
-  right: -460px;
-  top: 0;
-  height: 100vh;
-  width: min(440px, 100%);
-  background: #34495E;
-  border-left: 1px solid rgba(236, 240, 241, 0.18);
-  padding: 1rem;
-  z-index: 60;
-  transition: right .25s ease;
-  overflow-y: auto;
-  color: #ECF0F1;
-}
-
-.client-drawer.open {
-  right: 0;
-}
-
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.drawer-list {
-  list-style: none;
-  padding: 0;
-  display: grid;
-  gap: .55rem;
-}
-
-.debt-warning {
-  border-left: 3px solid #f1c40f;
-  padding-left: .55rem;
-}
-
-body.dashboard-page .crm-toolbar,
-body.dashboard-page .crm-search-wrap input,
-body.dashboard-page .crm-client-table,
-body.dashboard-page .crm-client-table th,
-body.dashboard-page .crm-client-table td {
-  color: #ECF0F1;
-}
-
-body.dashboard-page .crm-search-wrap input {
-  background: #2C3E50;
-}
-
-@media (max-width: 860px) {
-  .crm-client-table {
-    display: none;
-  }
-
-  .client-cards {
-    display: grid;
-  }
+@media (max-width: 980px) {
+  .checkout-grid { grid-template-columns: 1fr; }
+  .checkout-summary { position: static; }
+  .sale-line { grid-template-columns: 1fr; }
 }

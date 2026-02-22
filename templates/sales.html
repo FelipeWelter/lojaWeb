@@ -1,45 +1,67 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
-  <h2>Nova venda</h2>
-  <form method="post" class="grid form-grid" id="sale-form">
-    <input name="sale_name" placeholder="Nome da venda (ex: Venda João - Combo)" required />
-    <select name="client_id" required>
-      <option value="">Selecione o cliente</option>
-      {% for client in clients %}
-      <option value="{{ client.id }}">{{ client.name }}</option>
-      {% endfor %}
-    </select>
-
-    <div id="sale-lines" class="grid" style="grid-column: 1 / -1; gap: .5rem;">
-      <div class="sale-line" style="display:grid;grid-template-columns:130px 1fr 1fr 90px 130px 130px auto;gap:.5rem;align-items:center;">
-        <select name="item_type[]" class="line-type">
-          <option value="produto">Produto</option>
-          <option value="servico">Serviço</option>
-        </select>
-        <select name="item_product_id[]" class="line-product">
-          <option value="">Selecione o produto</option>
-          {% for product in products %}
-          <option value="{{ product.id }}" data-price="{{ product.price }}" data-cost="{{ product.cost_price }}">{{ product.name }} (estoque: {{ product.stock }})</option>
+<section class="card checkout-card">
+  <h2>PDV • Nova venda</h2>
+  <form method="post" id="sale-form" class="checkout-grid">
+    <div class="checkout-main">
+      <div class="grid form-grid sale-header-fields">
+        <input name="sale_name" placeholder="Nome da venda (ex: Venda João - Combo)" required />
+        <select name="client_id" required>
+          <option value="">Selecione o cliente</option>
+          {% for client in clients %}
+          <option value="{{ client.id }}">{{ client.name }}</option>
           {% endfor %}
         </select>
-        <input name="item_description[]" class="line-description" placeholder="Descrição do item/serviço" />
-        <input name="item_quantity[]" class="line-qty" type="number" min="1" value="1" required />
-        <input name="item_unit_price[]" class="line-price" type="number" min="0" step="0.01" placeholder="Preço unit." required />
-        <input name="item_unit_cost[]" class="line-cost" type="number" min="0" step="0.01" placeholder="Custo unit." value="0" />
-        <button type="button" class="btn-danger remove-line">Remover</button>
       </div>
+
+      <div id="sale-lines" class="sale-lines-list">
+        <div class="sale-line">
+          <select name="item_type[]" class="line-type">
+            <option value="produto">Produto</option>
+            <option value="servico">Serviço</option>
+          </select>
+          <select name="item_product_id[]" class="line-product">
+            <option value="">Selecione o produto</option>
+            {% for product in products %}
+            <option value="{{ product.id }}" data-price="{{ product.price }}" data-cost="{{ product.cost_price }}">{{ product.name }} (estoque: {{ product.stock }})</option>
+            {% endfor %}
+          </select>
+          <input name="item_description[]" class="line-description" placeholder="Descrição do item/serviço" />
+          <input name="item_quantity[]" class="line-qty" type="number" min="1" value="1" required />
+          <input name="item_unit_price[]" class="line-price" type="number" min="0" step="0.01" placeholder="Preço unit." required />
+          <input name="item_unit_cost[]" class="line-cost" type="number" min="0" step="0.01" placeholder="Custo unit." value="0" />
+          <button type="button" class="btn-danger remove-line">Remover</button>
+        </div>
+      </div>
+
+      <button type="button" id="add-line" class="btn-secondary">+ Adicionar item/serviço</button>
     </div>
 
-    <button type="button" id="add-line" class="btn-secondary" style="grid-column: 1 / -1;">+ Adicionar item/serviço</button>
-    <label>
-      Desconto da venda (R$)
-      <input name="discount_amount" id="sale-discount" type="number" min="0" step="0.01" value="0" />
-    </label>
-    <div class="sale-summary" style="grid-column: 1 / -1;">
-      <small>Subtotal: <strong id="sale-subtotal">R$ 0,00</strong> | Desconto: <strong id="sale-discount-view">R$ 0,00</strong> | Total automático: <strong id="sale-total">R$ 0,00</strong></small>
-    </div>
-    <button type="submit">Registrar venda</button>
+    <aside class="checkout-summary">
+      <div class="sale-summary-totals">
+        <p>Subtotal <strong id="sale-subtotal">R$ 0,00</strong></p>
+        <p>Desconto <strong id="sale-discount-view">R$ 0,00</strong></p>
+        <p class="sale-total-highlight">Total <strong id="sale-total">R$ 0,00</strong></p>
+      </div>
+
+      <div class="floating-field">
+        <input name="discount_amount" id="sale-discount" type="number" min="0" step="0.01" value="0" placeholder=" " />
+        <label for="sale-discount">Desconto (R$)</label>
+      </div>
+      <div class="floating-field">
+        <input name="amount_received" id="sale-amount-received" type="number" min="0" step="0.01" value="0" placeholder=" " />
+        <label for="sale-amount-received">Valor recebido (R$)</label>
+      </div>
+      <small id="sale-change-view" class="sale-change">Troco: R$ 0,00</small>
+
+      <div class="payment-methods" role="radiogroup" aria-label="Forma de pagamento">
+        <label class="payment-btn"><input type="radio" name="payment_method" value="credito" required><span>💳 Cartão</span></label>
+        <label class="payment-btn"><input type="radio" name="payment_method" value="dinheiro"><span>💵 Dinheiro</span></label>
+        <label class="payment-btn"><input type="radio" name="payment_method" value="pix" checked><span>📱 PIX</span></label>
+      </div>
+
+      <button type="submit" id="finalize-sale-btn">Finalizar venda</button>
+    </aside>
   </form>
 </section>
 
@@ -67,7 +89,7 @@
         <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
         <td>
           <div class="action-group">
-            <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='venda', record_id=sale.id) }}', '_blank')">Imprimir</button>
+            <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='venda', record_id=sale.id) }}', '_blank')">Imprimir comprovante</button>
             {% if not sale.canceled %}
             <form method="post" action="{{ url_for('cancelar_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja cancelar a venda e estornar o estoque?');">
               <button type="submit" class="btn-danger">Cancelar venda</button>
@@ -92,7 +114,11 @@
   const totalEl = document.getElementById('sale-total');
   const subtotalEl = document.getElementById('sale-subtotal');
   const discountInput = document.getElementById('sale-discount');
+  const amountReceivedInput = document.getElementById('sale-amount-received');
   const discountViewEl = document.getElementById('sale-discount-view');
+  const changeViewEl = document.getElementById('sale-change-view');
+  const finalizeBtn = document.getElementById('finalize-sale-btn');
+  const saleForm = document.getElementById('sale-form');
 
   function formatBRL(v) {
     return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -109,9 +135,14 @@
 
     const discount = Math.max(0, Number(discountInput?.value || 0));
     const total = Math.max(0, subtotal - discount);
+    const received = Math.max(0, Number(amountReceivedInput?.value || 0));
+    const change = Math.max(0, received - total);
     subtotalEl.textContent = formatBRL(subtotal);
     discountViewEl.textContent = formatBRL(discount);
     totalEl.textContent = formatBRL(total);
+    if (changeViewEl) {
+      changeViewEl.textContent = `Troco: ${formatBRL(change)}`;
+    }
   }
 
   function bindLine(line) {
@@ -166,6 +197,14 @@
   });
 
   discountInput?.addEventListener('input', recalcTotal);
+  amountReceivedInput?.addEventListener('input', recalcTotal);
+
+  saleForm?.addEventListener('submit', () => {
+    if (!finalizeBtn) return;
+    finalizeBtn.disabled = true;
+    finalizeBtn.dataset.originalText = finalizeBtn.textContent;
+    finalizeBtn.textContent = 'Processando...';
+  });
   saleLines.querySelectorAll('.sale-line').forEach(bindLine);
   recalcTotal();
 </script>

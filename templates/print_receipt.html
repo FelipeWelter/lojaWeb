@@ -8,53 +8,40 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
 </head>
 <body>
-  <main class="container print-receipt">
+  <main class="container print-receipt thermal-receipt">
     <section class="card">
       <header>
-        <h2>🖥️ {{ store_name }}</h2>
-        <p><strong>Contato:</strong> {{ store_contact }}</p>
-        <p><strong>Documento:</strong> {{ record_code }} | <strong>Data:</strong> {{ record_date.strftime('%d/%m/%Y %H:%M') }}</p>
+        <h2>🖥️ LojaWeb</h2>
+        <p><strong>Data/Hora:</strong> {{ record_date.strftime('%d/%m/%Y %H:%M') }}</p>
+        <p><strong>Documento:</strong> {{ record_code }}</p>
         <p><strong>Cliente/Referência:</strong> {{ client_name }}</p>
       </header>
 
       <h3>Itens</h3>
       <table>
         <thead>
-          <tr><th>Item</th><th>S/N</th><th>Qtd</th><th>Preço Unitário</th><th>Total</th></tr>
+          <tr><th>Nome</th><th>Qtd</th><th>Subtotal</th></tr>
         </thead>
         <tbody>
           {% for row in items %}
           <tr>
             <td>{{ row.item }}</td>
-            <td>{{ row.serial_number or "-" }}</td>
             <td>{{ row.quantity }}</td>
-            <td>R$ {{ '%.2f'|format(row.unit_price) }}</td>
             <td>R$ {{ '%.2f'|format(row.total) }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
 
-      <p><strong>Subtotal:</strong> R$ {{ '%.2f'|format(subtotal) }}</p>
-      {% if discount_amount and discount_amount > 0 %}<p><strong>Desconto:</strong> R$ {{ '%.2f'|format(discount_amount) }}</p>{% endif %}
-      <p><strong>Total:</strong> R$ {{ '%.2f'|format(total) }}</p>
+      <p><strong>Valor Bruto:</strong> R$ {{ '%.2f'|format(gross_total if gross_total is defined else subtotal) }}</p>
+      <p><strong>Desconto:</strong> R$ {{ '%.2f'|format(discount_amount or 0) }}</p>
+      <p><strong>Valor Líquido:</strong> R$ {{ '%.2f'|format(total) }}</p>
+      {% if payment_method_label is defined %}
+      <p><strong>Forma de pagamento:</strong> {{ payment_method_label }}</p>
+      {% endif %}
 
-      <h3>Destaque Técnico</h3>
-      <p>BIOS: {{ technical.bios }} | Stress Test: {{ technical.stress }} | SO: {{ technical.os }}</p>
       <p><strong>Observações:</strong> {{ notes }}</p>
       <p><strong>Técnico responsável:</strong> {{ performed_by_name }}</p>
-      <p><strong>Data da execução:</strong> ____/____/________</p>
-
-      <footer style="margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-        <div>
-          <p>______________________________</p>
-          <p>Assinatura do técnico</p>
-        </div>
-        <div>
-          <p>______________________________</p>
-          <p>Assinatura do cliente</p>
-        </div>
-      </footer>
     </section>
   </main>
 </body>
