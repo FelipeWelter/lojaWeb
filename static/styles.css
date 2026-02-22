@@ -1031,3 +1031,95 @@ body.dashboard-page textarea::placeholder {
     padding-right: 0;
   }
 }
+
+.services-shell {
+  background: #34495e;
+  border-color: #3f556a;
+  color: #ecf0f1;
+}
+
+.services-shell h2,
+.services-shell p,
+.services-shell th,
+.services-shell td {
+  color: #ecf0f1;
+}
+
+.services-shell table,
+.services-shell th {
+  background: #2c3e50;
+}
+
+.services-shell td {
+  border-bottom-color: #3b4f63;
+}
+
+.services-form input,
+.services-form select,
+.services-form textarea,
+.history-head input {
+  background: #2c3e50;
+  border: 1px solid #4c6278;
+  color: #ecf0f1;
+}
+
+.services-form input:focus,
+.services-form select:focus,
+.services-form textarea:focus,
+.history-head input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.floating-field span,
+.checklist-block p {
+  color: #bdc3c7;
+  font-size: 0.83rem;
+  font-weight: 600;
+}
+
+.checklist-block {
+  border: 1px solid #445b70;
+  border-radius: 10px;
+  padding: 0.8rem;
+  background: #2c3e50;
+}
+
+.checklist-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.checklist-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 500;
+}
+
+.badge.warning { background: #f1c40f; color: #2c3e50; }
+.badge.info { background: #3498db; color: #fff; }
+.badge.success { background: #2ecc71; color: #fff; }
+.badge.danger { background: #e74c3c; color: #fff; }
+
+.service-actions-menu summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #ecf0f1;
+}
+
+.service-actions-list {
+  display: grid;
+  gap: .4rem;
+  min-width: 180px;
+  padding-top: .45rem;
+}
+
+.history-head {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  align-items: center;
+}
