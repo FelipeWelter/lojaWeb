@@ -1,35 +1,168 @@
 {% extends 'base.html' %}
 {% block content %}
+<section class="crm-toolbar card">
+  <div class="crm-search-wrap">
+    <span class="crm-search-icon">🔎</span>
+    <input id="client-search" type="search" placeholder="Pesquisar por nome, CPF/CNPJ, WhatsApp ou e-mail..." />
+  </div>
+</section>
+
 <section class="card">
   <h2>Novo cliente</h2>
-  <form method="post" class="grid form-grid">
-    <input name="name" placeholder="Nome" required />
-    <input name="cpf" placeholder="CPF" required />
-    <input name="phone" placeholder="Telefone" />
-    <input name="email" type="email" placeholder="E-mail" />
-    <button type="submit">Salvar</button>
+  <form method="post" class="grid form-grid crm-form-grid">
+    <label>
+      <span>Nome</span>
+      <input name="name" placeholder="Nome completo" required />
+    </label>
+    <label>
+      <span>CPF/CNPJ</span>
+      <input name="cpf" placeholder="000.000.000-00" required />
+    </label>
+    <label>
+      <span>WhatsApp</span>
+      <input name="phone" placeholder="(11) 99999-9999" />
+    </label>
+    <label>
+      <span>E-mail</span>
+      <input name="email" type="email" placeholder="cliente@email.com" />
+    </label>
+    <button type="submit">Salvar Cliente</button>
   </form>
 </section>
+
 <section class="card">
   <h2>Clientes</h2>
-  <table>
-    <thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>E-mail</th><th>Ações</th></tr></thead>
-    <tbody>
-      {% for c in clients %}
-      <tr>
-        <td><a href="{{ url_for('historico_cliente', client_id=c.id) }}">{{ c.name }}</a></td>
-        <td>{{ c.cpf or '-' }}</td>
-        <td>{{ c.phone or '-' }}</td>
-        <td>{{ c.email or '-' }}</td>
-        <td>
-          <a href="{{ url_for('editar_cliente', client_id=c.id) }}"><button type="button">Editar</button></a>
-          <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" style="display:inline" onsubmit="return confirm('Deseja remover este cliente?');">
-            <button type="submit" class="btn-danger">Remover</button>
-          </form>
-        </td>
-      </tr>
-      {% else %}<tr><td colspan="5">Sem clientes.</td></tr>{% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap crm-table-wrap">
+    <table class="crm-client-table">
+      <thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>WhatsApp</th><th>E-mail</th><th>Ações</th></tr></thead>
+      <tbody id="client-table-body">
+        {% for c in clients %}
+        <tr class="client-row" data-search="{{ (c.name ~ ' ' ~ (c.cpf or '') ~ ' ' ~ (c.phone or '') ~ ' ' ~ (c.email or ''))|lower }}">
+          <td>
+            <button type="button" class="client-link" onclick="openClientDrawer({{ c.id }})">
+              <span class="client-avatar">{{ c.initials }}</span>
+              <span>{{ c.name }}</span>
+            </button>
+          </td>
+          <td>{{ c.cpf or '-' }}</td>
+          <td>{{ c.phone or '-' }}</td>
+          <td>{{ c.email or '-' }}</td>
+          <td>
+            <div class="table-actions">
+              <a class="btn-link" href="{{ url_for('vendas') }}">Nova Venda</a>
+              <button type="button" class="btn-secondary" onclick="openClientDrawer({{ c.id }})">Ver Histórico</button>
+              <a class="btn-secondary" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id) }}" target="_blank">🖨️ Imprimir</a>
+              <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" onsubmit="return confirm('Deseja remover este cliente?');">
+                <button type="submit" class="btn-trash" title="Remover cliente">🗑</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="5">Sem clientes.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="client-cards" id="client-cards">
+    {% for c in clients %}
+    <article class="client-mini-card client-row" data-search="{{ (c.name ~ ' ' ~ (c.cpf or '') ~ ' ' ~ (c.phone or '') ~ ' ' ~ (c.email or ''))|lower }}">
+      <header>
+        <span class="client-avatar">{{ c.initials }}</span>
+        <strong>{{ c.name }}</strong>
+      </header>
+      <p><strong>CPF/CNPJ:</strong> {{ c.cpf or '-' }}</p>
+      <p><strong>WhatsApp:</strong> {{ c.phone or '-' }}</p>
+      <p><strong>E-mail:</strong> {{ c.email or '-' }}</p>
+      <div class="action-group">
+        <button type="button" class="btn-secondary" onclick="openClientDrawer({{ c.id }})">Ver Histórico</button>
+        <a class="btn-link" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id) }}" target="_blank">🖨️ Imprimir</a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
 </section>
+
+<aside id="client-drawer" class="client-drawer" aria-hidden="true">
+  <div class="drawer-header">
+    <h3 id="drawer-client-name">Cliente</h3>
+    <button type="button" class="btn-secondary" onclick="closeClientDrawer()">Fechar</button>
+  </div>
+  <p id="drawer-client-meta"></p>
+  <p><strong>Total gasto:</strong> <span id="drawer-total"></span></p>
+
+  <h4>Histórico de Compras</h4>
+  <ul id="drawer-sales" class="drawer-list"></ul>
+
+  <h4>Status de Débitos</h4>
+  <ul id="drawer-debts" class="drawer-list"></ul>
+</aside>
+
+<script>
+  const clientsData = {
+    {% for c in clients %}
+    "{{ c.id }}": {
+      name: {{ c.name|tojson }},
+      cpf: {{ (c.cpf or '-')|tojson }},
+      phone: {{ (c.phone or '-')|tojson }},
+      email: {{ (c.email or '-')|tojson }},
+      total: "R$ {{ '%.2f'|format(c.total_spent) }}",
+      sales: [
+        {% for s in c.sales %}
+        {
+          date: {{ s.created_at.strftime('%d/%m/%Y %H:%M')|tojson }},
+          name: {{ s.sale_name|tojson }},
+          total: {{ ('R$ %.2f'|format(s.total))|tojson }}
+        },
+        {% endfor %}
+      ],
+      debts: [
+        {% for charge in c.pending_charges %}
+        {
+          ref: {{ charge.mercado_pago_reference|tojson }},
+          status: {{ charge.status|tojson }},
+          printUrl: {{ url_for('imprimir', tipo='cliente_quitacao', record_id=charge.id)|tojson }}
+        },
+        {% endfor %}
+      ]
+    },
+    {% endfor %}
+  };
+
+  const searchInput = document.getElementById('client-search');
+  const searchableRows = document.querySelectorAll('.client-row');
+  searchInput?.addEventListener('input', (event) => {
+    const term = event.target.value.toLowerCase().trim();
+    searchableRows.forEach((el) => {
+      const haystack = el.dataset.search || '';
+      el.style.display = haystack.includes(term) ? '' : 'none';
+    });
+  });
+
+  const drawer = document.getElementById('client-drawer');
+  function openClientDrawer(clientId) {
+    const data = clientsData[String(clientId)];
+    if (!data) return;
+    document.getElementById('drawer-client-name').textContent = data.name;
+    document.getElementById('drawer-client-meta').textContent = `${data.cpf} • ${data.phone} • ${data.email}`;
+    document.getElementById('drawer-total').textContent = data.total;
+
+    const salesList = document.getElementById('drawer-sales');
+    salesList.innerHTML = data.sales.length
+      ? data.sales.map(s => `<li><strong>${s.name}</strong><br><small>${s.date}</small> · ${s.total}</li>`).join('')
+      : '<li>Sem compras registradas.</li>';
+
+    const debtsList = document.getElementById('drawer-debts');
+    debtsList.innerHTML = data.debts.length
+      ? data.debts.map(d => `<li class="debt-warning">Cobrança ${d.ref} - ${d.status} <a class="btn-link" target="_blank" href="${d.printUrl}">Imprimir Recibo</a></li>`).join('')
+      : '<li>Sem cobranças pendentes.</li>';
+
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeClientDrawer() {
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+  }
+</script>
 {% endblock %}

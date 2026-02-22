@@ -1123,3 +1123,140 @@ body.dashboard-page textarea::placeholder {
   gap: .75rem;
   align-items: center;
 }
+
+/* CRM clientes */
+.crm-toolbar {
+  position: sticky;
+  top: 70px;
+  z-index: 25;
+}
+
+.crm-search-wrap {
+  width: 100%;
+  max-width: 600px;
+  position: relative;
+}
+
+.crm-search-wrap input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 2.2rem;
+}
+
+.crm-search-icon {
+  position: absolute;
+  left: .7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: .8;
+}
+
+.crm-form-grid label span {
+  display: block;
+}
+
+.crm-client-table .client-link {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.client-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #2C3E50;
+  color: #ECF0F1;
+  display: inline-grid;
+  place-items: center;
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.btn-trash {
+  background: transparent;
+  color: #E74C3C;
+  padding: .45rem .5rem;
+  border: 1px solid rgba(231, 76, 60, 0.4);
+}
+
+.client-cards {
+  display: none;
+  gap: .7rem;
+}
+
+.client-mini-card {
+  border: 1px solid rgba(236, 240, 241, 0.15);
+  border-radius: 10px;
+  padding: .7rem;
+  background: #2f4357;
+}
+
+.client-mini-card header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: .55rem;
+}
+
+.client-drawer {
+  position: fixed;
+  right: -460px;
+  top: 0;
+  height: 100vh;
+  width: min(440px, 100%);
+  background: #34495E;
+  border-left: 1px solid rgba(236, 240, 241, 0.18);
+  padding: 1rem;
+  z-index: 60;
+  transition: right .25s ease;
+  overflow-y: auto;
+  color: #ECF0F1;
+}
+
+.client-drawer.open {
+  right: 0;
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.drawer-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: .55rem;
+}
+
+.debt-warning {
+  border-left: 3px solid #f1c40f;
+  padding-left: .55rem;
+}
+
+body.dashboard-page .crm-toolbar,
+body.dashboard-page .crm-search-wrap input,
+body.dashboard-page .crm-client-table,
+body.dashboard-page .crm-client-table th,
+body.dashboard-page .crm-client-table td {
+  color: #ECF0F1;
+}
+
+body.dashboard-page .crm-search-wrap input {
+  background: #2C3E50;
+}
+
+@media (max-width: 860px) {
+  .crm-client-table {
+    display: none;
+  }
+
+  .client-cards {
+    display: grid;
+  }
+}
