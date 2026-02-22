@@ -64,22 +64,25 @@
   <form method="post" class="grid form-grid hidden montaje-card" id="assembled-form" enctype="multipart/form-data">
     <input type="hidden" name="form_mode" value="assembled_computer" />
 
-    <div class="pc-header full-width">
-      <label>
-        Nome do computador
-        <input name="computer_name" placeholder="Ex: Setup Gamer RTX" required />
-      </label>
-      <label>
-        Preço base (opcional)
-        <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" />
-      </label>
-      <label>
-        Fotos do computador
-        <input name="photo_files" type="file" accept="image/*" multiple />
-      </label>
-    </div>
+    <div class="pc-layout full-width">
+      <section class="pc-builder-area">
+        <div class="pc-header full-width">
+          <label>
+            Nome do computador
+            <input name="computer_name" placeholder="Ex: Setup Gamer RTX" required />
+          </label>
+          <label>
+            Preço base (opcional)
+            <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" />
+          </label>
+          <label>
+            Fotos do computador
+            <input name="photo_files" type="file" accept="image/*" multiple />
+          </label>
+        </div>
 
-    <div class="slots-top full-width">
+        <div class="components-scroll-area full-width assembly-lines">
+          <div class="assembly-row two-columns">
       {% for slot_key, slot_label, allow_multiple in component_slots if not allow_multiple %}
       <div class="slot-box">
         <h3>{{ slot_label }}</h3>
@@ -105,9 +108,9 @@
         </label>
       </div>
       {% endfor %}
-    </div>
+          </div>
 
-    <div class="slots-bottom full-width">
+          <div class="assembly-row one-column">
       {% for slot_key, slot_label, allow_multiple in component_slots if allow_multiple %}
       <div class="slot-box slot-multiple">
         <h3>{{ slot_label }}</h3>
@@ -143,27 +146,37 @@
         <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
       </div>
       {% endfor %}
-    </div>
+          </div>
 
-    <div class="assembly-summary full-width">
-      <p><strong>Custo total das peças:</strong> <span id="total-custo">R$ 0,00</span></p>
-      <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
-    </div>
+          <div class="assembly-row one-column">
+            <div class="slot-box optional-panel" data-slot="opcionais">
+              <div class="assembly-summary notes-panel full-width">
+                <label>
+                  Observações técnicas
+                  <textarea name="technical_notes" rows="3" placeholder="Detalhes técnicos e validações..."></textarea>
+                </label>
+                <div class="class-menu technical-checklist">
+                  <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
+                  <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
+                  <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
+                  <label><input type="checkbox" name="create_stock_item" checked /> Criar automaticamente item em estoque</label>
+                </div>
+              </div>
 
-    <div class="assembly-summary full-width">
-      <label>
-        Observações técnicas
-        <textarea name="technical_notes" rows="3" placeholder="Detalhes técnicos e validações..."></textarea>
-      </label>
-      <div class="class-menu">
-        <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
-        <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
-        <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
-        <label><input type="checkbox" name="create_stock_item" checked /> Criar automaticamente item em estoque</label>
+              <div class="assembly-summary summary-highlight summary-inline">
+                <div>
+                  <p class="summary-title">Resumo do Orçamento</p>
+                  <p><strong>Custo total das peças:</strong> <span id="total-custo">R$ 0,00</span></p>
+                  <p><strong>Preço sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+                </div>
+                <button type="submit" class="summary-submit">Salvar computador montado</button>
+                <p class="summary-hint">Selecione peças do estoque ou preencha itens personalizados para atualizar os totais em tempo real.</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-
-    <button type="submit">Salvar computador montado</button>
   </form>
 </section>
 
