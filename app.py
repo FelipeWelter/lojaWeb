@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from functools import wraps
+import json
 import os
 from pathlib import Path
 from uuid import uuid4
@@ -188,6 +189,13 @@ class MaintenanceTicket(db.Model):
     client_name = db.Column(db.String(120), nullable=False)
     equipment = db.Column(db.String(120), nullable=False)
     service_description = db.Column(db.String(180), nullable=False)
+    client_phone = db.Column(db.String(30), nullable=True)
+    customer_report = db.Column(db.Text, nullable=True)
+    technical_diagnosis = db.Column(db.Text, nullable=True)
+    observations = db.Column(db.Text, nullable=True)
+    checklist_json = db.Column(db.Text, nullable=True)
+    parts_json = db.Column(db.Text, nullable=True)
+    labor_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     entry_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     exit_date = db.Column(db.DateTime, nullable=True)
     waiting_parts = db.Column(db.Boolean, nullable=False, default=False)
@@ -580,6 +588,22 @@ PAYMENT_METHODS = [
 
 PAYMENT_METHOD_LABELS = dict(PAYMENT_METHODS)
 
+MAINTENANCE_STATUS_LABELS = {
+    'aguardando_pecas': 'Aguardando peças',
+    'em_analise': 'Em análise/Bancada',
+    'pronto_retirada': 'Pronto para retirada',
+    'cancelado': 'Cancelado',
+    'em_andamento': 'Em análise/Bancada',
+    'concluido': 'Pronto para retirada',
+}
+
+DEFAULT_MAINTENANCE_CHECKLIST = [
+    'Limpeza interna',
+    'Troca de pasta térmica',
+    'Teste de stress',
+]
+
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -812,6 +836,55 @@ def imprimir(tipo: str, record_id: int):
             },
             'notes': data.technical_notes or 'Sem observações técnicas.',
             'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
+        }
+    elif tipo == 'manutencao':
+        data = MaintenanceTicket.query.get_or_404(record_id)
+        parts_items = []
+        if data.parts_json:
+            try:
+                parts_items = json.loads(data.parts_json)
+            except json.JSONDecodeError:
+                parts_items = []
+
+        items = [
+            {
+                'item': data.service_description,
+                'quantity': 1,
+                'unit_price': Decimal(data.labor_cost or 0),
+                'total': Decimal(data.labor_cost or 0),
+            }
+        ]
+        subtotal = Decimal(data.labor_cost or 0)
+
+        for part in parts_items:
+            qty = Decimal(str(part.get('quantity', 1) or 1))
+            unit = Decimal(str(part.get('unit_price', 0) or 0))
+            total = qty * unit
+            subtotal += total
+            items.append({
+                'item': f"Peça: {part.get('name', 'Item de estoque')}",
+                'quantity': qty,
+                'unit_price': unit,
+                'total': total,
+            })
+
+        context = {
+            'document_title': f'Recibo de Ordem de Serviço #{data.id}',
+            'store_name': 'LojaWeb',
+            'store_contact': 'contato@lojaweb.local',
+            'record_date': data.entry_date,
+            'record_code': f'OS-{data.id}',
+            'client_name': data.client_name,
+            'items': items,
+            'subtotal': subtotal,
+            'total': subtotal,
+            'technical': {
+                'bios': data.customer_report or 'Não informado',
+                'stress': data.technical_diagnosis or 'Não informado',
+                'os': MAINTENANCE_STATUS_LABELS.get(data.status, data.status),
+            },
+            'notes': (data.observations or 'Sem observações.') + ' | Garantia de 90 dias para mão de obra e peças substituídas com defeito de fabricação.',
+            'performed_by_name': 'Equipe Técnica LojaWeb',
         }
     elif tipo == 'servico':
         data = ServiceRecord.query.get_or_404(record_id)
@@ -1564,10 +1637,51 @@ def servicos():
 
         if form_type == 'maintenance_ticket':
             client_name = (request.form.get('maintenance_client_name') or '').strip()
+            client_phone = (request.form.get('maintenance_client_phone') or '').strip() or None
             equipment = (request.form.get('maintenance_equipment') or '').strip()
             service_description = (request.form.get('maintenance_service_description') or '').strip()
+            customer_report = (request.form.get('maintenance_customer_report') or '').strip() or None
+            technical_diagnosis = (request.form.get('maintenance_technical_diagnosis') or '').strip() or None
+            observations = (request.form.get('maintenance_observations') or '').strip() or None
             entry_date_raw = request.form.get('maintenance_entry_date')
-            waiting_parts = request.form.get('maintenance_waiting_parts') == 'on'
+            status = (request.form.get('maintenance_status') or 'em_analise').strip()
+            if status not in MAINTENANCE_STATUS_LABELS:
+                status = 'em_analise'
+
+            checklist_items = [
+                {'label': item, 'done': request.form.get(f'check_{idx}') == 'on'}
+                for idx, item in enumerate(DEFAULT_MAINTENANCE_CHECKLIST)
+            ]
+
+            part_id_raw = (request.form.get('maintenance_part_id') or '').strip()
+            part_qty_raw = (request.form.get('maintenance_part_qty') or '1').strip()
+            labor_cost_raw = (request.form.get('maintenance_labor_cost') or '0').strip()
+            parts_items = []
+
+            try:
+                labor_cost = Decimal(labor_cost_raw or '0').quantize(Decimal('0.01'))
+            except InvalidOperation:
+                flash('Mão de obra inválida.', 'danger')
+                return redirect(url_for('servicos'))
+
+            if labor_cost < 0:
+                flash('Mão de obra deve ser maior ou igual a zero.', 'danger')
+                return redirect(url_for('servicos'))
+
+            if part_id_raw:
+                product = Product.query.get(int(part_id_raw)) if part_id_raw.isdigit() else None
+                if product:
+                    try:
+                        part_qty = int(part_qty_raw or '1')
+                    except ValueError:
+                        part_qty = 1
+                    part_qty = max(part_qty, 1)
+                    parts_items.append({
+                        'product_id': product.id,
+                        'name': product.name,
+                        'quantity': part_qty,
+                        'unit_price': str(Decimal(product.price or 0).quantize(Decimal('0.01'))),
+                    })
 
             if not client_name or not equipment or not service_description:
                 flash('Preencha cliente, equipamento e serviço em manutenção.', 'danger')
@@ -1584,11 +1698,18 @@ def servicos():
             db.session.add(
                 MaintenanceTicket(
                     client_name=client_name,
+                    client_phone=client_phone,
                     equipment=equipment,
                     service_description=service_description,
+                    customer_report=customer_report,
+                    technical_diagnosis=technical_diagnosis,
+                    observations=observations,
+                    checklist_json=json.dumps(checklist_items, ensure_ascii=False),
+                    parts_json=json.dumps(parts_items, ensure_ascii=False) if parts_items else None,
+                    labor_cost=labor_cost,
                     entry_date=entry_date,
-                    waiting_parts=waiting_parts,
-                    status='aguardando_pecas' if waiting_parts else 'em_andamento',
+                    waiting_parts=status == 'aguardando_pecas',
+                    status=status,
                 )
             )
             db.session.commit()
@@ -1673,15 +1794,24 @@ def servicos():
         flash('Serviço realizado cadastrado com sucesso!', 'success')
         return redirect(url_for('servicos'))
 
-    recent_services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).limit(10).all()
-    maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(20).all()
+    recent_services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).all()
+    maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(40).all()
+    active_tickets = [ticket for ticket in maintenance_tickets if ticket.status != 'pronto_retirada']
+    closed_tickets = [ticket for ticket in maintenance_tickets if ticket.status == 'pronto_retirada']
     clients = Client.query.order_by(Client.name.asc()).all()
+    products = Product.query.order_by(Product.name.asc()).all()
     return render_template(
         'services.html',
         services=service_catalog,
         recent_services=recent_services,
         maintenance_tickets=maintenance_tickets,
+        active_tickets=active_tickets,
+        closed_tickets=closed_tickets,
+        maintenance_status_labels=MAINTENANCE_STATUS_LABELS,
+        maintenance_status_options=MAINTENANCE_STATUS_LABELS.items(),
+        maintenance_checklist=DEFAULT_MAINTENANCE_CHECKLIST,
         clients=clients,
+        products=products,
         payment_methods=PAYMENT_METHODS,
     )
 
@@ -1690,11 +1820,22 @@ def servicos():
 @_login_required
 def atualizar_manutencao(ticket_id: int):
     ticket = MaintenanceTicket.query.get_or_404(ticket_id)
-    status = request.form.get('status') or ticket.status
-    waiting_parts = request.form.get('waiting_parts') == 'on'
-    exit_date_raw = request.form.get('exit_date')
+    action = (request.form.get('action') or '').strip()
 
-    if status == 'concluido' and not exit_date_raw:
+    if action == 'finalizar':
+        ticket.status = 'pronto_retirada'
+        ticket.waiting_parts = False
+        ticket.exit_date = datetime.utcnow()
+        db.session.commit()
+        flash('OS finalizada e pronta para retirada.', 'success')
+        return redirect(url_for('servicos'))
+
+    status = (request.form.get('status') or ticket.status).strip()
+    if status not in MAINTENANCE_STATUS_LABELS:
+        status = ticket.status
+
+    exit_date_raw = request.form.get('exit_date')
+    if status == 'pronto_retirada' and not exit_date_raw:
         ticket.exit_date = datetime.utcnow()
     elif exit_date_raw:
         try:
@@ -1702,12 +1843,11 @@ def atualizar_manutencao(ticket_id: int):
         except ValueError:
             flash('Data de saída inválida.', 'danger')
             return redirect(url_for('servicos'))
+    elif status != 'pronto_retirada':
+        ticket.exit_date = None
 
     ticket.status = status
-    ticket.waiting_parts = waiting_parts
-    if waiting_parts and status != 'concluido':
-        ticket.status = 'aguardando_pecas'
-
+    ticket.waiting_parts = status == 'aguardando_pecas'
     db.session.commit()
     flash('Status da manutenção atualizado!', 'success')
     return redirect(url_for('servicos'))
@@ -2198,6 +2338,23 @@ with app.app_context():
             ')'
         )
     )
+    maintenance_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(maintenance_ticket)'))]
+    if 'client_phone' not in maintenance_columns:
+        db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN client_phone VARCHAR(30)'))
+    if 'customer_report' not in maintenance_columns:
+        db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN customer_report TEXT'))
+    if 'technical_diagnosis' not in maintenance_columns:
+        db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN technical_diagnosis TEXT'))
+    if 'observations' not in maintenance_columns:
+        db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN observations TEXT'))
+    if 'checklist_json' not in maintenance_columns:
+        db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN checklist_json TEXT'))
+    if 'parts_json' not in maintenance_columns:
+        db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN parts_json TEXT'))
+    if 'labor_cost' not in maintenance_columns:
+        db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN labor_cost NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    db.session.commit()
+
     db.session.commit()
 
     montagem_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(montagem_computador)'))]

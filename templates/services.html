@@ -1,159 +1,171 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
-  <h2>Serviços</h2>
-  <p class="montage-subtitle">Portfólio de serviços técnicos da LojaWeb.</p>
-  <div class="cards service-cards">
-    {% for service in services %}
-    <article class="card service-card">
-      <h3>{{ service.name }}</h3>
-      <p>{{ service.description }}</p>
-      <p class="service-price">R$ {{ '%.2f'|format(service.price) }}</p>
-      <button type="button" class="quick-service-btn" data-service-name="{{ service.name }}" data-service-price="{{ service.price }}">Cadastrar serviço realizado</button>
-    </article>
-    {% endfor %}
-  </div>
-</section>
-
-<section class="card">
-  <h2>Cadastro de computador em manutenção</h2>
-  <form method="post" class="grid form-grid">
+<section class="card services-shell">
+  <h2>Abertura de Nova OS</h2>
+  <p class="montage-subtitle">Preencha os dados iniciais para enviar o equipamento direto para a bancada.</p>
+  <form method="post" class="grid form-grid services-form">
     <input type="hidden" name="form_type" value="maintenance_ticket" />
-    <input name="maintenance_client_name" placeholder="Cliente" required />
-    <input name="maintenance_equipment" placeholder="Equipamento" required />
-    <input name="maintenance_service_description" placeholder="Serviço em execução" required />
-    <label>
-      Data de entrada
+
+    <label class="floating-field">
+      <span>Nome do cliente</span>
+      <input name="maintenance_client_name" required />
+    </label>
+    <label class="floating-field">
+      <span>Telefone</span>
+      <input name="maintenance_client_phone" />
+    </label>
+    <label class="floating-field">
+      <span>Equipamento</span>
+      <input name="maintenance_equipment" required />
+    </label>
+    <label class="floating-field">
+      <span>Serviço solicitado</span>
+      <input name="maintenance_service_description" required />
+    </label>
+    <label class="floating-field">
+      <span>Status inicial</span>
+      <select name="maintenance_status">
+        {% for value, label in maintenance_status_options %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="floating-field">
+      <span>Data de entrada</span>
       <input name="maintenance_entry_date" type="datetime-local" />
     </label>
-    <label>
-      <input name="maintenance_waiting_parts" type="checkbox" /> Aguardando peças
+    <label class="floating-field">
+      <span>Peça do estoque (opcional)</span>
+      <select name="maintenance_part_id">
+        <option value="">Sem troca de peça</option>
+        {% for product in products %}
+        <option value="{{ product.id }}">{{ product.name }}</option>
+        {% endfor %}
+      </select>
     </label>
-    <button type="submit">Adicionar na manutenção</button>
+    <label class="floating-field">
+      <span>Qtd. peça</span>
+      <input name="maintenance_part_qty" type="number" min="1" value="1" />
+    </label>
+    <label class="floating-field">
+      <span>Mão de obra (R$)</span>
+      <input name="maintenance_labor_cost" type="number" min="0" step="0.01" value="0" />
+    </label>
+
+    <label class="floating-field full-width">
+      <span>Relato do cliente</span>
+      <textarea name="maintenance_customer_report" rows="2"></textarea>
+    </label>
+    <label class="floating-field full-width">
+      <span>Diagnóstico técnico</span>
+      <textarea name="maintenance_technical_diagnosis" rows="2"></textarea>
+    </label>
+    <label class="floating-field full-width">
+      <span>Observações da bancada</span>
+      <textarea name="maintenance_observations" rows="2"></textarea>
+    </label>
+
+    <div class="checklist-block full-width">
+      <p>Checklist de manutenção</p>
+      <div class="checklist-list">
+        {% for item in maintenance_checklist %}
+        <label><input type="checkbox" name="check_{{ loop.index0 }}" /> {{ item }}</label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit">Abrir OS</button>
   </form>
 </section>
 
-<section class="card">
-  <h2>Controle de manutenção</h2>
+<section class="card services-shell">
+  <h2>Manutenções em Andamento</h2>
   <table>
     <thead>
-      <tr><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Entrada</th><th>Saída</th><th>Status</th><th>Ação</th></tr>
+      <tr><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Entrada</th><th>Status</th><th>Ações</th></tr>
     </thead>
     <tbody>
-      {% for ticket in maintenance_tickets %}
+      {% for ticket in active_tickets %}
       <tr>
         <td>{{ ticket.client_name }}</td>
         <td>{{ ticket.equipment }}</td>
         <td>{{ ticket.service_description }}</td>
         <td>{{ ticket.entry_date.strftime('%d/%m/%Y %H:%M') }}</td>
-        <td>{{ ticket.exit_date.strftime('%d/%m/%Y %H:%M') if ticket.exit_date else '-' }}</td>
         <td>
-          {% if ticket.status == 'concluido' %}
-            <span class="badge success">Concluído</span>
-          {% elif ticket.waiting_parts %}
-            <span class="badge danger">Aguardando peças</span>
+          {% if ticket.status == 'aguardando_pecas' %}
+          <span class="badge warning">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span>
+          {% elif ticket.status == 'em_analise' %}
+          <span class="badge info">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span>
+          {% elif ticket.status == 'cancelado' %}
+          <span class="badge danger">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span>
           {% else %}
-            <span class="badge">Em andamento</span>
+          <span class="badge">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span>
           {% endif %}
         </td>
         <td>
-          <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}" class="inline-form">
-            <select name="status">
-              <option value="em_andamento" {% if ticket.status == 'em_andamento' %}selected{% endif %}>Em andamento</option>
-              <option value="aguardando_pecas" {% if ticket.status == 'aguardando_pecas' %}selected{% endif %}>Aguardando peças</option>
-              <option value="concluido" {% if ticket.status == 'concluido' %}selected{% endif %}>Concluído</option>
-            </select>
-            <label><input type="checkbox" name="waiting_parts" {% if ticket.waiting_parts %}checked{% endif %}/> Aguardando peças</label>
-            <input type="datetime-local" name="exit_date" value="{{ ticket.exit_date.strftime('%Y-%m-%dT%H:%M') if ticket.exit_date else '' }}" />
-            <button type="submit">Atualizar</button>
-          </form>
+          <details class="service-actions-menu">
+            <summary>⋯</summary>
+            <div class="service-actions-list">
+              <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}" class="inline-form">
+                <input type="hidden" name="action" value="editar" />
+                <select name="status">
+                  {% for value, label in maintenance_status_options %}
+                  <option value="{{ value }}" {% if ticket.status == value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn-secondary">⚙️ Editar</button>
+              </form>
+              <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}', '_blank')">🖨️ Imprimir OS</button>
+              <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}">
+                <input type="hidden" name="action" value="finalizar" />
+                <button type="submit">✅ Finalizar</button>
+              </form>
+            </div>
+          </details>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7">Nenhum equipamento em manutenção.</td></tr>
+      <tr><td colspan="6">Nenhum equipamento em manutenção ativa.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
 
-<section class="card">
-  <h2>Cadastrar serviço realizado</h2>
-  <form method="post" class="grid form-grid">
-    <input type="hidden" name="form_type" value="service_record" />
-    <input name="service_name" placeholder="Nome do serviço" required />
-    <label>
-      Cliente cadastrado
-      <select name="client_id">
-        <option value="">Selecionar cliente cadastrado (opcional)</option>
-        {% for client in clients %}
-        <option value="{{ client.id }}">{{ client.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <input name="client_name" placeholder="Cliente (ou digite manualmente)" />
-    <input name="equipment" placeholder="Equipamento" required />
-    <input name="total_price" type="number" min="0" step="0.01" placeholder="Valor bruto do serviço" required />
-    <input name="discount_amount" type="number" min="0" step="0.01" value="0" placeholder="Desconto" />
-    <input name="cost" type="number" min="0" step="0.01" placeholder="Custo do serviço (opcional)" />
-    <input name="notes" placeholder="Observações (opcional)" />
-    <label><input type="checkbox" name="generate_charge" /> Gerar cobrança para este serviço</label>
-    <input name="charge_reference" placeholder="Referência Mercado Pago (se gerar cobrança)" />
-    <select name="charge_payment_method">
-      {% for value, label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-    </select>
-    <select name="charge_status">
-      <option value="pendente">Pendente</option>
-      <option value="confirmado">Confirmado</option>
-      <option value="cancelado">Cancelado</option>
-    </select>
-    <button type="submit">Salvar serviço realizado</button>
-  </form>
-</section>
-
-<section class="card">
-  <h2>Últimos serviços realizados</h2>
+<section class="card services-shell">
+  <div class="history-head">
+    <h2>Histórico de Serviços Concluídos</h2>
+    <input id="service-history-search" type="search" placeholder="Buscar cliente, equipamento ou serviço..." />
+  </div>
   <table>
     <thead>
-      <tr><th>Data</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Subtotal</th><th>Desconto</th><th>Valor final</th><th>Custo</th><th>Lucro</th><th>Ações</th></tr>
+      <tr><th>Data</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Valor final</th><th>Ações</th></tr>
     </thead>
-    <tbody>
+    <tbody id="service-history-body">
       {% for service in recent_services %}
       <tr>
         <td>{{ service.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
         <td>{{ service.service_name }}</td>
         <td>{{ service.client_name }}</td>
         <td>{{ service.equipment }}</td>
-        <td>R$ {{ '%.2f'|format((service.total_price or 0) + (service.discount_amount or 0)) }}</td>
-        <td>R$ {{ '%.2f'|format(service.discount_amount or 0) }}</td>
         <td>R$ {{ '%.2f'|format(service.total_price) }}</td>
-        <td>R$ {{ '%.2f'|format(service.cost) }}</td>
-        <td>R$ {{ '%.2f'|format(service.total_price - service.cost) }}</td>
-        <td>
-          <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='servico', record_id=service.id) }}', '_blank')">Imprimir</button>
-        </td>
+        <td><button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='servico', record_id=service.id) }}', '_blank')">🖨️ Imprimir</button></td>
       </tr>
       {% else %}
-      <tr><td colspan="10">Nenhum serviço realizado cadastrado ainda.</td></tr>
+      <tr><td colspan="6">Nenhum serviço concluído cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
 
 <script>
-  const serviceNameInput = document.querySelector('input[name="service_name"]');
-  const servicePriceInput = document.querySelector('input[name="total_price"]');
-  const serviceRecordForm = document.querySelector('form input[name="form_type"][value="service_record"]')?.closest('form');
+  const historySearch = document.getElementById('service-history-search');
+  const historyRows = Array.from(document.querySelectorAll('#service-history-body tr'));
 
-  document.querySelectorAll('.quick-service-btn').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (serviceNameInput) {
-        serviceNameInput.value = button.dataset.serviceName || '';
-      }
-      if (servicePriceInput && !servicePriceInput.value) {
-        servicePriceInput.value = button.dataset.servicePrice || '';
-      }
-      serviceRecordForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      serviceNameInput?.focus();
+  historySearch?.addEventListener('input', () => {
+    const term = historySearch.value.toLowerCase().trim();
+    historyRows.forEach((row) => {
+      const show = row.textContent.toLowerCase().includes(term);
+      row.style.display = show ? '' : 'none';
     });
   });
 </script>
