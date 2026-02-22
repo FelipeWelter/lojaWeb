@@ -12,19 +12,60 @@
   </form>
 </section>
 
-<section class="grid cards">
-  <article class="card"><h3>Produtos cadastrados</h3><strong>{{ product_count }}</strong></article>
-  <article class="card"><h3>Itens em estoque</h3><strong>{{ total_stock }}</strong></article>
-  <article class="card"><h3>Vendas registradas</h3><strong>{{ sales_count }}</strong></article>
-  <article class="card"><h3>Serviços realizados</h3><strong>{{ services_count }}</strong></article>
-  <article class="card"><h3>Total em vendas</h3><strong>R$ {{ '%.2f'|format(total_sales_amount) }}</strong></article>
-  <article class="card"><h3>Total em serviços</h3><strong>R$ {{ '%.2f'|format(total_services_amount) }}</strong></article>
-  <article class="card"><h3>Lucro estimado</h3><strong>R$ {{ '%.2f'|format(total_profit) }}</strong></article>
-  <article class="card"><h3>Custos fixos</h3><strong>R$ {{ '%.2f'|format(total_fixed_costs) }}</strong></article>
-  <article class="card"><h3>Lucro líquido</h3><strong>R$ {{ '%.2f'|format(net_profit) }}</strong></article>
-  <article class="card"><h3>Cobranças pendentes</h3><strong>{{ pending_charges }}</strong></article>
-  <article class="card"><h3>Manutenções ativas</h3><strong>{{ maintenance_in_progress }}</strong></article>
-  <article class="card"><h3>Aguardando peças</h3><strong>{{ maintenance_waiting_parts }}</strong></article>
+<section class="dashboard-kpis">
+  <article class="card kpi-card">
+    <h3>Produtos cadastrados</h3>
+    <strong>{{ product_count }}</strong>
+  </article>
+  <article class="card kpi-card kpi-stock">
+    <h3>Itens em estoque</h3>
+    <strong>{{ total_stock }}</strong>
+  </article>
+  <article class="card kpi-card kpi-sales">
+    <h3>Total em vendas</h3>
+    <strong id="kpi-total-vendas">R$ {{ '%.2f'|format(total_sales_amount) }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Serviços realizados</h3>
+    <strong>{{ services_count }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Vendas registradas</h3>
+    <strong>{{ sales_count }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Total em serviços</h3>
+    <strong>R$ {{ '%.2f'|format(total_services_amount) }}</strong>
+  </article>
+  <article class="card kpi-card kpi-profit">
+    <h3>Lucro estimado</h3>
+    <strong id="kpi-lucro-estimado">R$ {{ '%.2f'|format(total_profit) }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Custos fixos</h3>
+    <strong>R$ {{ '%.2f'|format(total_fixed_costs) }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Lucro líquido</h3>
+    <strong>R$ {{ '%.2f'|format(net_profit) }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Cobranças pendentes</h3>
+    <strong>{{ pending_charges }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Manutenções ativas</h3>
+    <strong>{{ maintenance_in_progress }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Aguardando peças</h3>
+    <strong>{{ maintenance_waiting_parts }}</strong>
+  </article>
+</section>
+
+<section class="dashboard-actions card">
+  <h2>Relatório diário</h2>
+  <button type="button" id="btn-print-report">Imprimir Relatório do Dia</button>
 </section>
 
 <section class="card">
@@ -36,19 +77,23 @@
   </form>
 </section>
 
-<section class="card">
-  <h2>Vendas por mês</h2>
-  <canvas id="sales-line-chart" height="100"></canvas>
-</section>
+<section class="dashboard-charts">
+  <article class="card chart-card">
+    <h2>Vendas por mês</h2>
+    <canvas id="sales-line-chart" height="100"></canvas>
+  </article>
 
-<section class="card">
-  <h2>Produtos mais vendidos</h2>
-  <canvas id="top-products-chart" height="100"></canvas>
+  <article class="card chart-card pie-card">
+    <h2>Produtos mais vendidos</h2>
+    <div class="pie-wrapper">
+      <canvas id="top-products-chart" height="100"></canvas>
+    </div>
+  </article>
 </section>
 
 <section class="card">
   <h2>Vendas por forma de pagamento</h2>
-  <table>
+  <table class="printable-table">
     <thead><tr><th>Forma de pagamento</th><th>Qtd. cobranças</th><th>Total</th></tr></thead>
     <tbody>
       {% for method, count, amount in payment_method_summary %}
@@ -64,7 +109,7 @@
   </table>
 </section>
 
-<section class="card">
+<section class="card no-print">
   <h2>Últimas vendas</h2>
   <table>
     <thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Qtd. linhas</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead>
@@ -108,11 +153,15 @@
         datasets: [{
           label: 'Vendas (R$)',
           data: salesTotals,
-          borderColor: '#3156d3',
-          backgroundColor: 'rgba(49, 86, 211, 0.18)',
+          borderColor: '#3498DB',
+          backgroundColor: 'rgba(52, 152, 219, 0.22)',
           tension: 0.25,
           fill: true,
         }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
       },
     });
   }
@@ -125,9 +174,20 @@
         labels: topLabels,
         datasets: [{
           data: topValues,
-          backgroundColor: ['#3156d3', '#4c6fe0', '#6b8af2', '#8ea7ff', '#b0c1ff'],
+          backgroundColor: ['#3498DB', '#5dade2', '#85c1e9', '#aed6f1', '#d6eaf8'],
         }],
       },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+      },
+    });
+  }
+
+  const printButton = document.getElementById('btn-print-report');
+  if (printButton) {
+    printButton.addEventListener('click', () => {
+      window.print();
     });
   }
 </script>
