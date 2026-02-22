@@ -92,7 +92,7 @@
         <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
         <td>
           <div class="action-group">
-            <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='venda', record_id=sale.id) }}', '_blank')">Imprimir comprovante</button>
+            <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='venda', record_id=sale.id) }}">Imprimir comprovante</button>
             {% if not sale.canceled %}
             <form method="post" action="{{ url_for('cancelar_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja cancelar a venda e estornar o estoque?');">
               <button type="submit" class="btn-danger">Cancelar venda</button>
@@ -217,7 +217,10 @@
   const params = new URLSearchParams(window.location.search);
   const printSaleId = params.get('print_sale_id');
   if (printSaleId) {
+    const overlay = document.getElementById('print-loading-overlay');
+    overlay?.classList.remove('hidden');
     window.open(`/imprimir/venda/${printSaleId}`, '_blank');
+    window.setTimeout(() => overlay?.classList.add('hidden'), 1200);
     if (saleForm) saleForm.reset();
     saleLines.querySelectorAll('.sale-line').forEach((line, idx) => { if (idx > 0) line.remove(); });
     recalcTotal();

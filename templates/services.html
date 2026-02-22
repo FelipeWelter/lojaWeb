@@ -3,7 +3,7 @@
 <section class="card services-shell">
   <h2>Abertura de Nova OS</h2>
   <p class="montage-subtitle">Preencha os dados iniciais para enviar o equipamento direto para a bancada.</p>
-  <form method="post" class="grid form-grid services-form">
+  <form method="post" class="grid form-grid services-form services-form-two-col">
     <input type="hidden" name="form_type" value="maintenance_ticket" />
 
     <label class="floating-field">
@@ -124,10 +124,10 @@
                 </select>
                 <button type="submit" class="btn-secondary">⚙️ Editar</button>
               </form>
-              <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}', '_blank')">🖨️ Imprimir OS</button>
+              <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}">🖨️ Imprimir OS</button>
               <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}">
                 <input type="hidden" name="action" value="finalizar" />
-                <button type="submit">✅ Finalizar</button>
+                <button type="submit" class="btn-success">✅ Finalizar</button>
               </form>
             </div>
           </details>
@@ -157,7 +157,7 @@
         <td>{{ service.client_name }}</td>
         <td>{{ service.equipment }}</td>
         <td>R$ {{ '%.2f'|format(service.total_price) }}</td>
-        <td><button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='servico', record_id=service.id) }}', '_blank')">🖨️ Imprimir</button></td>
+        <td><button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='servico', record_id=service.id) }}">🖨️ Imprimir</button></td>
       </tr>
       {% else %}
       <tr><td colspan="6">Nenhum serviço concluído cadastrado.</td></tr>

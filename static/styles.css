@@ -1551,3 +1551,116 @@ input, select, textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- UI padronização Dark Mode LojaWeb --- */
+*, *::before, *::after { box-sizing: border-box; }
+.container, .card, .slot-box, .assembly-summary, .checkout-main, .checkout-summary, .services-shell, .components-scroll-area, .table-wrap {
+  max-width: 100%;
+}
+
+input, select, textarea {
+  background: #34495E;
+  color: #ECF0F1;
+  border: 1px solid #4A6572;
+}
+
+button,
+.btn-link {
+  background: #3498DB;
+  color: #fff;
+}
+button:hover,
+.btn-link:hover { background: #5DADE2; }
+
+.btn-danger,
+.row-remove { background: #E74C3C; color: #fff; }
+.btn-danger:hover,
+.row-remove:hover { background: #ec7063; }
+
+.summary-submit,
+#finalize-sale-btn,
+.btn-success { background: #2ECC71; color: #fff; }
+.summary-submit:hover,
+#finalize-sale-btn:hover,
+.btn-success:hover { background: #58d68d; }
+
+.slots-top,
+.slots-bottom {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: .75rem;
+}
+
+.montaje-card .multi-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(120px, 1fr) minmax(110px, .8fr) 40px;
+  gap: .5rem;
+}
+
+.montaje-card input[name$="_cost"],
+.montaje-card input[name$="_custom_costs[]"],
+.piece-form-grid input[name="cost_price"] {
+  border: 1px solid #4A6572;
+}
+
+.services-form-two-col {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+}
+
+.maintenance-part-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: .6rem;
+  align-items: end;
+}
+
+.client-history-row > td { padding: .55rem .7rem .8rem; }
+.client-history-accordion {
+  background: #2C3E50 !important;
+  border: 1px solid #4A6572;
+  border-radius: 10px;
+  padding: 0 .9rem;
+}
+.client-history-row.is-open .client-history-accordion { padding: .9rem; }
+
+.payment-methods {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.payment-btn span {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+.sale-total-highlight {
+  background: rgba(46, 204, 113, 0.1);
+  border: 1px solid rgba(46, 204, 113, 0.35);
+  border-radius: 10px;
+  padding: .65rem .75rem;
+}
+
+.print-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 31, 40, 0.52);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+}
+.print-loading-card {
+  background: #2C3E50;
+  color: #ECF0F1;
+  border: 1px solid #4A6572;
+  border-radius: 10px;
+  padding: .9rem 1.2rem;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .services-form-two-col,
+  .maintenance-part-row,
+  .payment-methods,
+  .montaje-card .multi-row {
+    grid-template-columns: 1fr;
+  }
+}

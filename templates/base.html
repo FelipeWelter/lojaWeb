@@ -44,5 +44,30 @@
 
       {% block content %}{% endblock %}
     </main>
+
+    <div id="print-loading-overlay" class="print-loading-overlay hidden" role="status" aria-live="polite">
+      <div class="print-loading-card">Gerando documento...</div>
+    </div>
+
+    <script>
+      (function () {
+        const overlay = document.getElementById('print-loading-overlay');
+        const showOverlay = () => overlay?.classList.remove('hidden');
+        const hideOverlay = () => overlay?.classList.add('hidden');
+
+        document.addEventListener('click', (event) => {
+          const trigger = event.target.closest('.js-print-trigger');
+          if (!trigger) return;
+
+          const url = trigger.dataset.printUrl || trigger.getAttribute('href');
+          if (!url) return;
+
+          event.preventDefault();
+          showOverlay();
+          window.open(url, '_blank');
+          window.setTimeout(hideOverlay, 1200);
+        });
+      })();
+    </script>
   </body>
 </html>
