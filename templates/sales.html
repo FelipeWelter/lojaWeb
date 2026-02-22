@@ -13,7 +13,7 @@
             <option value="{{ client.id }}">{{ client.name }}</option>
             {% endfor %}
           </select>
-          <a class="btn-secondary add-client-btn" href="{{ url_for('clientes') }}">➕ Novo cliente</a>
+          <a class="btn-loja btn-loja--secondary btn-secondary add-client-btn" href="{{ url_for('clientes') }}">➕ Novo cliente</a>
         </div>
       </div>
 
@@ -33,11 +33,11 @@
           <input name="item_quantity[]" class="line-qty" type="number" min="1" value="1" required />
           <input name="item_unit_price[]" class="line-price" type="number" min="0" step="0.01" placeholder="Preço unit." required />
           <input name="item_unit_cost[]" class="line-cost" type="number" min="0" step="0.01" placeholder="Custo unit." value="0" />
-          <button type="button" class="btn-danger remove-line">Remover</button>
+          <button type="button" class="btn-loja btn-loja--danger btn-danger remove-line">Remover</button>
         </div>
       </div>
 
-      <button type="button" id="add-line" class="btn-secondary">+ Adicionar item/serviço</button>
+      <button type="button" id="add-line" class="btn-loja btn-loja--secondary btn-secondary">+ Adicionar item/serviço</button>
     </div>
 
     <aside class="checkout-summary" aria-label="Resumo da venda">
@@ -63,7 +63,7 @@
         <label class="payment-btn"><input type="radio" name="payment_method" value="pix" checked><span>📱 PIX</span></label>
       </div>
 
-      <button type="submit" id="finalize-sale-btn">Finalizar venda</button>
+      <button type="submit" class="btn-loja btn-loja--primary" id="finalize-sale-btn">Finalizar venda</button>
     </aside>
   </form>
 </section>
@@ -92,14 +92,14 @@
         <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
         <td>
           <div class="action-group">
-            <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='venda', record_id=sale.id) }}">Imprimir comprovante</button>
+            <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='venda', record_id=sale.id) }}">Imprimir comprovante</button>
             {% if not sale.canceled %}
             <form method="post" action="{{ url_for('cancelar_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja cancelar a venda e estornar o estoque?');">
-              <button type="submit" class="btn-danger">Cancelar venda</button>
+              <button type="submit" class="btn-loja btn-loja--danger btn-danger">Cancelar venda</button>
             </form>
             {% else %}
             <form method="post" action="{{ url_for('excluir_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja excluir definitivamente esta venda cancelada?');">
-              <button type="submit" class="btn-danger">Excluir venda</button>
+              <button type="submit" class="btn-loja btn-loja--danger btn-danger">Excluir venda</button>
             </form>
             {% endif %}
           </div>
