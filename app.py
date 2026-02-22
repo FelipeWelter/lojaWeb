@@ -98,8 +98,10 @@ class ComputerAssembly(db.Model):
     bios_updated = db.Column(db.Boolean, nullable=False, default=False)
     stress_test_done = db.Column(db.Boolean, nullable=False, default=False)
     os_installed = db.Column(db.Boolean, nullable=False, default=False)
+    performed_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
     computador = db.relationship('Product')
+    performed_by = db.relationship('User', foreign_keys=[performed_by_user_id])
     composicao = db.relationship('ProductComposition', backref='montagem', cascade='all, delete-orphan')
     custom_parts = db.relationship('AssemblyCustomPart', backref='assembly', cascade='all, delete-orphan')
 
@@ -124,10 +126,12 @@ class Sale(db.Model):
     canceled = db.Column(db.Boolean, nullable=False, default=False)
     canceled_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    performed_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
     client = db.relationship('Client')
     product = db.relationship('Product')
     items = db.relationship('SaleItem', backref='sale', cascade='all, delete-orphan')
+    performed_by = db.relationship('User', foreign_keys=[performed_by_user_id])
 
 
 class SaleItem(db.Model):
@@ -167,6 +171,9 @@ class ServiceRecord(db.Model):
     cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    performed_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    performed_by = db.relationship('User', foreign_keys=[performed_by_user_id])
 
 
 class FixedCost(db.Model):
@@ -518,6 +525,7 @@ def _build_computer_with_parts(
             bios_updated=bios_updated,
             stress_test_done=stress_test_done,
             os_installed=os_installed,
+            performed_by_user_id=current.id if current else None,
         )
         db.session.add(montagem)
         db.session.flush()
@@ -763,6 +771,7 @@ def imprimir(tipo: str, record_id: int):
                 'os': 'Não se aplica',
             },
             'notes': f'Venda: {data.sale_name}',
+            'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
         }
     elif tipo == 'montagem':
         data = ComputerAssembly.query.get_or_404(record_id)
@@ -800,6 +809,7 @@ def imprimir(tipo: str, record_id: int):
                 'os': 'Sim' if data.os_installed else 'Não',
             },
             'notes': data.technical_notes or 'Sem observações técnicas.',
+            'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
         }
     elif tipo == 'servico':
         data = ServiceRecord.query.get_or_404(record_id)
@@ -826,6 +836,7 @@ def imprimir(tipo: str, record_id: int):
                 'os': 'Não se aplica',
             },
             'notes': data.notes or f'Equipamento atendido: {data.equipment}',
+            'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
         }
     else:
         flash('Tipo de impressão inválido.', 'danger')
@@ -1256,6 +1267,7 @@ def _build_assembly_edit_data(latest_assemblies):
 @app.route('/montar_pc', methods=['GET', 'POST'])
 @_login_required
 def montar_pc():
+    current = _current_user()
     parts_by_class = {
         slot_key: Product.query.filter_by(category='Peça', component_class=slot_key).order_by(Product.name).all()
         for slot_key, _, _ in COMPONENT_SLOTS
@@ -1476,6 +1488,7 @@ def excluir_montagem(assembly_id: int):
 @app.route('/servicos', methods=['GET', 'POST'])
 @_login_required
 def servicos():
+    current = _current_user()
     service_catalog = [
         {'name': 'Montagem Premium', 'price': Decimal('199.90'), 'description': 'Montagem completa, organização de cabos e validação final.'},
         {'name': 'Upgrade e Limpeza', 'price': Decimal('149.90'), 'description': 'Troca de componentes com limpeza interna e pasta térmica.'},
@@ -1562,6 +1575,7 @@ def servicos():
             discount_amount=discount_amount.quantize(Decimal('0.01')),
             cost=cost,
             notes=notes,
+            performed_by_user_id=current.id if current else None,
         )
         db.session.add(service)
         db.session.flush()
@@ -1732,6 +1746,7 @@ def remover_cliente(client_id: int):
 @app.route('/vendas', methods=['GET', 'POST'])
 @_login_required
 def vendas():
+    current = _current_user()
     products = Product.query.order_by(Product.name).all()
     clients = Client.query.order_by(Client.name).all()
 
@@ -1816,6 +1831,7 @@ def vendas():
             subtotal=subtotal,
             discount_amount=discount_amount,
             total=total,
+            performed_by_user_id=current.id if current else None,
         )
         db.session.add(sale)
         db.session.flush()
@@ -2137,6 +2153,8 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN stress_test_done BOOLEAN NOT NULL DEFAULT 0'))
     if 'os_installed' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN os_installed BOOLEAN NOT NULL DEFAULT 0'))
+    if 'performed_by_user_id' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN performed_by_user_id INTEGER'))
     db.session.execute(
         db.text(
             "UPDATE montagem_computador SET nome_referencia = (SELECT product.name FROM product "
@@ -2158,11 +2176,15 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
     if 'canceled_at' not in sale_columns:
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled_at DATETIME'))
+    if 'performed_by_user_id' not in sale_columns:
+        db.session.execute(db.text('ALTER TABLE sale ADD COLUMN performed_by_user_id INTEGER'))
     db.session.commit()
 
     service_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(service_record)'))]
     if 'discount_amount' not in service_columns:
         db.session.execute(db.text('ALTER TABLE service_record ADD COLUMN discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    if 'performed_by_user_id' not in service_columns:
+        db.session.execute(db.text('ALTER TABLE service_record ADD COLUMN performed_by_user_id INTEGER'))
     db.session.commit()
 
     client_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(client)'))]
