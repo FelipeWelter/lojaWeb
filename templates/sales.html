@@ -27,6 +27,7 @@
 
 <section class="card">
   <h2>Histórico de vendas</h2>
+  <div class="table-wrap">
   <table>
     <thead><tr><th>Data</th><th>Nome da venda</th><th>Cliente</th><th>Produto</th><th>Qtd</th><th>Subtotal</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>
@@ -41,20 +42,24 @@
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
         <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
         <td>
-          {% if not sale.canceled %}
-          <form method="post" action="{{ url_for('cancelar_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja cancelar a venda e estornar o estoque?');">
-            <button type="submit" class="btn-danger">Cancelar venda</button>
-          </form>
-          {% else %}
-          <form method="post" action="{{ url_for('excluir_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja excluir definitivamente esta venda cancelada?');">
-            <button type="submit" class="btn-danger">Excluir venda</button>
-          </form>
-          {% endif %}
+          <div class="action-group">
+            <button type="button" class="btn-secondary" onclick="window.open('{{ url_for('imprimir', tipo='venda', record_id=sale.id) }}', '_blank')">Imprimir</button>
+            {% if not sale.canceled %}
+            <form method="post" action="{{ url_for('cancelar_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja cancelar a venda e estornar o estoque?');">
+              <button type="submit" class="btn-danger">Cancelar venda</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('excluir_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja excluir definitivamente esta venda cancelada?');">
+              <button type="submit" class="btn-danger">Excluir venda</button>
+            </form>
+            {% endif %}
+          </div>
         </td>
       </tr>
       {% else %}<tr><td colspan="9">Sem vendas.</td></tr>{% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 
 <script>

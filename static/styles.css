@@ -661,3 +661,38 @@ input[type="number"]::placeholder {
 .btn-link:hover {
   background: var(--primary-hover);
 }
+
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.action-group form {
+  margin: 0;
+}
+
+.user-edit-form {
+  margin-top: .55rem;
+}
+
+details > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-block;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.slots-top,
+.slots-bottom {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}

@@ -5,13 +5,19 @@ from functools import wraps
 import os
 from pathlib import Path
 from uuid import uuid4
+from io import BytesIO
 
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, flash, make_response, redirect, render_template, request, session, url_for
 from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+
+try:
+    from xhtml2pdf import pisa
+except ImportError:
+    pisa = None
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///loja.db'
@@ -568,6 +574,143 @@ def usuarios():
         return redirect(url_for('usuarios'))
 
     return render_template('users.html', users=User.query.order_by(User.created_at.desc()).all())
+
+
+@app.route('/usuarios/<int:user_id>/editar', methods=['POST'])
+@_login_required
+def editar_usuario(user_id: int):
+    current = _current_user()
+    if not current or not current.is_admin:
+        flash('Apenas administradores podem editar usuários.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    user = User.query.get_or_404(user_id)
+    name = (request.form.get('name') or '').strip()
+    email = (request.form.get('email') or '').strip().lower()
+    is_admin = request.form.get('is_admin') == 'on'
+
+    if not name or not email:
+        flash('Nome e e-mail são obrigatórios para edição.', 'danger')
+        return redirect(url_for('usuarios'))
+
+    duplicated = User.query.filter(User.email == email, User.id != user.id).first()
+    if duplicated:
+        flash('Já existe outro usuário com este e-mail.', 'danger')
+        return redirect(url_for('usuarios'))
+
+    user.name = name
+    user.email = email
+    user.is_admin = is_admin
+    _log_audit('Edição de usuário', f'Usuário {current.name} editou o cadastro de {user.name} ({user.email}).')
+    db.session.commit()
+    flash('Usuário atualizado com sucesso!', 'success')
+    return redirect(url_for('usuarios'))
+
+
+@app.route('/usuarios/<int:user_id>/remover', methods=['POST'])
+@_login_required
+def remover_usuario(user_id: int):
+    current = _current_user()
+    if not current or not current.is_admin:
+        flash('Apenas administradores podem remover usuários.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    user = User.query.get_or_404(user_id)
+    if user.id == current.id:
+        flash('Você não pode remover seu próprio usuário.', 'danger')
+        return redirect(url_for('usuarios'))
+
+    user_name = user.name
+    user_email = user.email
+    db.session.delete(user)
+    _log_audit('Remoção de usuário', f'Usuário {current.name} removeu o usuário {user_name} ({user_email}).')
+    db.session.commit()
+    flash('Usuário removido com sucesso!', 'success')
+    return redirect(url_for('usuarios'))
+
+
+@app.route('/imprimir/<string:tipo>/<int:record_id>')
+@_login_required
+def imprimir(tipo: str, record_id: int):
+    if tipo == 'venda':
+        data = Sale.query.get_or_404(record_id)
+        context = {
+            'document_title': f'Recibo de Venda #{data.id}',
+            'store_name': 'LojaWeb',
+            'store_contact': 'contato@lojaweb.local',
+            'record_date': data.created_at,
+            'record_code': f'VEN-{data.id}',
+            'client_name': data.client.name,
+            'items': [{
+                'item': data.product.name,
+                'quantity': data.quantity,
+                'unit_price': data.product.price,
+                'total': data.total,
+            }],
+            'subtotal': data.subtotal,
+            'total': data.total,
+            'technical': {
+                'bios': 'Não se aplica',
+                'stress': 'Não se aplica',
+                'os': 'Não se aplica',
+            },
+            'notes': f'Venda: {data.sale_name}',
+        }
+    elif tipo == 'montagem':
+        data = ComputerAssembly.query.get_or_404(record_id)
+        items = [
+            {
+                'item': item.peca.name,
+                'quantity': item.quantidade_utilizada,
+                'unit_price': item.peca.price,
+                'total': Decimal(item.quantidade_utilizada) * Decimal(item.peca.price),
+            }
+            for item in data.composicao
+        ]
+        items.extend(
+            {
+                'item': custom.part_name,
+                'quantity': custom.quantity,
+                'unit_price': custom.unit_cost,
+                'total': Decimal(custom.quantity) * Decimal(custom.unit_cost),
+            }
+            for custom in data.custom_parts
+        )
+        context = {
+            'document_title': f'Recibo de Montagem #{data.id}',
+            'store_name': 'LojaWeb',
+            'store_contact': 'contato@lojaweb.local',
+            'record_date': data.created_at,
+            'record_code': f'MON-{data.id}',
+            'client_name': data.nome_referencia or data.computador.name,
+            'items': items,
+            'subtotal': data.custo_total,
+            'total': data.preco_original + data.custo_total,
+            'technical': {
+                'bios': 'Sim' if data.bios_updated else 'Não',
+                'stress': 'Sim' if data.stress_test_done else 'Não',
+                'os': 'Sim' if data.os_installed else 'Não',
+            },
+            'notes': data.technical_notes or 'Sem observações técnicas.',
+        }
+    else:
+        flash('Tipo de impressão inválido.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    html = render_template('print_receipt.html', **context)
+    if pisa is None:
+        return html
+
+    pdf_buffer = BytesIO()
+    status = pisa.CreatePDF(html, dest=pdf_buffer)
+    if status.err:
+        flash('Não foi possível gerar PDF. Exibindo versão HTML para impressão.', 'danger')
+        return html
+
+    response = make_response(pdf_buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'inline; filename="{tipo}-{record_id}.pdf"'
+    return response
 
 
 @app.route('/recuperar-senha', methods=['GET', 'POST'])
