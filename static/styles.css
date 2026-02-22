@@ -1352,3 +1352,68 @@ body.dashboard-page textarea::placeholder {
 .actions-menu-content { position:absolute; right:0; z-index:20; min-width:260px; background:#1e2b38; border:1px solid #334a5f; border-radius:10px; padding:10px; display:grid; gap:8px; }
 .actions-menu-content .inline-form { display:grid; gap:6px; }
 @media (max-width: 900px){ .charges-kpi-grid { grid-template-columns:1fr; } }
+
+/* LojaWeb Premium dark identity */
+:root {
+  --bg: #23313f;
+  --surface: #2c3e50;
+  --surface-soft: #34495e;
+  --primary: #3498db;
+  --primary-hover: #2f86c1;
+  --text: #ecf0f1;
+  --muted: #c1ced8;
+  --border: #4a6572;
+}
+body {
+  background: linear-gradient(180deg, #1f2b37 0%, #23313f 100%);
+  color: var(--text);
+}
+.header { background: rgba(44,62,80,.95); border-bottom-color: #4a6572; }
+.header a { color: #cfe6f8; }
+.header a.active { background: #3498db; }
+.card { background: #2c3e50; border-color: #4a6572; }
+.card h2, .card p, th, td, label { color: #ecf0f1; }
+input, select, textarea { background: #34495e; border-color: #4a6572; color: #ecf0f1; }
+
+.crm-client-table tbody tr:nth-child(odd):not(.client-letter-row) { background: #34495e; }
+.crm-client-table tbody tr:nth-child(even):not(.client-letter-row) { background: #2c3e50; }
+.crm-client-table tbody tr:hover { background: #4a6572; }
+.client-letter-row td { background: #22313f; font-weight: 800; letter-spacing: .08em; }
+.service-badge { color: #2ecc71; font-weight: 800; }
+
+.checkout-summary { top: 20px; }
+#finalize-sale-btn {
+  width: 100%;
+  padding: 20px;
+  font-size: 1.2rem;
+  background: #3498db;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.piece-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}
+.piece-form-grid input[name="cost_price"],
+.piece-form-grid input[name="freight_fees"] {
+  background: #4a6572;
+}
+.piece-form-grid input[name="price"],
+.piece-form-grid input[name="margin_percent"] {
+  border: 1px solid #3498db;
+}
+.money-wrap { position: relative; min-width: 170px; }
+.money-wrap::before {
+  content: 'R$';
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #cfe0ea;
+}
+.money-wrap input { padding-left: 34px; min-width: 170px; }
+.margin-pill { font-weight: 700; padding: .35rem .6rem; border-radius: 999px; display: inline-block; }
+.margin-pill.ok { background: #2ecc71; color: #fff; }
+.margin-pill.warn { background: #f1c40f; color: #2c3e50; }
+.margin-pill.bad { background: #e74c3c; color: #fff; }

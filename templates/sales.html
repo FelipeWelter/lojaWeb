@@ -37,7 +37,7 @@
       <button type="button" id="add-line" class="btn-secondary">+ Adicionar item/serviço</button>
     </div>
 
-    <aside class="checkout-summary">
+    <aside class="checkout-summary" aria-label="Resumo da venda">
       <div class="sale-summary-totals">
         <p>Subtotal <strong id="sale-subtotal">R$ 0,00</strong></p>
         <p>Desconto <strong id="sale-discount-view">R$ 0,00</strong></p>
@@ -207,5 +207,18 @@
   });
   saleLines.querySelectorAll('.sale-line').forEach(bindLine);
   recalcTotal();
+
+  const params = new URLSearchParams(window.location.search);
+  const printSaleId = params.get('print_sale_id');
+  if (printSaleId) {
+    window.open(`/imprimir/venda/${printSaleId}`, '_blank');
+    if (saleForm) saleForm.reset();
+    saleLines.querySelectorAll('.sale-line').forEach((line, idx) => { if (idx > 0) line.remove(); });
+    recalcTotal();
+    params.delete('print_sale_id');
+    const cleanUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}`;
+    window.history.replaceState({}, '', cleanUrl);
+  }
+
 </script>
 {% endblock %}

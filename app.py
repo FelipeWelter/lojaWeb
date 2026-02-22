@@ -922,22 +922,48 @@ def imprimir(tipo: str, record_id: int):
         }
     elif tipo == 'cliente_relatorio':
         client = Client.query.get_or_404(record_id)
+        scope = (request.args.get('scope') or 'compras').strip()
+        via = (request.args.get('via') or 'cliente').strip()
         sales = Sale.query.filter_by(client_id=client.id).order_by(Sale.created_at.desc()).all()
+        pending_charges = (
+            Charge.query
+            .join(Sale, Charge.sale_id == Sale.id)
+            .filter(Sale.client_id == client.id, Charge.status == 'pendente')
+            .order_by(Charge.id.desc())
+            .all()
+        )
         items = []
         subtotal = Decimal('0.00')
-        for sale in sales:
-            sale_total = Decimal(sale.total or 0)
-            subtotal += sale_total
-            items.append({
-                'item': f"{sale.sale_name} ({sale.created_at.strftime('%d/%m/%Y')})",
-                'serial_number': f"VEN-{sale.id}",
-                'quantity': 1,
-                'unit_price': sale_total,
-                'total': sale_total,
-            })
+        if scope == 'inadimplentes':
+            for charge in pending_charges:
+                balance = _charge_balance(charge)
+                subtotal += balance
+                items.append({
+                    'item': f'Débito {charge.mercado_pago_reference}',
+                    'serial_number': f'COB-{charge.id}',
+                    'quantity': 1,
+                    'unit_price': balance,
+                    'total': balance,
+                })
+        else:
+            for sale in sales:
+                sale_total = Decimal(sale.total or 0)
+                subtotal += sale_total
+                payload = {
+                    'item': f"{sale.sale_name} ({sale.created_at.strftime('%d/%m/%Y')})",
+                    'serial_number': f"VEN-{sale.id}",
+                    'quantity': 1,
+                    'unit_price': sale_total,
+                    'total': sale_total,
+                }
+                if via == 'gerente':
+                    cost_total = sum((Decimal(i.unit_cost or 0) * Decimal(i.quantity or 0)) for i in sale.items)
+                    margin_value = sale_total - cost_total
+                    payload['source_label'] = f'Custo: R$ {cost_total:.2f} | Margem: R$ {margin_value:.2f}'
+                items.append(payload)
 
         context = {
-            'document_title': f'Relatório de Compras - {client.name}',
+            'document_title': f'Relatório de Cliente - {client.name}',
             'store_name': 'LojaWeb',
             'store_contact': 'contato@lojaweb.local',
             'record_date': datetime.utcnow(),
@@ -958,7 +984,7 @@ def imprimir(tipo: str, record_id: int):
                 'stress': client.phone or '-',
                 'os': client.email or '-',
             },
-            'notes': 'Relatório consolidado de gastos do cliente.',
+            'notes': f'Relatório em modo "{scope}" ({via}).',
             'performed_by_name': _current_user().name if _current_user() else 'Sistema',
         }
     elif tipo == 'cliente_quitacao':
@@ -2051,18 +2077,27 @@ def cadastrar_custo_fixo():
 @_login_required
 def clientes():
     if request.method == 'POST':
+        name = (request.form.get('name') or '').strip()
         cpf = (request.form.get('cpf') or '').strip()
+        if not name:
+            flash('Informe o nome do cliente.', 'danger')
+            return redirect(url_for('clientes'))
         if not cpf:
             flash('Informe o CPF/CNPJ do cliente.', 'danger')
             return redirect(url_for('clientes'))
 
         existing_client = Client.query.filter_by(cpf=cpf).first()
         if existing_client:
-            flash('Este CPF/CNPJ já está cadastrado para outro cliente.', 'danger')
-            return redirect(url_for('clientes'))
+            flash(f'Este CPF/CNPJ já existe para {existing_client.name}. Edite o cadastro existente.', 'danger')
+            return redirect(url_for('editar_cliente', client_id=existing_client.id))
+
+        existing_name = Client.query.filter(db.func.lower(Client.name) == name.lower()).first()
+        if existing_name:
+            flash(f'O nome "{name}" já está cadastrado. Edite o cliente existente.', 'danger')
+            return redirect(url_for('editar_cliente', client_id=existing_name.id))
 
         client = Client(
-            name=request.form['name'],
+            name=name,
             cpf=cpf,
             phone=request.form.get('phone'),
             email=request.form.get('email'),
@@ -2072,7 +2107,20 @@ def clientes():
         flash('Cliente cadastrado com sucesso!', 'success')
         return redirect(url_for('clientes'))
 
-    clients = Client.query.order_by(Client.id.desc()).all()
+    service_counts = dict(
+        db.session.query(Sale.client_id, db.func.count(Sale.id))
+        .filter(Sale.canceled.is_(False))
+        .group_by(Sale.client_id)
+        .all()
+    )
+
+    clients = (
+        db.session.query(Client)
+        .outerjoin(Sale, Sale.client_id == Client.id)
+        .group_by(Client.id)
+        .order_by(db.func.lower(Client.name).asc())
+        .all()
+    )
     clients_summary = []
     for client in clients:
         sales = Sale.query.filter_by(client_id=client.id).order_by(Sale.created_at.desc()).limit(5).all()
@@ -2091,16 +2139,38 @@ def clientes():
         clients_summary.append({
             'id': client.id,
             'name': client.name,
+            'initial': (client.name[:1] if client.name else '#').upper(),
             'initials': ''.join([part[0] for part in client.name.split()[:2]]).upper() if client.name else '--',
             'cpf': client.cpf,
             'phone': client.phone,
             'email': client.email,
+            'service_count': service_counts.get(client.id, 0),
             'total_spent': total_spent or Decimal('0.00'),
             'sales': sales,
             'pending_charges': pending_charges,
         })
 
     return render_template('clients.html', clients=clients_summary)
+
+
+@app.route('/clientes/mesclar', methods=['POST'])
+@_login_required
+def mesclar_clientes():
+    source_id = request.form.get('source_client_id', type=int)
+    target_id = request.form.get('target_client_id', type=int)
+    if not source_id or not target_id or source_id == target_id:
+        flash('Selecione dois clientes diferentes para mesclar.', 'danger')
+        return redirect(url_for('clientes'))
+
+    source = Client.query.get_or_404(source_id)
+    target = Client.query.get_or_404(target_id)
+
+    Sale.query.filter_by(client_id=source.id).update({'client_id': target.id})
+    source_name = source.name
+    db.session.delete(source)
+    db.session.commit()
+    flash(f'Cliente {source_name} foi mesclado em {target.name} com o histórico transferido.', 'success')
+    return redirect(url_for('clientes'))
 
 
 @app.route('/clientes/<int:client_id>/editar', methods=['GET', 'POST'])
@@ -2154,7 +2224,7 @@ def remover_cliente(client_id: int):
 def vendas():
     current = _current_user()
     products = Product.query.order_by(Product.name).all()
-    clients = Client.query.order_by(Client.name).all()
+    clients = db.session.query(Client).group_by(Client.id).order_by(db.func.lower(Client.name)).all()
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
@@ -2267,7 +2337,7 @@ def vendas():
 
         db.session.commit()
         flash('Venda registrada com sucesso!', 'success')
-        return redirect(url_for('vendas'))
+        return redirect(url_for('vendas', print_sale_id=sale.id))
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
     return render_template('sales.html', sales=sales, products=products, clients=clients)
