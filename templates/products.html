@@ -23,8 +23,10 @@
       <option value="fonte">Fonte</option>
     </select>
     <input name="stock" type="number" min="0" placeholder="Estoque" required />
-    <input name="price" type="number" min="0" step="0.01" placeholder="Preço de venda" required />
-    <input name="cost_price" type="number" min="0" step="0.01" placeholder="Valor de compra" required />
+    <div class="money-wrap"><input name="price" id="price-input" type="number" min="0" step="0.01" placeholder="Preço de venda" required /></div>
+    <div class="money-wrap"><input name="cost_price" id="cost-input" type="number" min="0" step="0.01" placeholder="Custo unitário" required /></div>
+    <div class="money-wrap"><input name="freight_fees" id="freight-input" type="number" min="0" step="0.01" placeholder="Frete/Taxas" value="0" /></div>
+    <label><span>Margem de lucro</span><span id="margin-pill" class="margin-pill ok">0%</span><input name="margin_percent" id="margin-input" type="number" min="-100" step="0.01" value="0" readonly /></label>
     <input name="serial_number" placeholder="Número de Série (S/N)" />
     <input name="photo_file" type="file" accept="image/*" />
     <button type="submit">Salvar peça</button>
@@ -306,6 +308,28 @@
   function formatBRL(value) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
+
+
+  function updateMarginRealtime() {
+    const cost = Number(document.getElementById('cost-input')?.value || 0);
+    const freight = Number(document.getElementById('freight-input')?.value || 0);
+    const price = Number(document.getElementById('price-input')?.value || 0);
+    const base = cost + freight;
+    const margin = base > 0 ? ((price - base) / base) * 100 : 0;
+    const marginInput = document.getElementById('margin-input');
+    const pill = document.getElementById('margin-pill');
+    if (marginInput) marginInput.value = margin.toFixed(2);
+    if (!pill) return;
+    pill.textContent = `${margin.toFixed(2)}%`;
+    pill.classList.remove('ok','warn','bad');
+    if (margin < 0) pill.classList.add('bad');
+    else if (margin < 10) pill.classList.add('warn');
+    else pill.classList.add('ok');
+  }
+  document.getElementById('cost-input')?.addEventListener('input', updateMarginRealtime);
+  document.getElementById('freight-input')?.addEventListener('input', updateMarginRealtime);
+  document.getElementById('price-input')?.addEventListener('input', updateMarginRealtime);
+  updateMarginRealtime();
 
   function atualizarTotaisMontado() {
     let total = 0;
