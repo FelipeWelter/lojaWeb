@@ -1892,3 +1892,133 @@ body.dashboard-page textarea:focus {
   background: #7F8C8D;
   border-color: #7F8C8D;
 }
+
+
+/* Ajustes de padronização: Vendas + Montar PC */
+.client-selector-group .add-client-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+#form-montagem .pc-layout {
+  grid-template-columns: 1fr;
+}
+
+#form-montagem .components-scroll-area {
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+#form-montagem .assembly-lines {
+  display: grid;
+  gap: 14px;
+}
+
+#form-montagem .assembly-row {
+  display: grid;
+  gap: 12px;
+}
+
+#form-montagem .assembly-row.two-columns {
+  grid-template-columns: repeat(2, minmax(250px, 1fr));
+}
+
+#form-montagem .assembly-row.one-column {
+  grid-template-columns: minmax(280px, 1fr);
+}
+
+#form-montagem .optional-panel > .single-slot {
+  margin-top: 10px;
+}
+
+#form-montagem .summary-inline {
+  margin-top: 12px;
+}
+
+@media (max-width: 980px) {
+  #form-montagem .assembly-row.two-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Refinos de UX: Cobranças + Usuários */
+.charges-form-grid {
+  gap: 12px;
+}
+
+.charges-form-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.charges-form-row:last-of-type {
+  grid-template-columns: repeat(6, minmax(180px, 1fr));
+}
+
+.charges-installments-box {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  background: #2C3E50;
+  border: 1px solid #3f5973;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.charges-form-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+.charges-form-actions button {
+  width: 100%;
+}
+
+#charges-table tbody tr:hover {
+  background: #3d556b;
+}
+
+.charges-table-wrap,
+.charges-table-wrap table,
+.charges-table-wrap td {
+  overflow: visible;
+}
+
+.actions-menu-content {
+  z-index: 999;
+}
+
+.charges-funnel-card option,
+.charges-funnel-card select option,
+.charges-funnel-card input,
+.charges-funnel-card select {
+  background: #34495E;
+  color: #ECF0F1;
+}
+
+.admin-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 1100px) {
+  .charges-form-row,
+  .charges-form-row:last-of-type {
+    grid-template-columns: 1fr;
+  }
+
+  .charges-form-actions {
+    grid-template-columns: 1fr;
+  }
+}

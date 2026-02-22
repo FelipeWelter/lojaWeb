@@ -164,13 +164,13 @@
 </section>
 
 <section class="card services-shell">
-  <h2>Histórico de OS (Pronto para retirada)</h2>
+  <h2>Pronto para retirada (aguardando pagamento/retirada)</h2>
   <table>
     <thead>
       <tr><th>Entrada</th><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Status</th><th>Ações</th></tr>
     </thead>
     <tbody>
-      {% for ticket in closed_tickets %}
+      {% for ticket in ready_for_pickup_tickets %}
       <tr>
         <td>{{ ticket.entry_date.strftime('%d/%m/%Y %H:%M') }}</td>
         <td>{{ ticket.client_name }}</td>
@@ -185,7 +185,35 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6">Nenhuma OS finalizada.</td></tr>
+      <tr><td colspan="6">Nenhuma OS pronta para retirada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="card services-shell">
+  <h2>OS Concluídas (pagas e retiradas)</h2>
+  <table>
+    <thead>
+      <tr><th>Saída</th><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Status</th><th>Ações</th></tr>
+    </thead>
+    <tbody>
+      {% for ticket in concluded_tickets %}
+      <tr>
+        <td>{{ (ticket.exit_date or ticket.entry_date).strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ ticket.client_name }}</td>
+        <td>{{ ticket.equipment }}</td>
+        <td>{{ ticket.service_description }}</td>
+        <td><span class="badge success">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span></td>
+        <td>
+          <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}">🖨️ Imprimir OS</button>
+          {% if ticket.service_record_id %}
+          <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='servico', record_id=ticket.service_record_id) }}">🧾 Imprimir recibo</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Nenhuma OS concluída e paga ainda.</td></tr>
       {% endfor %}
     </tbody>
   </table>
