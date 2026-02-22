@@ -119,6 +119,7 @@ class Sale(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
     subtotal = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     canceled = db.Column(db.Boolean, nullable=False, default=False)
     canceled_at = db.Column(db.DateTime, nullable=True)
@@ -145,13 +146,15 @@ class SaleItem(db.Model):
 
 class Charge(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    sale_id = db.Column(db.Integer, db.ForeignKey('sale.id'), nullable=False)
+    sale_id = db.Column(db.Integer, db.ForeignKey('sale.id'), nullable=True)
+    service_id = db.Column(db.Integer, db.ForeignKey('service_record.id'), nullable=True)
     mercado_pago_reference = db.Column(db.String(120), nullable=False)
     status = db.Column(db.String(30), nullable=False, default='pendente')
     payment_method = db.Column(db.String(30), nullable=False, default='pix')
     payment_confirmed_at = db.Column(db.DateTime, nullable=True)
 
     sale = db.relationship('Sale')
+    service = db.relationship('ServiceRecord')
 
 
 class ServiceRecord(db.Model):
@@ -160,6 +163,7 @@ class ServiceRecord(db.Model):
     client_name = db.Column(db.String(120), nullable=False)
     equipment = db.Column(db.String(120), nullable=False)
     total_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     notes = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -751,6 +755,7 @@ def imprimir(tipo: str, record_id: int):
                 'total': data.total,
             }],
             'subtotal': data.subtotal,
+            'discount_amount': data.discount_amount,
             'total': data.total,
             'technical': {
                 'bios': 'Não se aplica',
@@ -912,10 +917,16 @@ def dashboard():
         db.session.query(
             Charge.payment_method,
             db.func.count(Charge.id),
-            db.func.coalesce(db.func.sum(Sale.total), 0),
+            db.func.coalesce(db.func.sum(db.func.coalesce(Sale.total, ServiceRecord.total_price, 0)), 0),
         )
-        .join(Sale, Sale.id == Charge.sale_id)
-        .filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
+        .outerjoin(Sale, Sale.id == Charge.sale_id)
+        .outerjoin(ServiceRecord, ServiceRecord.id == Charge.service_id)
+        .filter(
+            db.or_(
+                db.and_(Charge.sale_id.isnot(None), Sale.canceled.is_(False), Sale.created_at >= start_date),
+                db.and_(Charge.service_id.isnot(None), ServiceRecord.created_at >= start_date),
+            )
+        )
         .group_by(Charge.payment_method)
         .all()
     )
@@ -986,7 +997,7 @@ def produtos():
             original_price_new = Decimal(request.form.get('computer_original_price') or '0')
             selected_piece_ids, custom_items = _collect_selected_piece_inputs(request.form)
             photo_files = request.files.getlist('photo_files')
-            create_stock_item = request.form.get('create_stock_item') == 'on'
+            create_stock_item = request.form.get('create_stock_item', 'on') == 'on'
             technical_notes = request.form.get('technical_notes')
             bios_updated = request.form.get('bios_updated') == 'on'
             stress_test_done = request.form.get('stress_test_done') == 'on'
@@ -1234,7 +1245,7 @@ def montar_pc():
 
         selected_piece_ids, custom_items = _collect_selected_piece_inputs(request.form)
         photo_files = request.files.getlist('photo_files')
-        create_stock_item = request.form.get('create_stock_item') == 'on'
+        create_stock_item = request.form.get('create_stock_item', 'on') == 'on'
         technical_notes = request.form.get('technical_notes')
         bios_updated = request.form.get('bios_updated') == 'on'
         stress_test_done = request.form.get('stress_test_done') == 'on'
@@ -1497,28 +1508,63 @@ def servicos():
 
         try:
             total_price = Decimal(request.form.get('total_price') or '0')
+            discount_amount = Decimal(request.form.get('discount_amount') or '0')
             cost = Decimal(request.form.get('cost') or '0')
         except InvalidOperation:
-            flash('Preço e custo devem ser numéricos.', 'danger')
+            flash('Preço, desconto e custo devem ser numéricos.', 'danger')
             return redirect(url_for('servicos'))
 
         if not service_name or not client_name or not equipment:
             flash('Preencha serviço, cliente e equipamento.', 'danger')
             return redirect(url_for('servicos'))
 
-        if total_price < 0 or cost < 0:
-            flash('Preço e custo devem ser maiores ou iguais a zero.', 'danger')
+        if total_price < 0 or discount_amount < 0 or cost < 0:
+            flash('Preço, desconto e custo devem ser maiores ou iguais a zero.', 'danger')
             return redirect(url_for('servicos'))
+
+        if discount_amount > total_price:
+            flash('Desconto não pode ser maior que o valor cobrado do serviço.', 'danger')
+            return redirect(url_for('servicos'))
+
+        final_service_price = (total_price - discount_amount).quantize(Decimal('0.01'))
 
         service = ServiceRecord(
             service_name=service_name,
             client_name=client_name,
             equipment=equipment,
-            total_price=total_price,
+            total_price=final_service_price,
+            discount_amount=discount_amount.quantize(Decimal('0.01')),
             cost=cost,
             notes=notes,
         )
         db.session.add(service)
+        db.session.flush()
+
+        if request.form.get('generate_charge') == 'on':
+            charge_reference = (request.form.get('charge_reference') or '').strip()
+            if not charge_reference:
+                flash('Informe a referência da cobrança para o serviço.', 'danger')
+                db.session.rollback()
+                return redirect(url_for('servicos'))
+
+            charge_status = (request.form.get('charge_status') or 'pendente').strip()
+            if charge_status not in {'pendente', 'confirmado', 'cancelado'}:
+                charge_status = 'pendente'
+
+            charge_payment_method = (request.form.get('charge_payment_method') or 'pix').strip()
+            if charge_payment_method not in PAYMENT_METHOD_LABELS:
+                charge_payment_method = 'pix'
+
+            db.session.add(
+                Charge(
+                    service_id=service.id,
+                    mercado_pago_reference=charge_reference,
+                    status=charge_status,
+                    payment_method=charge_payment_method,
+                    payment_confirmed_at=datetime.utcnow() if charge_status == 'confirmado' else None,
+                )
+            )
+
         db.session.commit()
         flash('Serviço realizado cadastrado com sucesso!', 'success')
         return redirect(url_for('servicos'))
@@ -1532,6 +1578,7 @@ def servicos():
         recent_services=recent_services,
         maintenance_tickets=maintenance_tickets,
         clients=clients,
+        payment_methods=PAYMENT_METHODS,
     )
 
 
@@ -1703,6 +1750,22 @@ def vendas():
 
         subtotal = sum((item['line_total'] for item in parsed_items), Decimal('0.00')).quantize(Decimal('0.01'))
 
+        try:
+            discount_amount = Decimal(request.form.get('discount_amount') or '0').quantize(Decimal('0.01'))
+        except InvalidOperation:
+            flash('Desconto inválido para a venda.', 'danger')
+            return redirect(url_for('vendas'))
+
+        if discount_amount < 0:
+            flash('Desconto da venda não pode ser negativo.', 'danger')
+            return redirect(url_for('vendas'))
+
+        if discount_amount > subtotal:
+            flash('Desconto da venda não pode ser maior que o subtotal.', 'danger')
+            return redirect(url_for('vendas'))
+
+        total = (subtotal - discount_amount).quantize(Decimal('0.01'))
+
         if product_ids:
             anchor_product_id = product_ids[0]
         else:
@@ -1725,7 +1788,8 @@ def vendas():
             product_id=anchor_product_id,
             quantity=1,
             subtotal=subtotal,
-            total=subtotal,
+            discount_amount=discount_amount,
+            total=total,
         )
         db.session.add(sale)
         db.session.flush()
@@ -1798,9 +1862,27 @@ def excluir_venda(sale_id: int):
 @_login_required
 def cobrancas():
     if request.method == 'POST':
-        sale_id = int(request.form['sale_id'])
+        sale_id_raw = (request.form.get('sale_id') or '').strip()
+        service_id_raw = (request.form.get('service_id') or '').strip()
+
+        try:
+            sale_id = int(sale_id_raw) if sale_id_raw else None
+            service_id = int(service_id_raw) if service_id_raw else None
+        except ValueError:
+            flash('Origem da cobrança inválida.', 'danger')
+            return redirect(url_for('cobrancas'))
+
+        if not sale_id and not service_id:
+            flash('Selecione uma venda ou serviço para gerar a cobrança.', 'danger')
+            return redirect(url_for('cobrancas'))
+
+        if sale_id and service_id:
+            flash('Selecione apenas uma origem: venda ou serviço.', 'danger')
+            return redirect(url_for('cobrancas'))
+
         charge = Charge(
             sale_id=sale_id,
+            service_id=service_id,
             mercado_pago_reference=request.form['mercado_pago_reference'],
             status=request.form['status'],
             payment_method=request.form['payment_method'],
@@ -1812,8 +1894,9 @@ def cobrancas():
         return redirect(url_for('cobrancas'))
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
+    services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).limit(200).all()
     charges = Charge.query.order_by(Charge.id.desc()).all()
-    return render_template('charges.html', charges=charges, sales=sales, payment_methods=PAYMENT_METHODS)
+    return render_template('charges.html', charges=charges, sales=sales, services=services, payment_methods=PAYMENT_METHODS)
 
 
 @app.route('/cobrancas/<int:charge_id>/editar', methods=['POST'])
@@ -1960,6 +2043,7 @@ with app.app_context():
             'client_name VARCHAR(120) NOT NULL, '
             'equipment VARCHAR(120) NOT NULL, '
             'total_price NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'cost NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'notes TEXT, '
             'created_at DATETIME NOT NULL'
@@ -2042,10 +2126,17 @@ with app.app_context():
     if 'subtotal' not in sale_columns:
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN subtotal NUMERIC(10,2) NOT NULL DEFAULT 0'))
         db.session.execute(db.text('UPDATE sale SET subtotal = total WHERE subtotal = 0'))
+    if 'discount_amount' not in sale_columns:
+        db.session.execute(db.text('ALTER TABLE sale ADD COLUMN discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0'))
     if 'canceled' not in sale_columns:
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
     if 'canceled_at' not in sale_columns:
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled_at DATETIME'))
+    db.session.commit()
+
+    service_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(service_record)'))]
+    if 'discount_amount' not in service_columns:
+        db.session.execute(db.text('ALTER TABLE service_record ADD COLUMN discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0'))
     db.session.commit()
 
     client_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(client)'))]
@@ -2054,9 +2145,40 @@ with app.app_context():
     db.session.execute(db.text('CREATE UNIQUE INDEX IF NOT EXISTS ux_client_cpf ON client (cpf)'))
     db.session.commit()
 
-    charge_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(charge)'))]
+    charge_columns_info = list(db.session.execute(db.text('PRAGMA table_info(charge)')))
+    charge_columns = [row[1] for row in charge_columns_info]
     if 'payment_method' not in charge_columns:
         db.session.execute(db.text("ALTER TABLE charge ADD COLUMN payment_method VARCHAR(30) NOT NULL DEFAULT 'pix'"))
+    if 'service_id' not in charge_columns:
+        db.session.execute(db.text('ALTER TABLE charge ADD COLUMN service_id INTEGER'))
+
+    sale_id_info = next((row for row in charge_columns_info if row[1] == 'sale_id'), None)
+    sale_id_is_not_null = bool(sale_id_info and sale_id_info[3] == 1)
+    if sale_id_is_not_null:
+        db.session.execute(db.text('ALTER TABLE charge RENAME TO charge_old'))
+        db.session.execute(
+            db.text(
+                'CREATE TABLE charge ('
+                'id INTEGER PRIMARY KEY, '
+                'sale_id INTEGER, '
+                'service_id INTEGER, '
+                'mercado_pago_reference VARCHAR(120) NOT NULL, '
+                "status VARCHAR(30) NOT NULL DEFAULT 'pendente', "
+                "payment_method VARCHAR(30) NOT NULL DEFAULT 'pix', "
+                'payment_confirmed_at DATETIME, '
+                'FOREIGN KEY(sale_id) REFERENCES sale (id), '
+                'FOREIGN KEY(service_id) REFERENCES service_record (id)'
+                ')'
+            )
+        )
+        db.session.execute(
+            db.text(
+                'INSERT INTO charge (id, sale_id, mercado_pago_reference, status, payment_method, payment_confirmed_at) '
+                'SELECT id, sale_id, mercado_pago_reference, status, payment_method, payment_confirmed_at FROM charge_old'
+            )
+        )
+        db.session.execute(db.text('DROP TABLE charge_old'))
+
     db.session.commit()
 
 
