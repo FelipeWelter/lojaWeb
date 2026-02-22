@@ -32,8 +32,12 @@
     </div>
 
     <button type="button" id="add-line" class="btn-secondary" style="grid-column: 1 / -1;">+ Adicionar item/serviço</button>
+    <label>
+      Desconto da venda (R$)
+      <input name="discount_amount" id="sale-discount" type="number" min="0" step="0.01" value="0" />
+    </label>
     <div class="sale-summary" style="grid-column: 1 / -1;">
-      <small>Total automático: <strong id="sale-total">R$ 0,00</strong></small>
+      <small>Subtotal: <strong id="sale-subtotal">R$ 0,00</strong> | Desconto: <strong id="sale-discount-view">R$ 0,00</strong> | Total automático: <strong id="sale-total">R$ 0,00</strong></small>
     </div>
     <button type="submit">Registrar venda</button>
   </form>
@@ -43,7 +47,7 @@
   <h2>Histórico de vendas</h2>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>Data</th><th>Nome da venda</th><th>Cliente</th><th>Itens</th><th>Subtotal</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Data</th><th>Nome da venda</th><th>Cliente</th><th>Itens</th><th>Subtotal</th><th>Desconto</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>
       {% for sale in sales %}
       <tr>
@@ -58,6 +62,7 @@
           {% endif %}
         </td>
         <td>R$ {{ '%.2f'|format(sale.subtotal) }}</td>
+        <td>R$ {{ '%.2f'|format(sale.discount_amount or 0) }}</td>
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
         <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
         <td>
@@ -75,7 +80,7 @@
           </div>
         </td>
       </tr>
-      {% else %}<tr><td colspan="8">Sem vendas.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="9">Sem vendas.</td></tr>{% endfor %}
     </tbody>
   </table>
   </div>
@@ -85,6 +90,9 @@
   const saleLines = document.getElementById('sale-lines');
   const addLineBtn = document.getElementById('add-line');
   const totalEl = document.getElementById('sale-total');
+  const subtotalEl = document.getElementById('sale-subtotal');
+  const discountInput = document.getElementById('sale-discount');
+  const discountViewEl = document.getElementById('sale-discount-view');
 
   function formatBRL(v) {
     return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -92,12 +100,17 @@
 
   function recalcTotal() {
     const lines = saleLines.querySelectorAll('.sale-line');
-    let total = 0;
+    let subtotal = 0;
     lines.forEach((line) => {
       const qty = Number(line.querySelector('.line-qty')?.value || 0);
       const price = Number(line.querySelector('.line-price')?.value || 0);
-      total += qty * price;
+      subtotal += qty * price;
     });
+
+    const discount = Math.max(0, Number(discountInput?.value || 0));
+    const total = Math.max(0, subtotal - discount);
+    subtotalEl.textContent = formatBRL(subtotal);
+    discountViewEl.textContent = formatBRL(discount);
     totalEl.textContent = formatBRL(total);
   }
 
@@ -152,6 +165,7 @@
     recalcTotal();
   });
 
+  discountInput?.addEventListener('input', recalcTotal);
   saleLines.querySelectorAll('.sale-line').forEach(bindLine);
   recalcTotal();
 </script>

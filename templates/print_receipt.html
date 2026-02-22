@@ -35,6 +35,7 @@
       </table>
 
       <p><strong>Subtotal:</strong> R$ {{ '%.2f'|format(subtotal) }}</p>
+      {% if discount_amount and discount_amount > 0 %}<p><strong>Desconto:</strong> R$ {{ '%.2f'|format(discount_amount) }}</p>{% endif %}
       <p><strong>Total:</strong> R$ {{ '%.2f'|format(total) }}</p>
 
       <h3>Destaque Técnico</h3>

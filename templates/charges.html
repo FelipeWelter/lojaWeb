@@ -3,10 +3,20 @@
 <section class="card">
   <h2>Nova cobrança (Mercado Pago)</h2>
   <form method="post" class="grid form-grid">
-    <select name="sale_id" required>
-      <option value="">Selecione a venda</option>
-      {% for s in sales %}<option value="{{ s.id }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
-    </select>
+    <label>
+      Venda (opcional)
+      <select name="sale_id">
+        <option value="">Sem venda</option>
+        {% for s in sales %}<option value="{{ s.id }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      Serviço (opcional)
+      <select name="service_id">
+        <option value="">Sem serviço</option>
+        {% for srv in services %}<option value="{{ srv.id }}">#{{ srv.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>{% endfor %}
+      </select>
+    </label>
     <input name="mercado_pago_reference" placeholder="ID/referência no Mercado Pago" required />
     <select name="payment_method" required>
       {% for value, label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
@@ -22,11 +32,11 @@
 <section class="card">
   <h2>Cobranças</h2>
   <table>
-    <thead><tr><th>Venda</th><th>Ref. Mercado Pago</th><th>Pagamento</th><th>Status</th><th>Confirmação</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Origem</th><th>Ref. Mercado Pago</th><th>Pagamento</th><th>Status</th><th>Confirmação</th><th>Ações</th></tr></thead>
     <tbody>
       {% for c in charges %}
       <tr>
-        <td>{{ c.sale.sale_name }} - {{ c.sale.client.name }}</td>
+        <td>{% if c.sale %}Venda: {{ c.sale.sale_name }} - {{ c.sale.client.name }}{% elif c.service %}Serviço: {{ c.service.service_name }} - {{ c.service.client_name }}{% else %}-{% endif %}</td>
         <td>{{ c.mercado_pago_reference }}</td>
         <td>{{ c.payment_method|capitalize }}</td>
         <td>{{ c.status }}</td>

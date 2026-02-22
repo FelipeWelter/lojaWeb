@@ -92,9 +92,20 @@
     </label>
     <input name="client_name" placeholder="Cliente (ou digite manualmente)" />
     <input name="equipment" placeholder="Equipamento" required />
-    <input name="total_price" type="number" min="0" step="0.01" placeholder="Valor cobrado" required />
+    <input name="total_price" type="number" min="0" step="0.01" placeholder="Valor bruto do serviço" required />
+    <input name="discount_amount" type="number" min="0" step="0.01" value="0" placeholder="Desconto" />
     <input name="cost" type="number" min="0" step="0.01" placeholder="Custo do serviço (opcional)" />
     <input name="notes" placeholder="Observações (opcional)" />
+    <label><input type="checkbox" name="generate_charge" /> Gerar cobrança para este serviço</label>
+    <input name="charge_reference" placeholder="Referência Mercado Pago (se gerar cobrança)" />
+    <select name="charge_payment_method">
+      {% for value, label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+    </select>
+    <select name="charge_status">
+      <option value="pendente">Pendente</option>
+      <option value="confirmado">Confirmado</option>
+      <option value="cancelado">Cancelado</option>
+    </select>
     <button type="submit">Salvar serviço realizado</button>
   </form>
 </section>
@@ -103,7 +114,7 @@
   <h2>Últimos serviços realizados</h2>
   <table>
     <thead>
-      <tr><th>Data</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Valor</th><th>Custo</th><th>Lucro</th><th>Ações</th></tr>
+      <tr><th>Data</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Subtotal</th><th>Desconto</th><th>Valor final</th><th>Custo</th><th>Lucro</th><th>Ações</th></tr>
     </thead>
     <tbody>
       {% for service in recent_services %}
@@ -112,13 +123,15 @@
         <td>{{ service.service_name }}</td>
         <td>{{ service.client_name }}</td>
         <td>{{ service.equipment }}</td>
+        <td>R$ {{ '%.2f'|format((service.total_price or 0) + (service.discount_amount or 0)) }}</td>
+        <td>R$ {{ '%.2f'|format(service.discount_amount or 0) }}</td>
         <td>R$ {{ '%.2f'|format(service.total_price) }}</td>
         <td>R$ {{ '%.2f'|format(service.cost) }}</td>
         <td>R$ {{ '%.2f'|format(service.total_price - service.cost) }}</td>
         <td>-</td>
       </tr>
       {% else %}
-      <tr><td colspan="8">Nenhum serviço realizado cadastrado ainda.</td></tr>
+      <tr><td colspan="10">Nenhum serviço realizado cadastrado ainda.</td></tr>
       {% endfor %}
     </tbody>
   </table>
