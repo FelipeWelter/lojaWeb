@@ -1728,8 +1728,6 @@ def servicos():
                 for idx, item in enumerate(DEFAULT_MAINTENANCE_CHECKLIST)
             ]
 
-            part_id_raw = (request.form.get('maintenance_part_id') or '').strip()
-            part_qty_raw = (request.form.get('maintenance_part_qty') or '1').strip()
             labor_cost_raw = (request.form.get('maintenance_labor_cost') or '0').strip()
             parts_items = []
 
@@ -1743,20 +1741,37 @@ def servicos():
                 flash('Mão de obra deve ser maior ou igual a zero.', 'danger')
                 return redirect(url_for('servicos'))
 
-            if part_id_raw:
+            part_ids = request.form.getlist('maintenance_part_id[]')
+            part_qtys = request.form.getlist('maintenance_part_qty[]')
+
+            if not part_ids and not part_qtys:
+                single_part_id = (request.form.get('maintenance_part_id') or '').strip()
+                single_part_qty = (request.form.get('maintenance_part_qty') or '1').strip()
+                part_ids = [single_part_id]
+                part_qtys = [single_part_qty]
+
+            for idx, raw_part_id in enumerate(part_ids):
+                part_id_raw = (raw_part_id or '').strip()
+                if not part_id_raw:
+                    continue
+
                 product = Product.query.get(int(part_id_raw)) if part_id_raw.isdigit() else None
-                if product:
-                    try:
-                        part_qty = int(part_qty_raw or '1')
-                    except ValueError:
-                        part_qty = 1
-                    part_qty = max(part_qty, 1)
-                    parts_items.append({
-                        'product_id': product.id,
-                        'name': product.name,
-                        'quantity': part_qty,
-                        'unit_price': str(Decimal(product.price or 0).quantize(Decimal('0.01'))),
-                    })
+                if not product:
+                    continue
+
+                raw_qty = part_qtys[idx] if idx < len(part_qtys) else '1'
+                try:
+                    part_qty = int((raw_qty or '1').strip())
+                except ValueError:
+                    part_qty = 1
+
+                part_qty = max(part_qty, 1)
+                parts_items.append({
+                    'product_id': product.id,
+                    'name': product.name,
+                    'quantity': part_qty,
+                    'unit_price': str(Decimal(product.price or 0).quantize(Decimal('0.01'))),
+                })
 
             if not client_name or not equipment or not service_description:
                 flash('Preencha cliente, equipamento e serviço em manutenção.', 'danger')

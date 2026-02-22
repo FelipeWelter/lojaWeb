@@ -34,19 +34,28 @@
       <span>Data de entrada</span>
       <input name="maintenance_entry_date" type="datetime-local" />
     </label>
-    <label class="floating-field">
-      <span>Peça do estoque (opcional)</span>
-      <select name="maintenance_part_id">
-        <option value="">Sem troca de peça</option>
-        {% for product in products %}
-        <option value="{{ product.id }}">{{ product.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label class="floating-field">
-      <span>Qtd. peça</span>
-      <input name="maintenance_part_qty" type="number" min="1" value="1" />
-    </label>
+    <div class="full-width">
+      <span>Peças do estoque (opcional)</span>
+      <div id="maintenance-parts-list" class="grid form-grid">
+        <div class="maintenance-part-row">
+          <label class="floating-field">
+            <span>Peça do estoque</span>
+            <select name="maintenance_part_id[]">
+              <option value="">Sem troca de peça</option>
+              {% for product in products %}
+              <option value="{{ product.id }}">{{ product.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="floating-field">
+            <span>Qtd. peça</span>
+            <input name="maintenance_part_qty[]" type="number" min="1" value="1" />
+          </label>
+          <button type="button" class="btn-secondary remove-part-row" style="align-self:end;" hidden>Remover</button>
+        </div>
+      </div>
+      <button type="button" id="add-maintenance-part" class="btn-secondary" style="margin-top:8px;">+ Adicionar peça</button>
+    </div>
     <label class="floating-field">
       <span>Mão de obra (R$)</span>
       <input name="maintenance_labor_cost" type="number" min="0" step="0.01" value="0" />
@@ -168,5 +177,35 @@
       row.style.display = show ? '' : 'none';
     });
   });
+
+  const partsList = document.getElementById('maintenance-parts-list');
+  const addPartButton = document.getElementById('add-maintenance-part');
+
+  const updatePartButtons = () => {
+    const rows = Array.from(partsList?.querySelectorAll('.maintenance-part-row') || []);
+    rows.forEach((row, index) => {
+      const removeButton = row.querySelector('.remove-part-row');
+      if (!removeButton) return;
+      removeButton.hidden = rows.length === 1;
+      removeButton.onclick = () => {
+        row.remove();
+        updatePartButtons();
+      };
+    });
+  };
+
+  addPartButton?.addEventListener('click', () => {
+    const firstRow = partsList?.querySelector('.maintenance-part-row');
+    if (!firstRow || !partsList) return;
+    const clone = firstRow.cloneNode(true);
+    clone.querySelectorAll('select, input').forEach((field) => {
+      if (field.tagName === 'SELECT') field.value = '';
+      if (field.tagName === 'INPUT') field.value = '1';
+    });
+    partsList.appendChild(clone);
+    updatePartButtons();
+  });
+
+  updatePartButtons();
 </script>
 {% endblock %}
