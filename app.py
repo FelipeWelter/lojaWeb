@@ -649,6 +649,17 @@ def _normalize_maintenance_status(status: str) -> str:
     return value if value in dict(MAINTENANCE_STATUS_OPTIONS) else 'em_analise'
 
 
+def _to_decimal(value, default: str = '0') -> Decimal:
+    """Converte valores variados para Decimal sem quebrar em dados legados."""
+    raw = str(value if value is not None else default).strip().replace(',', '.')
+    if not raw:
+        raw = default
+    try:
+        return Decimal(raw)
+    except (InvalidOperation, ValueError):
+        return Decimal(default)
+
+
 DEFAULT_MAINTENANCE_CHECKLIST = [
     'Limpeza interna',
     'Troca de pasta térmica',
@@ -670,10 +681,10 @@ def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user
     parts_total = Decimal('0')
     parts_desc = []
     for part in parts_items:
-        qty = Decimal(str(part.get('quantity') or 1))
-        unit = Decimal(str(part.get('unit_price') or 0))
+        qty = _to_decimal(part.get('quantity') or 1, default='1')
+        unit = _to_decimal(part.get('unit_price') or 0)
         parts_total += qty * unit
-        parts_desc.append(f"{part.get('name', 'Peça')} x{int(qty)}")
+        parts_desc.append(f"{part.get('name', 'Peça')} x{max(1, int(qty))}")
 
     labor = Decimal(ticket.labor_cost or 0)
     total_price = (labor + parts_total).quantize(Decimal('0.01'))
