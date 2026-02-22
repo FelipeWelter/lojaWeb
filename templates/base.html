@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
   </head>
-  <body class="{% if request.endpoint == 'login' %}auth-page{% elif request.endpoint in ['dashboard', 'produtos', 'servicos'] %}dashboard-page{% endif %}">
+  <body class="{% if request.endpoint == 'login' %}auth-page{% elif request.endpoint in ['dashboard', 'produtos', 'servicos', 'clientes', 'editar_cliente', 'historico_cliente'] %}dashboard-page{% endif %}">
     {% if request.endpoint != 'login' %}
     <header class="header">
       <h1>LojaWeb</h1>
