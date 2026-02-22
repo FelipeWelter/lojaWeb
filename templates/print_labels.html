@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Etiquetas de Produtos</title>
+  <style>
+    @page { size: A4; margin: 10mm; }
+    body { font-family: Arial, sans-serif; color: #111; margin: 0; }
+    h1 { font-size: 18px; margin: 0 0 10px; }
+    .labels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .label { border: 1px solid #333; border-radius: 6px; padding: 8px; min-height: 88px; }
+    .name { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+    .price { font-size: 16px; font-weight: 800; margin-bottom: 8px; }
+    .serial { font-size: 11px; border-top: 1px dashed #999; padding-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Etiquetas de Preço</h1>
+  <div class="labels">
+    {% for p in products %}
+    <div class="label">
+      <div class="name">{{ p.name }}</div>
+      <div class="price">R$ {{ '%.2f'|format(p.price) }}</div>
+      <div class="serial">S/N: {{ p.serial_number or '________________' }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</body>
+</html>

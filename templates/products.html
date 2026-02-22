@@ -8,7 +8,7 @@
     <button type="button" data-mode="assembled">Cadastrar computador montado</button>
   </div>
 
-  <form method="post" class="grid form-grid" id="piece-form" enctype="multipart/form-data">
+  <form method="post" class="grid form-grid piece-form-grid" id="piece-form" enctype="multipart/form-data">
     <input type="hidden" name="form_mode" value="piece" />
     <input name="name" placeholder="Nome" required />
     <select name="category" id="category-select"><option>Peça</option><option>Computador</option></select>
@@ -138,7 +138,7 @@
 
 <section class="card">
   <h2>Estoque atual</h2>
-  <div class="class-menu" id="class-menu">
+  <div class="class-menu stock-filter-menu" id="class-menu">
     <button type="button" class="active" data-filter="all">Todos</button>
     <button type="button" data-filter="computador">Computadores</button>
     <button type="button" data-filter="gabinete">Gabinete</button>
@@ -149,12 +149,24 @@
     <button type="button" data-filter="armazenamento">Armazenamento</button>
     <button type="button" data-filter="fonte">Fonte</button>
   </div>
-  <table>
-    <thead><tr><th>Produto</th><th>Categoria</th><th>Classe</th><th>S/N</th><th>Estoque</th><th>Compra</th><th>Venda</th><th>Foto</th><th>Ações</th></tr></thead>
+  <div class="stock-print-actions">
+    <form method="post" action="{{ url_for('imprimir_etiquetas_produtos') }}" class="stock-print-form">
+      <button type="submit" class="btn-secondary">Imprimir Etiquetas</button>
+      <small>Seleciona os itens filtrados para gerar etiquetas com Nome, Venda e S/N.</small>
+    </form>
+    <form method="post" action="{{ url_for('imprimir_inventario_produtos') }}" class="stock-print-form">
+      <button type="submit" class="btn-secondary">Imprimir Inventário</button>
+      <small>Relatório para balanço sem colunas de ações e foto.</small>
+    </form>
+  </div>
+  <div class="table-wrap stock-table-wrap">
+  <table class="stock-table">
+    <thead><tr><th>Sel.</th><th>Produto</th><th>Categoria</th><th>Classe</th><th>S/N</th><th>Estoque</th><th>Compra</th><th>Venda</th><th>Foto</th><th>Ações</th></tr></thead>
     <tbody>
       {% for p in products %}
       {% set bucket = 'computador' if p.category == 'Computador' else (p.component_class or 'sem_classe') %}
-      <tr data-bucket="{{ bucket }}">
+      <tr data-bucket="{{ bucket }}" data-product-id="{{ p.id }}">
+        <td><input type="checkbox" class="label-select" name="selected_products" value="{{ p.id }}" /></td>
         <td>{{ p.name }}</td>
         <td>{{ p.category }}</td>
         <td>{{ p.component_class or '-' }}</td>
@@ -174,7 +186,12 @@
           {% else %}-{% endif %}
         </td>
         <td>
-          <button type="button" class="btn-secondary open-edit-modal" data-modal-id="edit-modal-{{ p.id }}">Editar</button>
+          <div class="table-actions">
+            <button type="button" class="btn-secondary open-edit-modal" data-modal-id="edit-modal-{{ p.id }}">Editar</button>
+            <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" onsubmit="return confirm('Deseja remover este item do estoque?');">
+              <button type="submit" class="btn-danger">Remover</button>
+            </form>
+          </div>
         </td>
       </tr>
 
@@ -231,15 +248,13 @@
               <button type="submit">Adicionar fotos na galeria</button>
             </form>
 
-            <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" onsubmit="return confirm('Deseja remover este item do estoque?');">
-              <button type="submit" class="btn-danger">Remover item</button>
-            </form>
           </div>
         </div>
       </dialog>
-      {% else %}<tr><td colspan="9">Sem produtos.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="10">Sem produtos.</td></tr>{% endfor %}
     </tbody>
   </table>
+  </div>
 </section>
 <script>
   const categorySelect = document.getElementById('category-select');
@@ -257,10 +272,25 @@
     if (!isPiece) classSelect.value = '';
   }
 
+  function syncPrintSelections() {
+    const selectedIds = [...document.querySelectorAll('tbody .label-select:checked')].map((el) => el.value);
+    document.querySelectorAll('.stock-print-form').forEach((form) => {
+      form.querySelectorAll('input[name="product_ids"]').forEach((input) => input.remove());
+      selectedIds.forEach((id) => {
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'product_ids';
+        hidden.value = id;
+        form.appendChild(hidden);
+      });
+    });
+  }
+
   function applyFilter(bucket) {
     document.querySelectorAll('tbody tr[data-bucket]').forEach((row) => {
       row.style.display = bucket === 'all' || row.dataset.bucket === bucket ? '' : 'none';
     });
+    syncPrintSelections();
   }
 
   function setMode(mode) {
@@ -418,7 +448,11 @@
   });
 
   categorySelect.addEventListener('change', togglePieceClass);
+  document.querySelectorAll('.label-select').forEach((input) => {
+    input.addEventListener('change', syncPrintSelections);
+  });
   togglePieceClass();
+  syncPrintSelections();
   setMode('piece');
   atualizarTotaisMontado();
 </script>

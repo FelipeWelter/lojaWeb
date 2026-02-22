@@ -858,6 +858,68 @@ def imprimir(tipo: str, record_id: int):
     return response
 
 
+
+
+@app.route('/produtos/imprimir-etiquetas', methods=['POST'])
+@_login_required
+def imprimir_etiquetas_produtos():
+    product_ids = [int(pid) for pid in request.form.getlist('product_ids') if str(pid).isdigit()]
+    if not product_ids:
+        flash('Selecione ao menos um item para imprimir etiquetas.', 'danger')
+        return redirect(url_for('produtos'))
+
+    items = Product.query.filter(Product.id.in_(product_ids)).order_by(Product.name).all()
+    if not items:
+        flash('Nenhum item válido foi encontrado para impressão.', 'danger')
+        return redirect(url_for('produtos'))
+
+    html = render_template('print_labels.html', products=items)
+    if pisa is None:
+        return html
+
+    pdf_buffer = BytesIO()
+    status = pisa.CreatePDF(html, dest=pdf_buffer)
+    if status.err:
+        flash('Não foi possível gerar PDF das etiquetas. Exibindo versão HTML para impressão.', 'danger')
+        return html
+
+    response = make_response(pdf_buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'inline; filename="etiquetas-produtos.pdf"'
+    return response
+
+
+@app.route('/produtos/imprimir-inventario', methods=['POST'])
+@_login_required
+def imprimir_inventario_produtos():
+    products = Product.query.order_by(Product.name).all()
+
+    total_stock = sum(int(p.stock or 0) for p in products)
+    total_cost = sum(Decimal(p.cost_price or 0) * Decimal(p.stock or 0) for p in products)
+    total_sale = sum(Decimal(p.price or 0) * Decimal(p.stock or 0) for p in products)
+
+    html = render_template(
+        'print_inventory.html',
+        products=products,
+        total_stock=total_stock,
+        total_cost=total_cost,
+        total_sale=total_sale,
+    )
+    if pisa is None:
+        return html
+
+    pdf_buffer = BytesIO()
+    status = pisa.CreatePDF(html, dest=pdf_buffer)
+    if status.err:
+        flash('Não foi possível gerar PDF do inventário. Exibindo versão HTML para impressão.', 'danger')
+        return html
+
+    response = make_response(pdf_buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = 'inline; filename="inventario-estoque.pdf"'
+    return response
+
+
 @app.route('/recuperar-senha', methods=['GET', 'POST'])
 def recuperar_senha():
     if request.method == 'POST':

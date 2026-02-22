@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Inventário de Estoque</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: Arial, sans-serif; color: #111; margin: 0; }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    p { margin: 0 0 10px; color: #444; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #333; padding: 6px; font-size: 12px; }
+    th { background: #f1f1f1; }
+    tfoot td { font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>Relatório de Inventário</h1>
+  <p>Resumo de estoque sem colunas de ação e foto.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Produto</th>
+        <th>Categoria</th>
+        <th>Classe</th>
+        <th>S/N</th>
+        <th>Qtd.</th>
+        <th>Custo Unit.</th>
+        <th>Venda Unit.</th>
+        <th>Total Custo</th>
+        <th>Total Venda</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in products %}
+      <tr>
+        <td>{{ p.name }}</td>
+        <td>{{ p.category }}</td>
+        <td>{{ p.component_class or '-' }}</td>
+        <td>{{ p.serial_number or '-' }}</td>
+        <td>{{ p.stock }}</td>
+        <td>R$ {{ '%.2f'|format(p.cost_price) }}</td>
+        <td>R$ {{ '%.2f'|format(p.price) }}</td>
+        <td>R$ {{ '%.2f'|format((p.cost_price or 0) * (p.stock or 0)) }}</td>
+        <td>R$ {{ '%.2f'|format((p.price or 0) * (p.stock or 0)) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="4">Totais</td>
+        <td>{{ total_stock }}</td>
+        <td>-</td>
+        <td>-</td>
+        <td>R$ {{ '%.2f'|format(total_cost) }}</td>
+        <td>R$ {{ '%.2f'|format(total_sale) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>
