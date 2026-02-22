@@ -160,6 +160,9 @@ class Charge(db.Model):
     amount_paid = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     status = db.Column(db.String(30), nullable=False, default='pendente')
     payment_method = db.Column(db.String(30), nullable=False, default='pix')
+    is_installment = db.Column(db.Boolean, nullable=False, default=False)
+    installment_count = db.Column(db.Integer, nullable=False, default=1)
+    installment_value = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     payment_confirmed_at = db.Column(db.DateTime, nullable=True)
 
     sale = db.relationship('Sale')
@@ -578,6 +581,7 @@ def _build_computer_with_parts(
 
 COMPONENT_SLOTS = [
     ('gabinete', 'Gabinete', False),
+    ('fans', 'Fans', False),
     ('placa_mae', 'Placa-mãe', False),
     ('placa_video', 'Placa de Vídeo', False),
     ('processador', 'Processador', False),
@@ -601,7 +605,7 @@ MAINTENANCE_STATUS_LABELS = {
     'cancelado': 'Cancelado',
     # aliases legados
     'em_andamento': 'Em análise/Bancada',
-    'concluido': 'Pronto para retirada',
+    'concluido': 'Concluído (retirado e pago)',
 }
 
 MAINTENANCE_STATUS_OPTIONS = [
@@ -617,7 +621,7 @@ def _normalize_maintenance_status(status: str) -> str:
     if value == 'em_andamento':
         return 'em_analise'
     if value == 'concluido':
-        return 'pronto_retirada'
+        return 'concluido'
     return value if value in dict(MAINTENANCE_STATUS_OPTIONS) else 'em_analise'
 
 
@@ -2067,9 +2071,19 @@ def servicos():
         return redirect(url_for('servicos'))
 
     recent_services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).all()
-    maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(40).all()
-    active_tickets = [ticket for ticket in maintenance_tickets if _normalize_maintenance_status(ticket.status) != 'pronto_retirada']
-    closed_tickets = [ticket for ticket in maintenance_tickets if _normalize_maintenance_status(ticket.status) == 'pronto_retirada']
+    maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(80).all()
+    active_tickets = [
+        ticket for ticket in maintenance_tickets
+        if _normalize_maintenance_status(ticket.status) in {'em_analise', 'aguardando_pecas'}
+    ]
+    ready_for_pickup_tickets = [
+        ticket for ticket in maintenance_tickets
+        if _normalize_maintenance_status(ticket.status) == 'pronto_retirada'
+    ]
+    concluded_tickets = [
+        ticket for ticket in maintenance_tickets
+        if _normalize_maintenance_status(ticket.status) == 'concluido'
+    ]
     clients = Client.query.order_by(Client.name.asc()).all()
     products = Product.query.order_by(Product.name.asc()).all()
     return render_template(
@@ -2078,7 +2092,8 @@ def servicos():
         recent_services=recent_services,
         maintenance_tickets=maintenance_tickets,
         active_tickets=active_tickets,
-        closed_tickets=closed_tickets,
+        ready_for_pickup_tickets=ready_for_pickup_tickets,
+        concluded_tickets=concluded_tickets,
         maintenance_status_labels=MAINTENANCE_STATUS_LABELS,
         maintenance_status_options=MAINTENANCE_STATUS_OPTIONS,
         maintenance_checklist=DEFAULT_MAINTENANCE_CHECKLIST,
@@ -2622,6 +2637,24 @@ def cobrancas():
             flash('Valores de cobrança não podem ser negativos.', 'danger')
             return redirect(url_for('cobrancas'))
 
+        is_installment = request.form.get('is_installment') == 'on'
+        installment_count_raw = (request.form.get('installment_count') or '1').strip()
+        try:
+            installment_count = int(installment_count_raw or '1')
+        except ValueError:
+            installment_count = 1
+        installment_count = max(1, installment_count)
+        if not is_installment:
+            installment_count = 1
+        installment_base = amount
+        if installment_base <= 0 and sale_id:
+            sale_ref = Sale.query.get(sale_id)
+            installment_base = Decimal(sale_ref.total or 0) if sale_ref else Decimal('0')
+        if installment_base <= 0 and service_id:
+            service_ref = ServiceRecord.query.get(service_id)
+            installment_base = Decimal(service_ref.total_price or 0) if service_ref else Decimal('0')
+        installment_value = (installment_base / Decimal(installment_count or 1)).quantize(Decimal('0.01')) if installment_base > 0 else Decimal('0.00')
+
         charge = Charge(
             sale_id=sale_id,
             service_id=service_id,
@@ -2631,8 +2664,16 @@ def cobrancas():
             due_date=due_date,
             amount=amount,
             amount_paid=amount_paid,
+            is_installment=is_installment,
+            installment_count=installment_count,
+            installment_value=installment_value,
         )
         _normalize_charge_status(charge)
+
+        if charge.service_id and charge.status == 'confirmado':
+            ticket = MaintenanceTicket.query.filter_by(service_record_id=charge.service_id).first()
+            if ticket and _normalize_maintenance_status(ticket.status) == 'pronto_retirada':
+                ticket.status = 'concluido'
 
         db.session.add(charge)
         db.session.commit()
@@ -2640,7 +2681,13 @@ def cobrancas():
         return redirect(url_for('cobrancas'))
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
-    services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).limit(200).all()
+    ready_ticket_services = (
+        db.session.query(MaintenanceTicket, ServiceRecord)
+        .join(ServiceRecord, ServiceRecord.id == MaintenanceTicket.service_record_id)
+        .filter(MaintenanceTicket.status == 'pronto_retirada')
+        .order_by(MaintenanceTicket.exit_date.desc().nullslast(), MaintenanceTicket.id.desc())
+        .all()
+    )
     charges = Charge.query.order_by(Charge.id.desc()).all()
 
     today = datetime.utcnow().date()
@@ -2664,7 +2711,7 @@ def cobrancas():
         'charges.html',
         charges=charges,
         sales=sales,
-        services=services,
+        ready_ticket_services=ready_ticket_services,
         payment_methods=PAYMENT_METHODS,
         overdue_total=overdue_total,
         pending_total=pending_total,
@@ -2683,6 +2730,7 @@ def editar_cobranca(charge_id: int):
     charge.payment_method = request.form['payment_method']
     charge.status = request.form['status']
     charge.mercado_pago_reference = (request.form.get('mercado_pago_reference') or '').strip()
+    charge.is_installment = request.form.get('is_installment') == 'on'
 
     if not charge.mercado_pago_reference:
         flash('Informe a referência da cobrança.', 'danger')
@@ -2700,7 +2748,22 @@ def editar_cobranca(charge_id: int):
         flash('Valores de cobrança não podem ser negativos.', 'danger')
         return redirect(url_for('cobrancas'))
 
+    installment_count_raw = (request.form.get('installment_count') or '1').strip()
+    try:
+        charge.installment_count = max(1, int(installment_count_raw or '1'))
+    except ValueError:
+        charge.installment_count = 1
+    if not charge.is_installment:
+        charge.installment_count = 1
+    installment_base = _charge_total_amount(charge)
+    charge.installment_value = (Decimal(installment_base or 0) / Decimal(charge.installment_count or 1)).quantize(Decimal('0.01')) if Decimal(installment_base or 0) > 0 else Decimal('0.00')
+
     _normalize_charge_status(charge)
+
+    if charge.service_id and charge.status == 'confirmado':
+        ticket = MaintenanceTicket.query.filter_by(service_record_id=charge.service_id).first()
+        if ticket and _normalize_maintenance_status(ticket.status) == 'pronto_retirada':
+            ticket.status = 'concluido'
 
     db.session.commit()
     flash('Cobrança atualizada com sucesso!', 'success')
@@ -2714,6 +2777,12 @@ def confirmar_cobranca(charge_id: int):
     charge.amount_paid = _charge_total_amount(charge)
     charge.status = 'confirmado'
     charge.payment_confirmed_at = datetime.utcnow()
+
+    if charge.service_id:
+        ticket = MaintenanceTicket.query.filter_by(service_record_id=charge.service_id).first()
+        if ticket and _normalize_maintenance_status(ticket.status) == 'pronto_retirada':
+            ticket.status = 'concluido'
+
     db.session.commit()
     flash('Pagamento confirmado!', 'success')
     return redirect(url_for('cobrancas'))
@@ -2977,6 +3046,12 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE charge ADD COLUMN amount NUMERIC(10,2) NOT NULL DEFAULT 0'))
     if 'amount_paid' not in charge_columns:
         db.session.execute(db.text('ALTER TABLE charge ADD COLUMN amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    if 'is_installment' not in charge_columns:
+        db.session.execute(db.text('ALTER TABLE charge ADD COLUMN is_installment BOOLEAN NOT NULL DEFAULT 0'))
+    if 'installment_count' not in charge_columns:
+        db.session.execute(db.text('ALTER TABLE charge ADD COLUMN installment_count INTEGER NOT NULL DEFAULT 1'))
+    if 'installment_value' not in charge_columns:
+        db.session.execute(db.text('ALTER TABLE charge ADD COLUMN installment_value NUMERIC(10,2) NOT NULL DEFAULT 0'))
 
     sale_id_info = next((row for row in charge_columns_info if row[1] == 'sale_id'), None)
     sale_id_is_not_null = bool(sale_id_info and sale_id_info[3] == 1)
@@ -2994,6 +3069,9 @@ with app.app_context():
                 'amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0, '
                 "status VARCHAR(30) NOT NULL DEFAULT 'pendente', "
                 "payment_method VARCHAR(30) NOT NULL DEFAULT 'pix', "
+                'is_installment BOOLEAN NOT NULL DEFAULT 0, '
+                'installment_count INTEGER NOT NULL DEFAULT 1, '
+                'installment_value NUMERIC(10,2) NOT NULL DEFAULT 0, '
                 'payment_confirmed_at DATETIME, '
                 'FOREIGN KEY(sale_id) REFERENCES sale (id), '
                 'FOREIGN KEY(service_id) REFERENCES service_record (id)'
@@ -3002,8 +3080,8 @@ with app.app_context():
         )
         db.session.execute(
             db.text(
-                'INSERT INTO charge (id, sale_id, mercado_pago_reference, due_date, amount, amount_paid, status, payment_method, payment_confirmed_at) '
-                'SELECT id, sale_id, mercado_pago_reference, NULL, 0, 0, status, payment_method, payment_confirmed_at FROM charge_old'
+                'INSERT INTO charge (id, sale_id, mercado_pago_reference, due_date, amount, amount_paid, status, payment_method, is_installment, installment_count, installment_value, payment_confirmed_at) '
+                'SELECT id, sale_id, mercado_pago_reference, NULL, 0, 0, status, payment_method, 0, 1, 0, payment_confirmed_at FROM charge_old'
             )
         )
         db.session.execute(db.text('DROP TABLE charge_old'))

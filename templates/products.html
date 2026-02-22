@@ -40,6 +40,7 @@
           <select name="component_class" id="component-class-select">
             <option value="">Classe da peça (opcional)</option>
             <option value="gabinete">Gabinete</option>
+            <option value="fans">Fans</option>
             <option value="placa_mae">Placa-mãe</option>
             <option value="placa_video">Placa de Vídeo</option>
             <option value="processador">Processador</option>
@@ -60,7 +61,7 @@
     <button type="submit">Salvar peça</button>
   </form>
 
-  <form method="post" class="grid form-grid hidden" id="assembled-form" enctype="multipart/form-data">
+  <form method="post" class="grid form-grid hidden montaje-card" id="assembled-form" enctype="multipart/form-data">
     <input type="hidden" name="form_mode" value="assembled_computer" />
 
     <div class="pc-header full-width">
@@ -172,6 +173,7 @@
     <button type="button" class="active" data-filter="all">Todos</button>
     <button type="button" data-filter="computador">Computadores</button>
     <button type="button" data-filter="gabinete">Gabinete</button>
+    <button type="button" data-filter="fans">Fans</button>
     <button type="button" data-filter="placa_mae">Placa-mãe</button>
     <button type="button" data-filter="placa_video">Placa de Vídeo</button>
     <button type="button" data-filter="processador">Processador</button>
@@ -242,6 +244,7 @@
               <select name="component_class">
                 <option value="">Sem classe</option>
                 <option value="gabinete" {% if p.component_class == 'gabinete' %}selected{% endif %}>Gabinete</option>
+                <option value="fans" {% if p.component_class == 'fans' %}selected{% endif %}>Fans</option>
                 <option value="placa_mae" {% if p.component_class == 'placa_mae' %}selected{% endif %}>Placa-mãe</option>
                 <option value="placa_video" {% if p.component_class == 'placa_video' %}selected{% endif %}>Placa de Vídeo</option>
                 <option value="processador" {% if p.component_class == 'processador' %}selected{% endif %}>Processador</option>

@@ -1,5 +1,67 @@
 {% extends 'base.html' %}
 {% block content %}
+{% macro single_slot(slot_key, slot_label, icon='🧩') -%}
+<div class="slot-box single-slot" data-slot="{{ slot_key }}">
+  <div class="slot-heading">
+    <h3>{{ slot_label }}</h3>
+    <span class="slot-icon" aria-hidden="true">{{ icon }}</span>
+  </div>
+  <div class="field-grid single-item-grid">
+    <label>
+      Item
+      <input name="slot_{{ slot_key }}_entry" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione do estoque ou digite manualmente" />
+      <input type="hidden" name="slot_{{ slot_key }}_stock_id" class="stock-id-input" />
+      <datalist id="datalist-{{ slot_key }}">
+        {% for part in parts_by_class[slot_key] if part.stock > 0 %}
+        <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})"></option>
+        {% endfor %}
+      </datalist>
+    </label>
+    <label>
+      Custo (R$)
+      <input name="slot_{{ slot_key }}_cost" type="number" min="0" step="0.01" placeholder="0,00" />
+    </label>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro multi_slot(slot_key, slot_label) -%}
+<div class="slot-box slot-multiple" data-slot="{{ slot_key }}">
+  <div class="slot-heading">
+    <h3>{{ slot_label }}</h3>
+    <span class="slot-icon" aria-hidden="true">⚙️</span>
+  </div>
+  <div class="multi-list" data-slot="{{ slot_key }}">
+    <div class="multi-row">
+      <div class="field-stack multi-item-field">
+        <label>Item</label>
+        <input name="{{ slot_key }}_entries[]" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione ou escreva" />
+        <input type="hidden" name="{{ slot_key }}_stock_ids[]" class="stock-id-input" />
+        <datalist id="datalist-{{ slot_key }}">
+          {% for part in parts_by_class[slot_key] if part.stock > 0 %}
+          <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+      <div class="field-stack multi-cost-field">
+        <label>Custo (R$)</label>
+        <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="0,00" />
+      </div>
+      <div class="field-stack multi-qty-field">
+        <label>Quantidade</label>
+        <div class="qty-control" title="Quantidade">
+          <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
+          <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
+          <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+        </div>
+      </div>
+      <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
+    </div>
+  </div>
+  <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
+</div>
+{%- endmacro %}
+
 <section class="card montaje-card">
   <h2>Montagem de Computadores</h2>
   <p class="montage-subtitle">Monte uma configuração profissional em poucos cliques.</p>
@@ -26,106 +88,63 @@
           </div>
         </div>
 
-        <div class="components-scroll-area full-width">
-          <div class="slots-top full-width">
-      {% for slot_key, slot_label, allow_multiple in component_slots if not allow_multiple %}
-      <div class="slot-box">
-        <div class="slot-heading">
-          <h3>{{ slot_label }}</h3>
-          <span class="slot-icon" aria-hidden="true">🧩</span>
-        </div>
-        <div class="field-grid single-item-grid">
-          <label>
-            Item
-            <input name="slot_{{ slot_key }}_entry" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione do estoque ou digite manualmente" />
-            <input type="hidden" name="slot_{{ slot_key }}_stock_id" class="stock-id-input" />
-            <datalist id="datalist-{{ slot_key }}">
-              {% for part in parts_by_class[slot_key] if part.stock > 0 %}
-              <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})"></option>
-              {% endfor %}
-            </datalist>
-          </label>
-          <label>
-            Custo (R$)
-            <input name="slot_{{ slot_key }}_cost" type="number" min="0" step="0.01" placeholder="0,00" />
-          </label>
-        </div>
-      </div>
-      {% endfor %}
+        <div class="components-scroll-area full-width assembly-lines">
+          <div class="assembly-row two-columns">
+            {{ single_slot('gabinete', 'Gabinete') }}
+            {{ single_slot('fans', 'Fans', '🌀') }}
           </div>
 
-          <div class="slots-bottom full-width">
-      {% for slot_key, slot_label, allow_multiple in component_slots if allow_multiple %}
-      <div class="slot-box slot-multiple">
-        <div class="slot-heading">
-          <h3>{{ slot_label }}</h3>
-          <span class="slot-icon" aria-hidden="true">⚙️</span>
-        </div>
-        <div class="multi-list" data-slot="{{ slot_key }}">
-          <div class="multi-row">
-            <div class="field-stack multi-item-field">
-              <label>Item</label>
-              <input name="{{ slot_key }}_entries[]" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione ou escreva" />
-              <input type="hidden" name="{{ slot_key }}_stock_ids[]" class="stock-id-input" />
-            </div>
+          <div class="assembly-row two-columns">
+            {{ single_slot('placa_mae', 'Placa-mãe') }}
+            {{ single_slot('processador', 'Processador') }}
+          </div>
 
-            <div class="field-stack multi-cost-field">
-              <label>Custo (R$)</label>
-              <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="0,00" />
-            </div>
+          <div class="assembly-row one-column">
+            {{ single_slot('fonte', 'Fonte') }}
+          </div>
 
-            <div class="field-stack multi-qty-field">
-              <label>Quantidade</label>
-              <div class="qty-control" title="Quantidade">
-                <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
-                <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
-                <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+          <div class="assembly-row one-column">
+            {{ multi_slot('memoria_ram', 'Memória RAM') }}
+          </div>
+
+          <div class="assembly-row one-column">
+            {{ multi_slot('armazenamento', 'Armazenamento') }}
+          </div>
+
+          <div class="assembly-row one-column">
+            <div class="slot-box optional-panel" data-slot="opcionais">
+              <div class="slot-heading">
+                <h3>Opcionais / Observações</h3>
+                <span class="slot-icon" aria-hidden="true">📝</span>
+              </div>
+              {{ single_slot('placa_video', 'Placa de Vídeo', '🎮') }}
+
+              <div class="assembly-summary notes-panel full-width">
+                <label>
+                  Observações técnicas
+                  <textarea name="technical_notes" rows="4" placeholder="Ex: curva de fan ajustada, XMP ativado..."></textarea>
+                </label>
+                <div class="class-menu technical-checklist">
+                  <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
+                  <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
+                  <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
+                  <label><input type="checkbox" name="create_stock_item" checked /> Criar item automaticamente em "Computador" no estoque</label>
+                </div>
+              </div>
+
+              <div class="assembly-summary summary-highlight summary-inline">
+                <div>
+                  <p class="summary-title">Resumo do Orçamento</p>
+                  <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
+                  <p><strong>Preço Sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+                </div>
+                <button type="submit" class="summary-submit">Finalizar montagem</button>
+                <p class="summary-hint">Use o modo <strong>P</strong> para peças manuais e informe um custo numérico para atualizar o lucro em tempo real.</p>
               </div>
             </div>
-
-            <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
-          </div>
-        </div>
-        <button type="button" class="add-item" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
-      </div>
-      {% endfor %}
-          </div>
-        </div>
-
-        <div class="assembly-summary notes-panel full-width">
-          <label>
-            Observações técnicas
-            <textarea name="technical_notes" rows="4" placeholder="Ex: curva de fan ajustada, XMP ativado..."></textarea>
-          </label>
-          <div class="class-menu technical-checklist">
-            <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
-            <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
-            <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
-            <label><input type="checkbox" name="create_stock_item" checked /> Criar item automaticamente em "Computador" no estoque</label>
           </div>
         </div>
       </section>
-
-      <aside class="assembly-summary summary-highlight summary-sidebar">
-        <div>
-          <p class="summary-title">Resumo do Orçamento</p>
-          <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
-          <p><strong>Preço Sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
-        </div>
-        <button type="submit" class="summary-submit">Finalizar montagem</button>
-        <p class="summary-hint">Use o modo <strong>P</strong> para peças manuais e informe um custo numérico para atualizar o lucro em tempo real.</p>
-      </aside>
-    </div>
-
-    <div class="full-width summary-sticky-mobile">
-      <div class="assembly-summary summary-highlight">
-        <div>
-          <p class="summary-title">Resumo do Orçamento</p>
-          <p><strong>Custo Total:</strong> <span id="total-custo-mobile">R$ 0,00</span></p>
-          <p><strong>Preço Sugerido (+20%):</strong> <span id="preco-sugerido-mobile">R$ 0,00</span></p>
-        </div>
-        <button type="submit" class="summary-submit">Finalizar montagem</button>
-      </div>
     </div>
   </form>
 </section>
@@ -246,7 +265,7 @@
       }
     });
 
-    form.querySelectorAll('.slots-top .slot-box').forEach((box) => {
+    form.querySelectorAll('.single-slot').forEach((box) => {
       const entryInput = box.querySelector('input[name^="slot_"][name$="_entry"]');
       const stockId = box.querySelector('input[name^="slot_"][name$="_stock_id"]')?.value;
       const cost = box.querySelector('input[name^="slot_"][name$="_cost"]');

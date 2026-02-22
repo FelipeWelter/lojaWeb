@@ -18,50 +18,74 @@
     </article>
   </div>
 
-  <form method="post" class="grid form-grid">
-    <label>
-      Venda (opcional)
-      <select name="sale_id">
-        <option value="">Sem venda</option>
-        {% for s in sales %}<option value="{{ s.id }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>
-      Serviço (opcional)
-      <select name="service_id">
-        <option value="">Sem serviço</option>
-        {% for srv in services %}<option value="{{ srv.id }}">#{{ srv.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>{% endfor %}
-      </select>
-    </label>
-    <label>
-      Data de vencimento
-      <input name="due_date" type="date" />
-    </label>
-    <label>
-      Valor total (avulso)
-      <input name="amount" type="number" min="0" step="0.01" placeholder="0,00" />
-    </label>
-    <label>
-      Valor pago
-      <input name="amount_paid" type="number" min="0" step="0.01" placeholder="0,00" />
-    </label>
-    <input name="mercado_pago_reference" placeholder="ID/referência no Mercado Pago" required />
-    <select name="payment_method" required>
-      {% for value, label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
-    </select>
-    <select name="status">
-      <option value="pendente">Pendente</option>
-      <option value="atrasado">Atrasado</option>
-      <option value="parcial">Parcial</option>
-      <option value="confirmado">Confirmado</option>
-      <option value="cancelado">Cancelado</option>
-    </select>
-    <button type="submit">Registrar cobrança</button>
-  </form>
+  <form method="post" class="grid form-grid charges-form-grid">
+    <div class="charges-form-row">
+      <label>
+        Venda (opcional)
+        <select name="sale_id">
+          <option value="">Sem venda</option>
+          {% for s in sales %}<option value="{{ s.id }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        Serviço de OS pronto para retirada (opcional)
+        <select name="service_id">
+          <option value="">Sem serviço</option>
+          {% for ticket, srv in ready_ticket_services %}
+          <option value="{{ srv.id }}">OS #{{ ticket.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Valor total
+        <input id="charge-amount" name="amount" type="number" min="0" step="0.01" placeholder="0,00" />
+      </label>
+    </div>
 
-  <div class="charges-print-actions">
-    <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_relatorio', record_id=0) }}">Imprimir relatório de inadimplência</button>
-  </div>
+    <div class="charges-form-row">
+      <label>
+        Data de vencimento
+        <input name="due_date" type="date" />
+      </label>
+      <label>
+        Valor pago
+        <input name="amount_paid" type="number" min="0" step="0.01" placeholder="0,00" />
+      </label>
+      <label>
+        Referência Mercado Pago
+        <input name="mercado_pago_reference" placeholder="ID/referência no Mercado Pago" required />
+      </label>
+      <label>
+        Forma de pagamento
+        <select name="payment_method" required>
+          {% for value, label in payment_methods %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        Status
+        <select name="status">
+          <option value="pendente">Pendente</option>
+          <option value="atrasado">Atrasado</option>
+          <option value="parcial">Parcial</option>
+          <option value="confirmado">Confirmado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </label>
+      <div class="charges-installments-box">
+        <label class="checkbox-inline"><input type="checkbox" id="is-installment" name="is_installment" /> Pagamento parcelado</label>
+        <label>
+          Parcelas
+          <input id="installment-count" name="installment_count" type="number" min="1" value="1" />
+        </label>
+        <small id="installment-preview">Parcela: R$ 0,00</small>
+      </div>
+    </div>
+
+    <div class="charges-form-actions">
+      <button type="submit">Registrar cobrança</button>
+      <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_relatorio', record_id=0) }}">Imprimir relatório de inadimplência</button>
+    </div>
+  </form>
 </section>
 
 <section class="card">
@@ -84,11 +108,17 @@
         <tr class="{% if ui_status == 'vencido' %}charge-overdue-row{% endif %}" data-client="{{ (c.sale.client.name if c.sale and c.sale.client else (c.service.client_name if c.service else 'Sem cliente'))|lower }}" data-month="{{ c.due_date.strftime('%Y-%m') if c.due_date else '' }}" data-overdue="{{ '1' if ui_status == 'vencido' else '0' }}">
           <td>{{ c.due_date.strftime('%d/%m/%Y') if c.due_date else '-' }}</td>
           <td>{% if c.sale %}{{ c.sale.client.name }}{% elif c.service %}{{ c.service.client_name }}{% else %}Sem cliente{% endif %}</td>
-          <td>R$ {{ '%.2f'|format(total_amount) }}<br><small>Pago: R$ {{ '%.2f'|format(c.amount_paid) }} | Saldo: R$ {{ '%.2f'|format(balance) }}</small></td>
+          <td>
+            R$ {{ '%.2f'|format(total_amount) }}
+            {% if c.is_installment and (c.installment_count or 1) > 1 %}
+            <br><small>{{ c.installment_count }}x de R$ {{ '%.2f'|format(c.installment_value or 0) }}</small>
+            {% endif %}
+            <br><small>Pago: R$ {{ '%.2f'|format(c.amount_paid) }} | Saldo: R$ {{ '%.2f'|format(balance) }}</small>
+          </td>
           <td>
             <span class="status-pill {{ ui_status }}">{{ ui_status|capitalize }}</span>
           </td>
-          <td>{{ c.payment_method|capitalize }}</td>
+          <td>{{ c.payment_method|capitalize }}{% if c.is_installment and (c.installment_count or 1) > 1 %} • Parcelado{% endif %}</td>
           <td>{{ c.mercado_pago_reference }}</td>
           <td>
             <details class="actions-menu">
@@ -99,6 +129,8 @@
                   <input name="due_date" type="date" value="{{ c.due_date.strftime('%Y-%m-%d') if c.due_date else '' }}" />
                   <input name="amount" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount) }}" />
                   <input name="amount_paid" type="number" min="0" step="0.01" value="{{ '%.2f'|format(c.amount_paid) }}" />
+                  <label class="checkbox-inline"><input type="checkbox" name="is_installment" {% if c.is_installment %}checked{% endif %} /> Parcelado</label>
+                  <input name="installment_count" type="number" min="1" value="{{ c.installment_count or 1 }}" />
                   <select name="payment_method">
                     {% for value, label in payment_methods %}
                     <option value="{{ value }}" {% if c.payment_method == value %}selected{% endif %}>{{ label }}</option>
@@ -154,5 +186,29 @@
     el?.addEventListener('input', applyChargeFilters);
     el?.addEventListener('change', applyChargeFilters);
   });
+
+  const amountInput = document.getElementById('charge-amount');
+  const installmentCheck = document.getElementById('is-installment');
+  const installmentCountInput = document.getElementById('installment-count');
+  const installmentPreview = document.getElementById('installment-preview');
+
+  function updateInstallmentPreview() {
+    const amount = Number((amountInput?.value || '0').replace(',', '.')) || 0;
+    const isInstallment = Boolean(installmentCheck?.checked);
+    let count = Number(installmentCountInput?.value || 1);
+    if (!Number.isFinite(count) || count < 1) count = 1;
+    if (!isInstallment) count = 1;
+    if (installmentCountInput) installmentCountInput.disabled = !isInstallment;
+
+    const part = count > 0 ? amount / count : amount;
+    installmentPreview.textContent = `Parcela: ${part.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+  }
+
+  [amountInput, installmentCheck, installmentCountInput].forEach((el) => {
+    el?.addEventListener('input', updateInstallmentPreview);
+    el?.addEventListener('change', updateInstallmentPreview);
+  });
+
+  updateInstallmentPreview();
 </script>
 {% endblock %}
