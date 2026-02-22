@@ -41,7 +41,6 @@
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
         <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
         <td>
-          <a class="btn-link" href="{{ url_for('imprimir_venda', sale_id=sale.id) }}">Imprimir</a>
           {% if not sale.canceled %}
           <form method="post" action="{{ url_for('cancelar_venda', sale_id=sale.id) }}" onsubmit="return confirm('Deseja cancelar a venda e estornar o estoque?');">
             <button type="submit" class="btn-danger">Cancelar venda</button>

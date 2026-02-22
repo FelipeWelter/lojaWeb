@@ -2,18 +2,16 @@ from collections import Counter
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from functools import wraps
-from io import BytesIO
 import os
 from pathlib import Path
 from uuid import uuid4
 
-from flask import Flask, flash, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, flash, redirect, render_template, request, session, url_for
 from flask_mail import Mail, Message
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-from xhtml2pdf import pisa
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///loja.db'
@@ -238,164 +236,6 @@ def _read_reset_token(token: str, max_age_seconds: int = 3600):
 def _log_audit(action: str, details: str):
     user = _current_user()
     db.session.add(AuditLog(user_name=user.name if user else 'Sistema', action=action, details=details))
-
-
-def _html_to_pdf(html: str):
-    output = BytesIO()
-    status = pisa.CreatePDF(src=html, dest=output, encoding='utf-8')
-    if status.err:
-        raise ValueError('Erro ao gerar PDF.')
-    output.seek(0)
-    return output
-
-
-def _receipt_style():
-    return """
-    <style>
-      @page { size: A4; margin: 14mm; }
-      body { font-family: Helvetica, Arial, sans-serif; color: #111827; font-size: 11px; line-height: 1.35; }
-      .receipt { width: 100%; }
-      .header { border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 10px; }
-      .brand { font-size: 17px; color: #1d4ed8; font-weight: bold; margin: 0 0 6px 0; }
-      .meta-table, .info-table, .items-table { width: 100%; border-collapse: collapse; }
-      .meta-table td { padding: 2px 0; vertical-align: top; }
-      .box { border: 1px solid #d1d5db; padding: 8px; margin: 8px 0; }
-      .title { font-size: 12px; font-weight: bold; margin: 0 0 6px 0; }
-      .info-table td { padding: 2px 0; vertical-align: top; }
-      .label { width: 34%; font-weight: bold; }
-      .items-table th, .items-table td { border: 1px solid #d1d5db; padding: 5px; text-align: left; }
-      .items-table th { background: #eff6ff; }
-      .total { margin-top: 10px; font-size: 12px; font-weight: bold; text-align: right; }
-      .footer { margin-top: 16px; color: #6b7280; font-size: 10px; }
-    </style>
-    """
-
-
-def _render_sale_receipt_html(sale: Sale):
-    return f"""
-    <html>
-      <head>
-        <meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
-        {_receipt_style()}
-      </head>
-      <body>
-        <div class='receipt'>
-          <div class='header'>
-            <p class='brand'>LojaWeb - Recibo de Venda</p>
-            <table class='meta-table'>
-              <tr><td><strong>Emissão:</strong> {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</td></tr>
-              <tr><td><strong>Loja:</strong> LojaWeb</td></tr>
-            </table>
-          </div>
-
-          <div class='box'>
-            <p class='title'>Dados do cliente</p>
-            <table class='info-table'>
-              <tr><td class='label'>Nome do cliente:</td><td>{sale.client.name}</td></tr>
-              <tr><td class='label'>CPF:</td><td>{sale.client.cpf or '-'}</td></tr>
-              <tr><td class='label'>Telefone:</td><td>{sale.client.phone or '-'}</td></tr>
-            </table>
-          </div>
-
-          <table class='items-table'>
-            <tr><th>Venda</th><th>Produto vendido</th><th>Qtd</th><th>Subtotal</th><th>Total</th></tr>
-            <tr><td>{sale.sale_name}</td><td>{sale.product.name}</td><td>{sale.quantity}</td><td>R$ {Decimal(sale.subtotal):.2f}</td><td>R$ {Decimal(sale.total):.2f}</td></tr>
-          </table>
-
-          <div class='total'>Total do recibo: R$ {Decimal(sale.total):.2f}</div>
-          <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
-        </div>
-      </body>
-    </html>
-    """
-
-
-
-def _render_service_receipt_html(service: ServiceRecord):
-    return f"""
-    <html>
-      <head>
-        <meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
-        {_receipt_style()}
-      </head>
-      <body>
-        <div class='receipt'>
-          <div class='header'>
-            <p class='brand'>LojaWeb - Recibo de Serviço</p>
-            <table class='meta-table'>
-              <tr><td><strong>Emissão:</strong> {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</td></tr>
-              <tr><td><strong>Loja:</strong> LojaWeb</td></tr>
-            </table>
-          </div>
-
-          <div class='box'>
-            <p class='title'>Dados do cliente</p>
-            <table class='info-table'>
-              <tr><td class='label'>Nome do cliente:</td><td>{service.client_name}</td></tr>
-            </table>
-          </div>
-
-          <table class='items-table'>
-            <tr><th>O que foi feito</th><th>Equipamento</th><th>Valor</th></tr>
-            <tr><td>{service.service_name}</td><td>{service.equipment}</td><td>R$ {Decimal(service.total_price):.2f}</td></tr>
-          </table>
-
-          <div class='box'>
-            <p class='title'>Resumo financeiro</p>
-            <table class='info-table'>
-              <tr><td class='label'>Valor cobrado:</td><td>R$ {Decimal(service.total_price):.2f}</td></tr>
-              <tr><td class='label'>Custo:</td><td>R$ {Decimal(service.cost):.2f}</td></tr>
-              <tr><td class='label'>Lucro:</td><td>R$ {(Decimal(service.total_price) - Decimal(service.cost)):.2f}</td></tr>
-            </table>
-          </div>
-
-          <div class='box'><p class='title'>Observações</p>{service.notes or '-'}</div>
-          <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
-        </div>
-      </body>
-    </html>
-    """
-
-
-def _render_assembly_receipt_html(assembly: ComputerAssembly):
-    items = []
-    for item in assembly.composicao:
-        if item.peca:
-            items.append(f"<tr><td>{item.peca.name}</td><td>{item.quantidade_utilizada}</td><td>Estoque</td></tr>")
-    for custom in assembly.custom_parts:
-        items.append(f"<tr><td>{custom.part_name}</td><td>{custom.quantity}</td><td>Personalizado</td></tr>")
-    rows = ''.join(items) or '<tr><td colspan="3">Sem itens</td></tr>'
-    return f"""
-    <html>
-      <head>
-        <meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
-        {_receipt_style()}
-      </head>
-      <body>
-        <div class='receipt'>
-          <div class='header'>
-            <p class='brand'>LojaWeb - Orçamento de Montagem</p>
-            <table class='meta-table'>
-              <tr><td><strong>Emissão:</strong> {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}</td></tr>
-              <tr><td><strong>Loja:</strong> LojaWeb</td></tr>
-            </table>
-          </div>
-
-          <div class='box'>
-            <p class='title'>Montagem #{assembly.id}</p>
-            <table class='info-table'>
-              <tr><td class='label'>Referência:</td><td>{assembly.nome_referencia}</td></tr>
-              <tr><td class='label'>Computador:</td><td>{assembly.computador.name}</td></tr>
-            </table>
-          </div>
-
-          <table class='items-table'><tr><th>Componente</th><th>Qtd</th><th>Origem</th></tr>{rows}</table>
-          <div class='total'>Custo: R$ {Decimal(assembly.custo_total):.2f} | Sugerido: R$ {Decimal(assembly.preco_sugerido):.2f}</div>
-          <div class='footer'>Documento gerado automaticamente pelo sistema LojaWeb.</div>
-        </div>
-      </body>
-    </html>
-    """
 
 
 def _save_product_photo(file_storage):
@@ -1714,31 +1554,6 @@ def cancelar_cobranca(charge_id: int):
     flash('Cobrança cancelada com sucesso!', 'success')
     return redirect(url_for('cobrancas'))
 
-
-@app.route('/vendas/<int:sale_id>/imprimir')
-@_login_required
-def imprimir_venda(sale_id: int):
-    sale = Sale.query.get_or_404(sale_id)
-    pdf = _html_to_pdf(_render_sale_receipt_html(sale))
-    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=f'recibo-venda-{sale.id}.pdf')
-
-
-@app.route('/montagens/<int:assembly_id>/imprimir')
-@_login_required
-def imprimir_montagem(assembly_id: int):
-    assembly = ComputerAssembly.query.get_or_404(assembly_id)
-    pdf = _html_to_pdf(_render_assembly_receipt_html(assembly))
-    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=f'orcamento-montagem-{assembly.id}.pdf')
-
-
-
-
-@app.route('/servicos/<int:service_id>/imprimir')
-@_login_required
-def imprimir_servico(service_id: int):
-    service = ServiceRecord.query.get_or_404(service_id)
-    pdf = _html_to_pdf(_render_service_receipt_html(service))
-    return send_file(pdf, mimetype='application/pdf', as_attachment=True, download_name=f'recibo-servico-{service.id}.pdf')
 
 @app.route('/clientes/<int:client_id>/historico')
 @_login_required
