@@ -124,6 +124,7 @@ class Sale(db.Model):
     subtotal = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    payment_method = db.Column(db.String(30), nullable=False, default='pix')
     canceled = db.Column(db.Boolean, nullable=False, default=False)
     canceled_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -581,9 +582,8 @@ COMPONENT_SLOTS = [
 
 PAYMENT_METHODS = [
     ('credito', 'Crédito'),
+    ('dinheiro', 'Dinheiro'),
     ('pix', 'Pix'),
-    ('boleto', 'Boleto'),
-    ('parcelado', 'Parcelado'),
 ]
 
 PAYMENT_METHOD_LABELS = dict(PAYMENT_METHODS)
@@ -787,8 +787,10 @@ def imprimir(tipo: str, record_id: int):
                 'total': data.total,
             }],
             'subtotal': data.subtotal,
+            'gross_total': data.subtotal,
             'discount_amount': data.discount_amount,
             'total': data.total,
+            'payment_method_label': PAYMENT_METHOD_LABELS.get(data.payment_method, data.payment_method.title()),
             'technical': {
                 'bios': 'Não se aplica',
                 'stress': 'Não se aplica',
@@ -2027,6 +2029,10 @@ def vendas():
                 db.session.flush()
             anchor_product_id = service_placeholder.id
 
+        payment_method = (request.form.get('payment_method') or 'pix').strip()
+        if payment_method not in PAYMENT_METHOD_LABELS:
+            payment_method = 'pix'
+
         sale = Sale(
             sale_name=sale_name,
             client_id=client_id,
@@ -2035,6 +2041,7 @@ def vendas():
             subtotal=subtotal,
             discount_amount=discount_amount,
             total=total,
+            payment_method=payment_method,
             performed_by_user_id=current.id if current else None,
         )
         db.session.add(sale)
@@ -2393,6 +2400,8 @@ with app.app_context():
         db.session.execute(db.text('UPDATE sale SET subtotal = total WHERE subtotal = 0'))
     if 'discount_amount' not in sale_columns:
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    if 'payment_method' not in sale_columns:
+        db.session.execute(db.text("ALTER TABLE sale ADD COLUMN payment_method VARCHAR(30) NOT NULL DEFAULT 'pix'"))
     if 'canceled' not in sale_columns:
         db.session.execute(db.text('ALTER TABLE sale ADD COLUMN canceled BOOLEAN NOT NULL DEFAULT 0'))
     if 'canceled_at' not in sale_columns:
