@@ -82,8 +82,8 @@
     </div>
 
     <div class="charges-form-actions">
-      <button type="submit">Registrar cobrança</button>
-      <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_relatorio', record_id=0) }}">Imprimir relatório de inadimplência</button>
+      <button type="submit" class="btn-loja btn-loja--primary">Registrar cobrança</button>
+      <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_relatorio', record_id=0) }}">Imprimir relatório de inadimplência</button>
     </div>
   </form>
 </section>
@@ -143,10 +143,16 @@
                     <option value="confirmado" {% if c.status == 'confirmado' %}selected{% endif %}>Confirmado</option>
                     <option value="cancelado" {% if c.status == 'cancelado' %}selected{% endif %}>Cancelado</option>
                   </select>
-                  <button type="submit">Salvar</button>
+                  <button type="submit" class="btn-loja btn-loja--primary">Salvar</button>
                 </form>
+                
+                {% if c.status != 'confirmado' and c.status != 'cancelado' %}
+                <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+                  <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
+                </form>
+                {% endif %}
                 {% if c.amount_paid > 0 and charge_balance(c) > 0 %}
-                <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}">Imprimir recibo parcial</button>
+                <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}">Imprimir recibo parcial</button>
                 {% endif %}
               </div>
             </details>

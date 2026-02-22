@@ -67,7 +67,7 @@ h1, h2, h3, p { margin-top: 0; }
 .header a:hover { background: #eaf0ff; }
 .header a.active { background: #3156d3; color: #fff; box-shadow: 0 8px 18px rgba(49,86,211,.25); }
 
-.container { max-width: 1260px; margin: 1.1rem auto; padding: 0 1rem 2.8rem; }
+.container { max-width: 1200px; margin: 1.1rem auto; padding: 0 1rem 2.8rem; }
 
 body.auth-page .container {
   min-height: 100vh;
@@ -488,7 +488,6 @@ body.auth-page .alert.danger {
 @media (max-width: 640px) {
   .header { position: static; }
   .card { padding: .9rem; }
-  table { display: block; overflow-x: auto; }
 }
 
 
@@ -2021,4 +2020,77 @@ body.dashboard-page textarea:focus {
   .charges-form-actions {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* LojaWeb Clean & Pro */
+.btn-loja {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.btn-loja--primary {
+  background: #3498DB;
+  color: #fff;
+}
+
+.btn-loja--danger {
+  background: #E74C3C;
+  color: #fff;
+}
+
+.btn-loja--secondary {
+  background: #4A6572;
+  color: #fff;
+}
+
+.btn-loja:hover {
+  filter: brightness(1.08);
+}
+
+#form-montagem .assembly-lines {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+#form-montagem .assembly-row {
+  display: contents;
+}
+
+#form-montagem label,
+#form-montagem .field-stack > label,
+#form-montagem .file-upload-field .field-label {
+  color: #ECF0F1;
+}
+
+#form-montagem input,
+#form-montagem select,
+#form-montagem textarea {
+  background: #34495E;
+  border: 1px solid #4A6572;
+  color: #ECF0F1;
+}
+
+.crm-client-table td,
+.crm-client-table th {
+  padding: 15px;
+}
+
+.client-name-highlight {
+  font-weight: 700;
+  color: #7CC7FF;
+}
+
+.stock-table-wrap {
+  overflow-x: auto;
 }

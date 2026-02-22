@@ -12,7 +12,7 @@
   <form method="post" action="{{ url_for('mesclar_clientes') }}" class="grid form-grid crm-form-grid" style="margin-bottom:1rem;">
     <label><span>Mesclar cliente origem (ID)</span><input name="source_client_id" type="number" min="1" required></label>
     <label><span>No cliente destino (ID)</span><input name="target_client_id" type="number" min="1" required></label>
-    <button type="submit" class="btn-secondary">Mesclar históricos</button>
+    <button type="submit" class="btn-loja btn-loja--secondary">Mesclar históricos</button>
   </form>
   <form method="post" class="grid form-grid crm-form-grid">
     <label>
@@ -31,7 +31,7 @@
       <span>E-mail</span>
       <input name="email" type="email" placeholder="cliente@email.com" />
     </label>
-    <button type="submit" class="btn-premium btn-premium-primary"><span aria-hidden="true">＋</span> Novo Cliente</button>
+    <button type="submit" class="btn-loja btn-loja--primary btn-premium btn-premium-primary"><span aria-hidden="true">＋</span> Novo Cliente</button>
   </form>
 </section>
 
@@ -51,7 +51,7 @@
           <td>
             <button type="button" class="client-link accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false">
               <span class="client-avatar">{{ c.initials }}</span>
-              <span>{{ c.name }} <span class="service-badge">[{{ c.service_count }}]</span></span>
+              <span class="client-name-highlight">{{ c.name }}</span> <span class="service-badge">[{{ c.service_count }}]</span>
             </button>
           </td>
           <td>{{ c.cpf or '-' }}</td>
@@ -59,11 +59,11 @@
           <td>{{ c.email or '-' }}</td>
           <td>
             <div class="table-actions table-actions--client">
-              <a class="btn-premium btn-premium-icon btn-premium-edit" href="{{ url_for('editar_cliente', client_id=c.id) }}" title="Editar cliente" aria-label="Editar cliente">✏️</a>
-              <button type="button" class="btn-premium btn-premium-icon btn-premium-history accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false" title="Ver histórico" aria-label="Ver histórico">👁️</button>
-              <a class="btn-premium btn-premium-print js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank" title="Imprimir ficha do cliente" aria-label="Imprimir ficha do cliente">🖨️</a>
+              <a class="btn-loja btn-loja--secondary btn-premium btn-premium-icon btn-premium-edit" href="{{ url_for('editar_cliente', client_id=c.id) }}" title="Editar cliente" aria-label="Editar cliente">✏️</a>
+              <button type="button" class="btn-loja btn-loja--secondary btn-premium btn-premium-icon btn-premium-history accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false" title="Ver histórico" aria-label="Ver histórico">👁️</button>
+              <a class="btn-loja btn-loja--secondary btn-premium btn-premium-print js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank" title="Imprimir ficha do cliente" aria-label="Imprimir ficha do cliente">🖨️</a>
               <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" onsubmit="return confirm('Deseja remover este cliente?');">
-                <button type="submit" class="btn-premium btn-premium-icon btn-premium-delete" title="Remover cliente" aria-label="Remover cliente">🗑️</button>
+                <button type="submit" class="btn-loja btn-loja--danger btn-premium btn-premium-icon btn-premium-delete" title="Remover cliente" aria-label="Remover cliente">🗑️</button>
               </form>
             </div>
           </td>

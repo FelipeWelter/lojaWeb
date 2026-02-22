@@ -460,6 +460,7 @@ def _build_computer_with_parts(
     bios_updated=False,
     stress_test_done=False,
     os_installed=False,
+    current_user=None,
 ):
     custom_items = custom_items or []
     photo_files = photo_files or []
@@ -543,7 +544,7 @@ def _build_computer_with_parts(
             bios_updated=bios_updated,
             stress_test_done=stress_test_done,
             os_installed=os_installed,
-            performed_by_user_id=current.id if current else None,
+            performed_by_user_id=current_user.id if current_user else None,
         )
         db.session.add(montagem)
         db.session.flush()
@@ -672,7 +673,7 @@ def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user
         discount_amount=Decimal('0.00'),
         cost=parts_total.quantize(Decimal('0.01')),
         notes=' | '.join(notes_chunks) or f"Finalização automática da OS #{ticket.id}.",
-        performed_by_user_id=current_user.id if current_user else None,
+        performed_by_user_id=current.id if current else None,
     )
     db.session.add(service)
     db.session.flush()
@@ -1452,6 +1453,7 @@ def produtos():
                     bios_updated=bios_updated,
                     stress_test_done=stress_test_done,
                     os_installed=os_installed,
+                    current_user=_current_user(),
                 )
                 db.session.commit()
                 flash(
@@ -1701,6 +1703,7 @@ def montar_pc():
                 bios_updated=bios_updated,
                 stress_test_done=stress_test_done,
                 os_installed=os_installed,
+                current_user=current,
             )
             db.session.commit()
             flash(
