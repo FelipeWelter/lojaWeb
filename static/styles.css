@@ -2142,3 +2142,17 @@ body.dashboard-page textarea:focus {
       "hint";
   }
 }
+
+.app-shell { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
+.app-sidebar { background: #111827; color: #fff; padding: 1rem; }
+.app-sidebar nav { display: grid; gap: .4rem; }
+.app-sidebar a { color: #d1d5db; text-decoration: none; padding: .45rem .6rem; border-radius: 6px; }
+.app-sidebar a.active, .app-sidebar a:hover { background: #1f2937; color: #fff; }
+.app-navbar { display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem; }
+.toast-stack { position: fixed; top: 1rem; right: 1rem; display: grid; gap: .5rem; z-index: 9999; }
+.toast { background: #111827; color: white; padding: .7rem 1rem; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.2); }
+.toast.success { background: #166534; }
+.toast.danger { background: #991b1b; }
+.toast.is-hidden { opacity: 0; transform: translateX(20px); transition: all .3s; }
+.inventory-header { display:flex; justify-content:space-between; align-items:center; }
+.inventory-filters { display:grid; grid-template-columns:repeat(3,minmax(120px,1fr)); gap:.6rem; margin:1rem 0; }

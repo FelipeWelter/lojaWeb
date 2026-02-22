@@ -10,6 +10,8 @@ from io import BytesIO
 
 from flask import Flask, flash, make_response, redirect, render_template, request, session, url_for
 from flask_mail import Mail, Message
+
+from crud import ClientDTO, GenericCrudService, ProductDTO
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -38,6 +40,9 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 db = SQLAlchemy(app)
 mail = Mail(app)
 
+product_service = GenericCrudService(model=None, db=db)
+client_service = GenericCrudService(model=None, db=db)
+
 
 class Product(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -50,6 +55,7 @@ class Product(db.Model):
     component_class = db.Column(db.String(50), nullable=True)
     serial_number = db.Column(db.String(120), nullable=True)
     images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class ProductImage(db.Model):
@@ -113,6 +119,7 @@ class Client(db.Model):
     cpf = db.Column(db.String(14), nullable=True, unique=True)
     phone = db.Column(db.String(30), nullable=True)
     email = db.Column(db.String(120), nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class Sale(db.Model):
@@ -237,6 +244,22 @@ class LoginThrottle(db.Model):
     failed_attempts = db.Column(db.Integer, nullable=False, default=0)
     blocked_until = db.Column(db.DateTime, nullable=True)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+product_service.model = Product
+client_service.model = Client
+
+
+@app.errorhandler(ValueError)
+def handle_value_error(exc):
+    flash(str(exc), 'danger')
+    return redirect(request.referrer or url_for('dashboard'))
+
+
+@app.errorhandler(Exception)
+def handle_generic_error(exc):
+    app.logger.exception('Erro inesperado: %s', exc)
+    flash('Ocorreu um erro inesperado. Tente novamente.', 'danger')
+    return redirect(request.referrer or url_for('dashboard'))
 
 
 def _client_ip():
@@ -1231,7 +1254,7 @@ def imprimir_etiquetas_produtos():
 @app.route('/produtos/imprimir-inventario', methods=['POST'])
 @_login_required
 def imprimir_inventario_produtos():
-    products = Product.query.order_by(Product.name).all()
+    products = Product.query.filter_by(active=True).order_by(Product.name).all()
 
     total_stock = sum(int(p.stock or 0) for p in products)
     total_cost = sum(Decimal(p.cost_price or 0) * Decimal(p.stock or 0) for p in products)
@@ -1421,6 +1444,14 @@ def dashboard():
     )
 
 
+@app.route('/gestao-inventario')
+@_login_required
+def gestao_inventario():
+    products = Product.query.order_by(Product.category, Product.name).all()
+    categories = sorted({p.category for p in products})
+    return render_template('inventory_management.html', products=products, categories=categories)
+
+
 @app.route('/produtos', methods=['GET', 'POST'])
 @_login_required
 def produtos():
@@ -1485,24 +1516,33 @@ def produtos():
                 flash(str(exc), 'danger')
                 return redirect(url_for('produtos'))
 
-        product = Product(
+        product_dto = ProductDTO(
             name=request.form['name'],
             category=category,
             stock=int(request.form['stock']),
             price=Decimal(request.form['price']),
             cost_price=Decimal(request.form.get('cost_price') or '0'),
-            photo_url=photo_url,
             component_class=component_class,
             serial_number=(request.form.get('serial_number') or '').strip() or None,
         )
-        db.session.add(product)
+        product_dto.validate()
+        product = product_service.create(
+            name=product_dto.name,
+            category=product_dto.category,
+            stock=product_dto.stock,
+            price=product_dto.price,
+            cost_price=product_dto.cost_price,
+            photo_url=photo_url,
+            component_class=product_dto.component_class,
+            serial_number=product_dto.serial_number,
+        )
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
         return redirect(url_for('produtos'))
 
-    products = Product.query.order_by(Product.category, Product.component_class, Product.name).all()
+    products = Product.query.filter_by(active=True).order_by(Product.category, Product.component_class, Product.name).all()
     parts_by_class = {
-        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key).order_by(Product.name).all()
+        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key, active=True).order_by(Product.name).all()
         for slot_key, _, _ in COMPONENT_SLOTS
     }
     return render_template(
@@ -1605,7 +1645,7 @@ def remover_produto(product_id: int):
         return redirect(url_for('produtos'))
 
     old_photo_url = product.photo_url
-    db.session.delete(product)
+    product_service.soft_delete(product)
     db.session.commit()
     _remove_product_photo_files(old_photo_url)
     flash('Produto removido com sucesso!', 'success')
@@ -1671,7 +1711,7 @@ def _build_assembly_edit_data(latest_assemblies):
 def montar_pc():
     current = _current_user()
     parts_by_class = {
-        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key).order_by(Product.name).all()
+        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key, active=True).order_by(Product.name).all()
         for slot_key, _, _ in COMPONENT_SLOTS
     }
 
@@ -2259,13 +2299,9 @@ def clientes():
             flash(f'O nome "{name}" já está cadastrado. Edite o cliente existente.', 'danger')
             return redirect(url_for('editar_cliente', client_id=existing_name.id))
 
-        client = Client(
-            name=name,
-            cpf=cpf,
-            phone=request.form.get('phone'),
-            email=request.form.get('email'),
-        )
-        db.session.add(client)
+        client_dto = ClientDTO(name=name, cpf=cpf, phone=request.form.get('phone'), email=request.form.get('email'))
+        client_dto.validate()
+        client = client_service.create(name=client_dto.name, cpf=client_dto.cpf, phone=client_dto.phone, email=client_dto.email)
         db.session.commit()
         flash('Cliente cadastrado com sucesso!', 'success')
         return redirect(url_for('clientes'))
@@ -2280,6 +2316,7 @@ def clientes():
     clients = (
         db.session.query(Client)
         .outerjoin(Sale, Sale.client_id == Client.id)
+        .filter(Client.active.is_(True))
         .group_by(Client.id)
         .order_by(db.func.lower(Client.name).asc())
         .all()
@@ -2376,7 +2413,7 @@ def remover_cliente(client_id: int):
         flash('Não é possível remover cliente com vendas ativas.', 'danger')
         return redirect(url_for('clientes'))
 
-    db.session.delete(client)
+    client_service.soft_delete(client)
     db.session.commit()
     flash('Cliente removido com sucesso!', 'success')
     return redirect(url_for('clientes'))
@@ -2386,8 +2423,8 @@ def remover_cliente(client_id: int):
 @_login_required
 def vendas():
     current = _current_user()
-    products = Product.query.order_by(Product.name).all()
-    clients = db.session.query(Client).group_by(Client.id).order_by(db.func.lower(Client.name)).all()
+    products = Product.query.filter_by(active=True).order_by(Product.name).all()
+    clients = db.session.query(Client).filter(Client.active.is_(True)).group_by(Client.id).order_by(db.func.lower(Client.name)).all()
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
@@ -2858,6 +2895,8 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN cost_price NUMERIC(10,2) NOT NULL DEFAULT 0'))
     if 'serial_number' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN serial_number VARCHAR(120)'))
+    if 'active' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN active BOOLEAN NOT NULL DEFAULT 1'))
     db.session.commit()
 
     db.session.execute(
@@ -3034,6 +3073,8 @@ with app.app_context():
     client_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(client)'))]
     if 'cpf' not in client_columns:
         db.session.execute(db.text('ALTER TABLE client ADD COLUMN cpf VARCHAR(14)'))
+    if 'active' not in client_columns:
+        db.session.execute(db.text('ALTER TABLE client ADD COLUMN active BOOLEAN NOT NULL DEFAULT 1'))
     db.session.execute(db.text('CREATE UNIQUE INDEX IF NOT EXISTS ux_client_cpf ON client (cpf)'))
     db.session.commit()
 

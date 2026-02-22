@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <div class="inventory-header">
+    <h2>Gestão de Inventário</h2>
+    <button type="button" class="btn-primary" data-open-modal="create-product-modal">Novo Produto</button>
+  </div>
+
+  <div class="inventory-filters">
+    <input id="filter-name" type="search" placeholder="Buscar por nome" />
+    <select id="filter-category">
+      <option value="">Todas categorias</option>
+      {% for category in categories %}
+      <option value="{{ category }}">{{ category }}</option>
+      {% endfor %}
+    </select>
+    <select id="filter-status">
+      <option value="">Todos status</option>
+      <option value="ativo">Ativos</option>
+      <option value="inativo">Inativos</option>
+    </select>
+  </div>
+
+  <table class="stock-table" id="inventory-table">
+    <thead><tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Venda</th><th>Status</th><th>Ações</th></tr></thead>
+    <tbody>
+      {% for p in products %}
+      <tr data-name="{{ p.name|lower }}" data-category="{{ p.category|lower }}" data-status="{{ 'ativo' if p.active else 'inativo' }}">
+        <td>{{ p.name }}</td>
+        <td>{{ p.category }}</td>
+        <td>{{ p.stock }}</td>
+        <td>R$ {{ '%.2f'|format(p.price) }}</td>
+        <td>{{ 'Ativo' if p.active else 'Inativo' }}</td>
+        <td>
+          <button type="button" class="btn-secondary" data-open-modal="edit-product-modal-{{ p.id }}">Editar</button>
+          <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" class="inline-form">
+            <button type="submit" class="btn-danger">Inativar</button>
+          </form>
+        </td>
+      </tr>
+
+      <dialog id="edit-product-modal-{{ p.id }}" class="modal">
+        <div class="modal-content">
+          <h3>Editar produto</h3>
+          <form method="post" action="{{ url_for('editar_produto', product_id=p.id) }}" class="inline-form">
+            <input name="name" value="{{ p.name }}" required />
+            <input name="stock" type="number" min="0" value="{{ p.stock }}" required />
+            <input name="cost_price" type="number" min="0" step="0.01" value="{{ p.cost_price }}" required />
+            <input name="price" type="number" min="0" step="0.01" value="{{ p.price }}" required />
+            <button type="submit" class="btn-primary">Salvar</button>
+          </form>
+          <button type="button" class="btn-secondary" data-close-modal="edit-product-modal-{{ p.id }}">Fechar</button>
+        </div>
+      </dialog>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<dialog id="create-product-modal" class="modal">
+  <div class="modal-content">
+    <h3>Novo produto</h3>
+    <form method="post" action="{{ url_for('produtos') }}" class="inline-form">
+      <input type="hidden" name="form_mode" value="piece" />
+      <input name="name" placeholder="Nome" required />
+      <select name="category"><option>Peça</option><option>Computador</option></select>
+      <input name="stock" type="number" min="0" placeholder="Estoque" required />
+      <input name="cost_price" type="number" min="0" step="0.01" placeholder="Custo" required />
+      <input name="price" type="number" min="0" step="0.01" placeholder="Venda" required />
+      <input name="component_class" placeholder="Classe (obrigatória para peça)" />
+      <button type="submit" class="btn-primary">Cadastrar</button>
+    </form>
+    <button type="button" class="btn-secondary" data-close-modal="create-product-modal">Fechar</button>
+  </div>
+</dialog>
+
+<script>
+  (function () {
+    const filterName = document.getElementById('filter-name');
+    const filterCategory = document.getElementById('filter-category');
+    const filterStatus = document.getElementById('filter-status');
+    const rows = document.querySelectorAll('#inventory-table tbody tr');
+
+    const applyFilters = () => {
+      const name = (filterName.value || '').toLowerCase();
+      const category = (filterCategory.value || '').toLowerCase();
+      const status = (filterStatus.value || '').toLowerCase();
+
+      rows.forEach((row) => {
+        const matchesName = !name || row.dataset.name.includes(name);
+        const matchesCategory = !category || row.dataset.category === category;
+        const matchesStatus = !status || row.dataset.status === status;
+        row.style.display = matchesName && matchesCategory && matchesStatus ? '' : 'none';
+      });
+    };
+
+    [filterName, filterCategory, filterStatus].forEach((el) => el.addEventListener('input', applyFilters));
+
+    document.querySelectorAll('[data-open-modal]').forEach((btn) => {
+      btn.addEventListener('click', () => document.getElementById(btn.dataset.openModal)?.showModal());
+    });
+    document.querySelectorAll('[data-close-modal]').forEach((btn) => {
+      btn.addEventListener('click', () => document.getElementById(btn.dataset.closeModal)?.close());
+    });
+  })();
+</script>
+{% endblock %}

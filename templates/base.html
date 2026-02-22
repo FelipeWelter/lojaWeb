@@ -7,67 +7,35 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
   </head>
-  <body class="{% if request.endpoint == 'login' %}auth-page{% elif request.endpoint in ['dashboard', 'produtos', 'servicos', 'clientes', 'editar_cliente', 'historico_cliente'] %}dashboard-page{% endif %}">
-    {% if request.endpoint != 'login' %}
-    <header class="header">
-      <h1>LojaWeb</h1>
-      <nav>
-        {% if session.get('user_id') %}
-        <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
-        <a href="{{ url_for('produtos') }}" class="{% if request.endpoint == 'produtos' %}active{% endif %}">Estoque</a>
-        <a href="{{ url_for('servicos') }}" class="{% if request.endpoint == 'servicos' %}active{% endif %}">Serviços</a>
-        <a href="{{ url_for('clientes') }}" class="{% if request.endpoint in ['clientes','editar_cliente','historico_cliente'] %}active{% endif %}">Clientes</a>
-        <a href="{{ url_for('vendas') }}" class="{% if request.endpoint == 'vendas' %}active{% endif %}">Vendas</a>
-        <a href="{{ url_for('montar_pc') }}" class="{% if request.endpoint == 'montar_pc' %}active{% endif %}">Montar PC</a>
-        <a href="{{ url_for('cobrancas') }}" class="{% if request.endpoint == 'cobrancas' %}active{% endif %}">Cobranças</a>
-        <a href="{{ url_for('logs_auditoria') }}" class="{% if request.endpoint == 'logs_auditoria' %}active{% endif %}">Logs</a>
-        <span class="nav-divider" aria-hidden="true"></span>
-        <a href="{{ url_for('usuarios') }}" class="nav-admin {% if request.endpoint == 'usuarios' %}active{% endif %}">Usuários</a>
-        <a href="{{ url_for('logout') }}" class="nav-admin">Sair</a>
-        {% else %}
-        <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">Login</a>
-        {% endif %}
-      </nav>
-    </header>
+  <body class="{% if request.endpoint == 'login' %}auth-page{% else %}dashboard-page{% endif %}">
+    {% from 'fragments.html' import sidebar, navbar, toast_messages, scripts %}
+
+    {% if request.endpoint != 'login' and session.get('user_id') %}
+    <div class="app-shell">
+      {{ sidebar(request.endpoint) }}
+      <div class="app-content">
+        {{ navbar(session.get('user_name')) }}
     {% endif %}
 
     <main class="container">
       {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-      <ul class="alerts">
-        {% for category, message in messages %}
-        <li class="alert {{ category }}">{{ message }}</li>
-        {% endfor %}
-      </ul>
+      {{ toast_messages(messages) }}
       {% endif %}
       {% endwith %}
 
       {% block content %}{% endblock %}
     </main>
 
+    {% if request.endpoint != 'login' and session.get('user_id') %}
+      </div>
+    </div>
+    {% endif %}
+
     <div id="print-loading-overlay" class="print-loading-overlay hidden" role="status" aria-live="polite">
       <div class="print-loading-card">Gerando documento...</div>
     </div>
 
-    <script>
-      (function () {
-        const overlay = document.getElementById('print-loading-overlay');
-        const showOverlay = () => overlay?.classList.remove('hidden');
-        const hideOverlay = () => overlay?.classList.add('hidden');
-
-        document.addEventListener('click', (event) => {
-          const trigger = event.target.closest('.js-print-trigger');
-          if (!trigger) return;
-
-          const url = trigger.dataset.printUrl || trigger.getAttribute('href');
-          if (!url) return;
-
-          event.preventDefault();
-          showOverlay();
-          window.open(url, '_blank');
-          window.setTimeout(hideOverlay, 1200);
-        });
-      })();
-    </script>
+    {{ scripts() }}
   </body>
 </html>
