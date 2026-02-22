@@ -1665,6 +1665,21 @@ def remover_produto(product_id: int):
     return redirect(request.referrer or url_for('produtos'))
 
 
+@app.route('/produtos/<int:product_id>/ativar', methods=['POST'])
+@_login_required
+def ativar_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+
+    if product.active:
+        flash('Produto já está ativo.', 'danger')
+    else:
+        product.active = True
+        db.session.commit()
+        flash('Produto ativado com sucesso!', 'success')
+
+    return redirect(request.referrer or url_for('produtos'))
+
+
 
 
 def _build_assembly_edit_data(latest_assemblies):
