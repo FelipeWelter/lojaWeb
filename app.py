@@ -915,6 +915,79 @@ def imprimir(tipo: str, record_id: int):
             'notes': data.notes or f'Equipamento atendido: {data.equipment}',
             'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
         }
+    elif tipo == 'cliente_relatorio':
+        client = Client.query.get_or_404(record_id)
+        sales = Sale.query.filter_by(client_id=client.id).order_by(Sale.created_at.desc()).all()
+        items = []
+        subtotal = Decimal('0.00')
+        for sale in sales:
+            sale_total = Decimal(sale.total or 0)
+            subtotal += sale_total
+            items.append({
+                'item': f"{sale.sale_name} ({sale.created_at.strftime('%d/%m/%Y')})",
+                'serial_number': f"VEN-{sale.id}",
+                'quantity': 1,
+                'unit_price': sale_total,
+                'total': sale_total,
+            })
+
+        context = {
+            'document_title': f'Relatório de Compras - {client.name}',
+            'store_name': 'LojaWeb',
+            'store_contact': 'contato@lojaweb.local',
+            'record_date': datetime.utcnow(),
+            'record_code': f'CLI-{client.id}',
+            'client_name': client.name,
+            'items': items or [{
+                'item': 'Sem compras registradas',
+                'serial_number': '-',
+                'quantity': 0,
+                'unit_price': Decimal('0.00'),
+                'total': Decimal('0.00'),
+            }],
+            'subtotal': subtotal,
+            'discount_amount': Decimal('0.00'),
+            'total': subtotal,
+            'technical': {
+                'bios': client.cpf or '-',
+                'stress': client.phone or '-',
+                'os': client.email or '-',
+            },
+            'notes': 'Relatório consolidado de gastos do cliente.',
+            'performed_by_name': _current_user().name if _current_user() else 'Sistema',
+        }
+    elif tipo == 'cliente_quitacao':
+        charge = Charge.query.get_or_404(record_id)
+        sale = charge.sale
+        if not sale:
+            flash('Cobrança sem venda associada para quitação.', 'danger')
+            return redirect(url_for('clientes'))
+        paid_value = Decimal(sale.total or 0)
+        context = {
+            'document_title': f'Recibo de Quitação #{charge.id}',
+            'store_name': 'LojaWeb',
+            'store_contact': 'contato@lojaweb.local',
+            'record_date': charge.payment_confirmed_at or datetime.utcnow(),
+            'record_code': f'QUIT-{charge.id}',
+            'client_name': sale.client.name,
+            'items': [{
+                'item': f'Quitação da cobrança {charge.mercado_pago_reference}',
+                'serial_number': f'VEN-{sale.id}',
+                'quantity': 1,
+                'unit_price': paid_value,
+                'total': paid_value,
+            }],
+            'subtotal': paid_value,
+            'discount_amount': Decimal('0.00'),
+            'total': paid_value,
+            'technical': {
+                'bios': f'Status: {charge.status}',
+                'stress': f'Método: {charge.payment_method}',
+                'os': (charge.payment_confirmed_at.strftime('%d/%m/%Y %H:%M') if charge.payment_confirmed_at else datetime.utcnow().strftime('%d/%m/%Y %H:%M')),
+            },
+            'notes': 'Recibo emitido para comprovação de pagamento da dívida pendente.',
+            'performed_by_name': _current_user().name if _current_user() else 'Sistema',
+        }
     else:
         flash('Tipo de impressão inválido.', 'danger')
         return redirect(url_for('dashboard'))
@@ -1880,12 +1953,12 @@ def clientes():
     if request.method == 'POST':
         cpf = (request.form.get('cpf') or '').strip()
         if not cpf:
-            flash('Informe o CPF do cliente.', 'danger')
+            flash('Informe o CPF/CNPJ do cliente.', 'danger')
             return redirect(url_for('clientes'))
 
         existing_client = Client.query.filter_by(cpf=cpf).first()
         if existing_client:
-            flash('Este CPF já está cadastrado para outro cliente.', 'danger')
+            flash('Este CPF/CNPJ já está cadastrado para outro cliente.', 'danger')
             return redirect(url_for('clientes'))
 
         client = Client(
@@ -1900,7 +1973,34 @@ def clientes():
         return redirect(url_for('clientes'))
 
     clients = Client.query.order_by(Client.id.desc()).all()
-    return render_template('clients.html', clients=clients)
+    clients_summary = []
+    for client in clients:
+        sales = Sale.query.filter_by(client_id=client.id).order_by(Sale.created_at.desc()).limit(5).all()
+        pending_charges = (
+            Charge.query
+            .join(Sale, Charge.sale_id == Sale.id)
+            .filter(Sale.client_id == client.id, Charge.status == 'pendente')
+            .order_by(Charge.id.desc())
+            .all()
+        )
+        total_spent = db.session.query(db.func.coalesce(db.func.sum(Sale.total), 0)).filter(
+            Sale.client_id == client.id,
+            Sale.canceled == False,
+        ).scalar()
+
+        clients_summary.append({
+            'id': client.id,
+            'name': client.name,
+            'initials': ''.join([part[0] for part in client.name.split()[:2]]).upper() if client.name else '--',
+            'cpf': client.cpf,
+            'phone': client.phone,
+            'email': client.email,
+            'total_spent': total_spent or Decimal('0.00'),
+            'sales': sales,
+            'pending_charges': pending_charges,
+        })
+
+    return render_template('clients.html', clients=clients_summary)
 
 
 @app.route('/clientes/<int:client_id>/editar', methods=['GET', 'POST'])
