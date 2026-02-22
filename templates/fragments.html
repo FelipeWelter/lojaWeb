@@ -1,0 +1,63 @@
+{% macro sidebar(endpoint) %}
+<aside class="app-sidebar">
+  <h2>LojaWeb</h2>
+  <nav>
+    <a href="{{ url_for('dashboard') }}" class="{% if endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
+    <a href="{{ url_for('gestao_inventario') }}" class="{% if endpoint in ['gestao_inventario', 'produtos'] %}active{% endif %}">Gestão de Inventário</a>
+    <a href="{{ url_for('servicos') }}" class="{% if endpoint == 'servicos' %}active{% endif %}">Serviços</a>
+    <a href="{{ url_for('clientes') }}" class="{% if endpoint in ['clientes','editar_cliente','historico_cliente'] %}active{% endif %}">Clientes</a>
+    <a href="{{ url_for('vendas') }}" class="{% if endpoint == 'vendas' %}active{% endif %}">Vendas</a>
+    <a href="{{ url_for('montar_pc') }}" class="{% if endpoint == 'montar_pc' %}active{% endif %}">Montar PC</a>
+    <a href="{{ url_for('cobrancas') }}" class="{% if endpoint == 'cobrancas' %}active{% endif %}">Cobranças</a>
+    <a href="{{ url_for('logs_auditoria') }}" class="{% if endpoint == 'logs_auditoria' %}active{% endif %}">Logs</a>
+    <a href="{{ url_for('usuarios') }}" class="nav-admin {% if endpoint == 'usuarios' %}active{% endif %}">Usuários</a>
+    <a href="{{ url_for('logout') }}" class="nav-admin">Sair</a>
+  </nav>
+</aside>
+{% endmacro %}
+
+{% macro navbar(user_name) %}
+<header class="app-navbar">
+  <div>
+    <h1>Painel de Gestão</h1>
+    <small>Fluxo unificado para estoque e cadastro</small>
+  </div>
+  <strong>{{ user_name or 'Operador' }}</strong>
+</header>
+{% endmacro %}
+
+{% macro toast_messages(messages) %}
+<div class="toast-stack" aria-live="polite" aria-atomic="true">
+  {% for category, message in messages %}
+  <div class="toast {{ category }}" data-autohide="true">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro scripts() %}
+<script>
+  (function () {
+    const toasts = document.querySelectorAll('.toast');
+    toasts.forEach((toast) => {
+      window.setTimeout(() => toast.classList.add('is-hidden'), 3500);
+    });
+
+    const overlay = document.getElementById('print-loading-overlay');
+    const showOverlay = () => overlay?.classList.remove('hidden');
+    const hideOverlay = () => overlay?.classList.add('hidden');
+
+    document.addEventListener('click', (event) => {
+      const trigger = event.target.closest('.js-print-trigger');
+      if (!trigger) return;
+
+      const url = trigger.dataset.printUrl || trigger.getAttribute('href');
+      if (!url) return;
+
+      event.preventDefault();
+      showOverlay();
+      window.open(url, '_blank');
+      window.setTimeout(hideOverlay, 1200);
+    });
+  })();
+</script>
+{% endmacro %}
