@@ -31,7 +31,7 @@
       <span>E-mail</span>
       <input name="email" type="email" placeholder="cliente@email.com" />
     </label>
-    <button type="submit">Salvar Cliente</button>
+    <button type="submit" class="btn-premium btn-premium-primary"><span aria-hidden="true">＋</span> Novo Cliente</button>
   </form>
 </section>
 
@@ -58,13 +58,12 @@
           <td>{{ c.phone or '-' }}</td>
           <td>{{ c.email or '-' }}</td>
           <td>
-            <div class="table-actions">
-              <a class="btn-link" href="{{ url_for('vendas') }}">Nova Venda</a>
-              <button type="button" class="btn-secondary accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false">Ver Histórico</button>
-              <a class="btn-secondary js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank">🖨️ Inadimplentes</a>
-              <a class="btn-secondary js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='compras', via='gerente') }}" target="_blank">🖨️ Rel. Gerente</a>
+            <div class="table-actions table-actions--client">
+              <a class="btn-premium btn-premium-icon btn-premium-edit" href="{{ url_for('editar_cliente', client_id=c.id) }}" title="Editar cliente" aria-label="Editar cliente">✏️</a>
+              <button type="button" class="btn-premium btn-premium-icon btn-premium-history accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false" title="Ver histórico" aria-label="Ver histórico">👁️</button>
+              <a class="btn-premium btn-premium-print js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank" title="Imprimir ficha do cliente" aria-label="Imprimir ficha do cliente">🖨️</a>
               <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" onsubmit="return confirm('Deseja remover este cliente?');">
-                <button type="submit" class="btn-trash" title="Remover cliente">🗑</button>
+                <button type="submit" class="btn-premium btn-premium-icon btn-premium-delete" title="Remover cliente" aria-label="Remover cliente">🗑️</button>
               </form>
             </div>
           </td>

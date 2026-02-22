@@ -1797,3 +1797,98 @@ body.dashboard-page textarea:focus {
   cursor: pointer;
   color: #ECF0F1;
 }
+
+/* Clientes - padronização de ações */
+.btn-premium {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.btn-premium-primary {
+  background: #3498DB;
+  color: #fff;
+}
+
+.btn-premium-primary:hover,
+.btn-premium-primary:focus-visible {
+  background: #2980B9;
+}
+
+.table-actions--client {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.table-actions--client form {
+  margin: 0;
+}
+
+.btn-premium-icon {
+  width: 35px;
+  height: 35px;
+  padding: 0;
+  font-size: 1rem;
+}
+
+.btn-premium-edit {
+  background: transparent;
+  border-color: #3498DB;
+  color: #3498DB;
+}
+
+.btn-premium-edit:hover,
+.btn-premium-edit:focus-visible {
+  background: #2980B9;
+  border-color: #2980B9;
+  color: #fff;
+}
+
+.btn-premium-delete {
+  background: transparent;
+  border-color: #E74C3C;
+  color: #E74C3C;
+}
+
+.btn-premium-delete:hover,
+.btn-premium-delete:focus-visible {
+  background: #C0392B;
+  border-color: #C0392B;
+  color: #fff;
+}
+
+.btn-premium-history {
+  background: #4A6572;
+  border-color: #4A6572;
+  color: #fff;
+}
+
+.btn-premium-history:hover,
+.btn-premium-history:focus-visible {
+  background: #3C5160;
+  border-color: #3C5160;
+}
+
+.btn-premium-print {
+  width: 35px;
+  height: 35px;
+  padding: 0;
+  background: #95A5A6;
+  border-color: #95A5A6;
+  color: #fff;
+}
+
+.btn-premium-print:hover,
+.btn-premium-print:focus-visible {
+  background: #7F8C8D;
+  border-color: #7F8C8D;
+}
