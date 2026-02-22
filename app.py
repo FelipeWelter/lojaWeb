@@ -126,6 +126,21 @@ class Sale(db.Model):
 
     client = db.relationship('Client')
     product = db.relationship('Product')
+    items = db.relationship('SaleItem', backref='sale', cascade='all, delete-orphan')
+
+
+class SaleItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sale_id = db.Column(db.Integer, db.ForeignKey('sale.id'), nullable=False)
+    line_type = db.Column(db.String(20), nullable=False, default='produto')
+    description = db.Column(db.String(180), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=True)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    unit_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    unit_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    line_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+
+    product = db.relationship('Product')
 
 
 class Charge(db.Model):
@@ -242,6 +257,85 @@ def _read_reset_token(token: str, max_age_seconds: int = 3600):
 def _log_audit(action: str, details: str):
     user = _current_user()
     db.session.add(AuditLog(user_name=user.name if user else 'Sistema', action=action, details=details))
+
+
+def _parse_sale_items(form):
+    raw_types = form.getlist('item_type[]')
+    raw_product_ids = form.getlist('item_product_id[]')
+    raw_descriptions = form.getlist('item_description[]')
+    raw_quantities = form.getlist('item_quantity[]')
+    raw_unit_prices = form.getlist('item_unit_price[]')
+    raw_unit_costs = form.getlist('item_unit_cost[]')
+
+    max_len = max(
+        len(raw_types),
+        len(raw_product_ids),
+        len(raw_descriptions),
+        len(raw_quantities),
+        len(raw_unit_prices),
+        len(raw_unit_costs),
+        0,
+    )
+
+    items = []
+    for idx in range(max_len):
+        line_type = (raw_types[idx] if idx < len(raw_types) else '').strip().lower() or 'produto'
+        if line_type not in {'produto', 'servico'}:
+            line_type = 'produto'
+
+        product_id_raw = (raw_product_ids[idx] if idx < len(raw_product_ids) else '').strip()
+        description = (raw_descriptions[idx] if idx < len(raw_descriptions) else '').strip()
+        qty_raw = (raw_quantities[idx] if idx < len(raw_quantities) else '').strip()
+        unit_price_raw = (raw_unit_prices[idx] if idx < len(raw_unit_prices) else '').strip()
+        unit_cost_raw = (raw_unit_costs[idx] if idx < len(raw_unit_costs) else '').strip()
+
+        if not any([product_id_raw, description, qty_raw, unit_price_raw, unit_cost_raw]):
+            continue
+
+        try:
+            quantity = int(qty_raw or '1')
+        except ValueError as exc:
+            raise ValueError(f'Quantidade inválida na linha {idx + 1}.') from exc
+
+        if quantity <= 0:
+            raise ValueError(f'Quantidade deve ser maior que zero na linha {idx + 1}.')
+
+        try:
+            unit_price = Decimal(unit_price_raw or '0')
+            unit_cost = Decimal(unit_cost_raw or '0')
+        except InvalidOperation as exc:
+            raise ValueError(f'Preço/custo inválido na linha {idx + 1}.') from exc
+
+        if unit_price < 0 or unit_cost < 0:
+            raise ValueError(f'Preço/custo não pode ser negativo na linha {idx + 1}.')
+
+        item = {
+            'line_type': line_type,
+            'product_id': None,
+            'description': description,
+            'quantity': quantity,
+            'unit_price': unit_price.quantize(Decimal('0.01')),
+            'unit_cost': unit_cost.quantize(Decimal('0.01')),
+        }
+
+        if line_type == 'produto':
+            if not product_id_raw:
+                raise ValueError(f'Selecione um produto na linha {idx + 1}.')
+            try:
+                item['product_id'] = int(product_id_raw)
+            except ValueError as exc:
+                raise ValueError(f'Produto inválido na linha {idx + 1}.') from exc
+
+        if not item['description']:
+            item['description'] = 'Item sem descrição'
+
+        item['line_total'] = (item['unit_price'] * Decimal(item['quantity'])).quantize(Decimal('0.01'))
+        items.append(item)
+
+    if not items:
+        raise ValueError('Adicione ao menos um item (produto ou serviço) na venda.')
+
+    return items
 
 
 def _save_product_photo(file_storage):
@@ -634,6 +728,7 @@ def remover_usuario(user_id: int):
 def imprimir(tipo: str, record_id: int):
     if tipo == 'venda':
         data = Sale.query.get_or_404(record_id)
+        sale_items = data.items or []
         context = {
             'document_title': f'Recibo de Venda #{data.id}',
             'store_name': 'LojaWeb',
@@ -641,7 +736,15 @@ def imprimir(tipo: str, record_id: int):
             'record_date': data.created_at,
             'record_code': f'VEN-{data.id}',
             'client_name': data.client.name,
-            'items': [{
+            'items': [
+                {
+                    'item': line.description,
+                    'quantity': line.quantity,
+                    'unit_price': line.unit_price,
+                    'total': line.line_total,
+                }
+                for line in sale_items
+            ] or [{
                 'item': data.product.name,
                 'quantity': data.quantity,
                 'unit_price': data.product.price,
@@ -790,8 +893,10 @@ def dashboard():
         ServiceRecord.created_at >= start_date
     ).scalar()
     sales_profit = db.session.query(
-        db.func.coalesce(db.func.sum(Sale.total - (Product.cost_price * Sale.quantity)), 0)
-    ).join(Product, Product.id == Sale.product_id).filter(Sale.canceled.is_(False), Sale.created_at >= start_date).scalar()
+        db.func.coalesce(db.func.sum(SaleItem.line_total - (SaleItem.unit_cost * SaleItem.quantity)), 0)
+    ).join(Sale, Sale.id == SaleItem.sale_id).filter(
+        Sale.canceled.is_(False), Sale.created_at >= start_date
+    ).scalar()
     service_profit = db.session.query(
         db.func.coalesce(db.func.sum(ServiceRecord.total_price - ServiceRecord.cost), 0)
     ).filter(ServiceRecord.created_at >= start_date).scalar()
@@ -830,9 +935,10 @@ def dashboard():
     chart_sales_totals = [float(row[1]) for row in monthly_sales]
 
     top_products = (
-        db.session.query(Product.name, db.func.coalesce(db.func.sum(Sale.quantity), 0).label('qty'))
-        .join(Sale, Sale.product_id == Product.id)
-        .filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
+        db.session.query(Product.name, db.func.coalesce(db.func.sum(SaleItem.quantity), 0).label('qty'))
+        .join(SaleItem, SaleItem.product_id == Product.id)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Sale.canceled.is_(False), Sale.created_at >= start_date, SaleItem.line_type == 'produto')
         .group_by(Product.id)
         .order_by(db.desc('qty'))
         .limit(5)
@@ -1559,38 +1665,89 @@ def vendas():
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
         client_id = int(request.form['client_id'])
-        product_id = int(request.form['product_id'])
-        quantity = int(request.form['quantity'])
 
-        product = Product.query.get_or_404(product_id)
         if not sale_name:
             flash('Informe um nome para identificar a venda.', 'danger')
             return redirect(url_for('vendas'))
-        if quantity <= 0 or quantity > product.stock:
-            flash('Quantidade inválida para o estoque disponível.', 'danger')
+
+        try:
+            parsed_items = _parse_sale_items(request.form)
+        except ValueError as exc:
+            flash(str(exc), 'danger')
             return redirect(url_for('vendas'))
 
-        subtotal = (Decimal(quantity) * Decimal(product.price)).quantize(Decimal('0.01'))
-        custom_total_raw = request.form.get('custom_total')
-        if custom_total_raw:
-            total = Decimal(custom_total_raw)
-            if total < 0 or total > subtotal:
-                flash('Valor final inválido. Use um desconto entre R$ 0,00 e o subtotal.', 'danger')
-                return redirect(url_for('vendas'))
-        else:
-            total = subtotal
+        product_ids = [item['product_id'] for item in parsed_items if item['line_type'] == 'produto']
+        products_by_id = {}
+        service_placeholder = None
+        if product_ids:
+            fetched_products = Product.query.filter(Product.id.in_(product_ids)).all()
+            products_by_id = {prod.id: prod for prod in fetched_products}
 
-        product.stock -= quantity
+        for idx, item in enumerate(parsed_items, start=1):
+            if item['line_type'] != 'produto':
+                continue
+            product = products_by_id.get(item['product_id'])
+            if not product:
+                flash(f'Produto inválido na linha {idx}.', 'danger')
+                return redirect(url_for('vendas'))
+            if item['quantity'] > product.stock:
+                flash(f'Estoque insuficiente para {product.name} na linha {idx}.', 'danger')
+                return redirect(url_for('vendas'))
+            if item['unit_price'] == Decimal('0.00'):
+                item['unit_price'] = Decimal(product.price).quantize(Decimal('0.01'))
+                item['line_total'] = (item['unit_price'] * Decimal(item['quantity'])).quantize(Decimal('0.01'))
+            if item['unit_cost'] == Decimal('0.00'):
+                item['unit_cost'] = Decimal(product.cost_price or 0).quantize(Decimal('0.01'))
+            if not item['description'] or item['description'] == 'Item sem descrição':
+                item['description'] = product.name
+
+        subtotal = sum((item['line_total'] for item in parsed_items), Decimal('0.00')).quantize(Decimal('0.01'))
+
+        if product_ids:
+            anchor_product_id = product_ids[0]
+        else:
+            service_placeholder = Product.query.filter_by(category='Serviço', name='Serviço avulso').first()
+            if not service_placeholder:
+                service_placeholder = Product(
+                    name='Serviço avulso',
+                    category='Serviço',
+                    stock=999999,
+                    price=Decimal('0.00'),
+                    cost_price=Decimal('0.00'),
+                )
+                db.session.add(service_placeholder)
+                db.session.flush()
+            anchor_product_id = service_placeholder.id
 
         sale = Sale(
             sale_name=sale_name,
             client_id=client_id,
-            product_id=product_id,
-            quantity=quantity,
+            product_id=anchor_product_id,
+            quantity=1,
             subtotal=subtotal,
-            total=total,
+            total=subtotal,
         )
         db.session.add(sale)
+        db.session.flush()
+
+        for item in parsed_items:
+            if item['line_type'] == 'produto':
+                product = products_by_id[item['product_id']]
+                product.stock -= item['quantity']
+
+            db.session.add(
+                SaleItem(
+                    sale_id=sale.id,
+                    line_type=item['line_type'],
+                    description=item['description'],
+                    product_id=item['product_id'],
+                    quantity=item['quantity'],
+                    unit_price=item['unit_price'],
+                    unit_cost=item['unit_cost'],
+                    line_total=item['line_total'],
+                )
+            )
+
         db.session.commit()
         flash('Venda registrada com sucesso!', 'success')
         return redirect(url_for('vendas'))
@@ -1608,7 +1765,12 @@ def cancelar_venda(sale_id: int):
         return redirect(url_for('vendas'))
 
     with db.session.begin_nested():
-        sale.product.stock += sale.quantity
+        if sale.items:
+            for line in sale.items:
+                if line.line_type == 'produto' and line.product:
+                    line.product.stock += line.quantity
+        elif sale.product:
+            sale.product.stock += sale.quantity
         sale.canceled = True
         sale.canceled_at = datetime.utcnow()
 
@@ -1811,6 +1973,23 @@ with app.app_context():
             'description VARCHAR(120) NOT NULL, '
             'amount NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'created_at DATETIME NOT NULL'
+            ')'
+        )
+    )
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS sale_item ('
+            'id INTEGER PRIMARY KEY, '
+            'sale_id INTEGER NOT NULL, '
+            'line_type VARCHAR(20) NOT NULL DEFAULT "produto", '
+            'description VARCHAR(180) NOT NULL, '
+            'product_id INTEGER, '
+            'quantity INTEGER NOT NULL DEFAULT 1, '
+            'unit_price NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'line_total NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'FOREIGN KEY(sale_id) REFERENCES sale (id), '
+            'FOREIGN KEY(product_id) REFERENCES product (id)'
             ')'
         )
     )
