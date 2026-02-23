@@ -121,7 +121,15 @@
         <td>{% if sale.items %}{{ sale.items[0].description }}{% else %}{{ sale.product.name }}{% endif %}</td>
         <td>{% if sale.items %}{{ sale.items|length }}{% else %}{{ sale.quantity }}{% endif %}</td>
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
-        <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
+        <td>
+          {% if sale.canceled %}
+          <span class="badge danger">Cancelada</span>
+          {% elif sale.id in finalized_sales %}
+          <span class="badge success">Finalizada</span>
+          {% else %}
+          <span class="badge">Pendente</span>
+          {% endif %}
+        </td>
         <td>
           {% if sale.canceled %}
           <form method="post" action="{{ url_for('excluir_venda', sale_id=sale.id) }}" onsubmit="return confirm('Excluir esta venda cancelada do histórico inicial?');">
@@ -136,6 +144,33 @@
     </tbody>
   </table>
 </section>
+
+<section class="card no-print">
+  <h2>Últimos serviços</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Cliente</th><th>Serviço</th><th>Total</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for service in latest_services %}
+      <tr>
+        <td>{{ service.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ service.client_name }}</td>
+        <td>{{ service.service_name }}</td>
+        <td>R$ {{ '%.2f'|format(service.total_price) }}</td>
+        <td>
+          {% if service.id in finalized_services %}
+          <span class="badge success">Finalizada</span>
+          {% else %}
+          <span class="badge">Pendente</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">Nenhum serviço registrado ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>

@@ -31,9 +31,9 @@ app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
 app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', '587'))
 app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME'))
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', 'feliwelter@gmail.com')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', 'pfflmknbhgwsugch')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME', 'feliwelter@gmail.com'))
 app.config['SECURITY_PASSWORD_SALT'] = os.getenv('SECURITY_PASSWORD_SALT', 'lojaweb-reset-salt')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -1411,21 +1411,56 @@ def dashboard():
     total_stock = db.session.query(db.func.coalesce(db.func.sum(Product.stock), 0)).scalar()
     sales_count = sales_query.count()
     services_count = service_query.count()
-    pending_charges = Charge.query.filter(Charge.status != 'confirmado').count()
-    total_sales_amount = db.session.query(db.func.coalesce(db.func.sum(Sale.total), 0)).filter(
-        Sale.canceled.is_(False), Sale.created_at >= start_date
-    ).scalar()
-    total_services_amount = db.session.query(db.func.coalesce(db.func.sum(ServiceRecord.total_price), 0)).filter(
-        ServiceRecord.created_at >= start_date
-    ).scalar()
-    sales_profit = db.session.query(
-        db.func.coalesce(db.func.sum(SaleItem.line_total - (SaleItem.unit_cost * SaleItem.quantity)), 0)
+    pending_charges = Charge.query.filter(Charge.status != 'confirmado', Charge.status != 'cancelado').count()
+
+    period_charges = (
+        db.session.query(Charge)
+        .outerjoin(Sale, Sale.id == Charge.sale_id)
+        .outerjoin(ServiceRecord, ServiceRecord.id == Charge.service_id)
+        .filter(
+            Charge.status != 'cancelado',
+            db.or_(
+                db.and_(Charge.sale_id.isnot(None), Sale.canceled.is_(False), Sale.created_at >= start_date),
+                db.and_(Charge.service_id.isnot(None), ServiceRecord.created_at >= start_date),
+            ),
+        )
+        .all()
+    )
+
+    total_sales_amount = Decimal('0.00')
+    total_services_amount = Decimal('0.00')
+    payment_method_totals: dict[str, Decimal] = {}
+    payment_method_counts: dict[str, int] = {}
+    for charge in period_charges:
+        paid = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        if charge.sale_id:
+            total_sales_amount += paid
+        if charge.service_id:
+            total_services_amount += paid
+
+        method = charge.payment_method or 'pix'
+        payment_method_counts[method] = payment_method_counts.get(method, 0) + 1
+        payment_method_totals[method] = payment_method_totals.get(method, Decimal('0.00')) + paid
+
+    sales_revenue = db.session.query(
+        db.func.coalesce(db.func.sum(SaleItem.line_total), 0)
     ).join(Sale, Sale.id == SaleItem.sale_id).filter(
         Sale.canceled.is_(False), Sale.created_at >= start_date
     ).scalar()
-    service_profit = db.session.query(
-        db.func.coalesce(db.func.sum(ServiceRecord.total_price - ServiceRecord.cost), 0)
+    sales_parts_cost = db.session.query(
+        db.func.coalesce(db.func.sum(SaleItem.unit_cost * SaleItem.quantity), 0)
+    ).join(Sale, Sale.id == SaleItem.sale_id).filter(
+        Sale.canceled.is_(False), Sale.created_at >= start_date
+    ).scalar()
+    service_revenue = db.session.query(
+        db.func.coalesce(db.func.sum(ServiceRecord.total_price), 0)
     ).filter(ServiceRecord.created_at >= start_date).scalar()
+    service_cost = db.session.query(
+        db.func.coalesce(db.func.sum(ServiceRecord.cost), 0)
+    ).filter(ServiceRecord.created_at >= start_date).scalar()
+
+    sales_profit = Decimal(sales_revenue or 0) - Decimal(sales_parts_cost or 0)
+    service_profit = Decimal(service_revenue or 0) - Decimal(service_cost or 0)
     total_fixed_costs = db.session.query(db.func.coalesce(db.func.sum(FixedCost.amount), 0)).filter(
         FixedCost.created_at >= start_date
     ).scalar()
@@ -1434,24 +1469,31 @@ def dashboard():
     maintenance_in_progress = maintenance_query.filter(MaintenanceTicket.status != 'concluido').count()
     maintenance_waiting_parts = maintenance_query.filter(MaintenanceTicket.waiting_parts.is_(True), MaintenanceTicket.status != 'concluido').count()
 
-    payment_method_summary = (
-        db.session.query(
-            Charge.payment_method,
-            db.func.count(Charge.id),
-            db.func.coalesce(db.func.sum(db.func.coalesce(Sale.total, ServiceRecord.total_price, 0)), 0),
-        )
-        .outerjoin(Sale, Sale.id == Charge.sale_id)
-        .outerjoin(ServiceRecord, ServiceRecord.id == Charge.service_id)
-        .filter(
-            db.or_(
-                db.and_(Charge.sale_id.isnot(None), Sale.canceled.is_(False), Sale.created_at >= start_date),
-                db.and_(Charge.service_id.isnot(None), ServiceRecord.created_at >= start_date),
-            )
-        )
-        .group_by(Charge.payment_method)
-        .all()
-    )
+    payment_method_summary = [
+        (method, payment_method_counts.get(method, 0), payment_method_totals.get(method, Decimal('0.00')))
+        for method, _label in PAYMENT_METHODS
+        if payment_method_counts.get(method, 0) > 0
+    ]
     latest_sales = sales_query.order_by(Sale.created_at.desc()).limit(5).all()
+    latest_services = service_query.order_by(ServiceRecord.created_at.desc()).limit(5).all()
+    recent_charges = Charge.query.order_by(Charge.id.desc()).all()
+
+    charges_by_sale_id: dict[int, list[Charge]] = {}
+    charges_by_service_id: dict[int, list[Charge]] = {}
+    for charge in recent_charges:
+        if charge.sale_id:
+            charges_by_sale_id.setdefault(charge.sale_id, []).append(charge)
+        if charge.service_id:
+            charges_by_service_id.setdefault(charge.service_id, []).append(charge)
+
+    finalized_sales = {
+        sale.id for sale in latest_sales if _is_sale_finalized_by_payment(sale, charges_by_sale_id.get(sale.id, []))
+    }
+    finalized_services = {
+        service.id
+        for service in latest_services
+        if _is_service_finalized_by_payment(service, charges_by_service_id.get(service.id, []))
+    }
 
     monthly_sales = (
         db.session.query(
@@ -1496,6 +1538,9 @@ def dashboard():
         payment_method_summary=payment_method_summary,
         payment_method_labels=PAYMENT_METHOD_LABELS,
         latest_sales=latest_sales,
+        latest_services=latest_services,
+        finalized_sales=finalized_sales,
+        finalized_services=finalized_services,
         period=period,
         chart_months=chart_months,
         chart_sales_totals=chart_sales_totals,
@@ -3069,14 +3114,16 @@ def editar_cobranca(charge_id: int):
     try:
         charge.due_date = _parse_date_input(request.form.get('due_date'))
         charge.amount = Decimal((request.form.get('amount') or '0').replace(',', '.')).quantize(Decimal('0.01'))
-        charge.amount_paid = Decimal((request.form.get('amount_paid') or '0').replace(',', '.')).quantize(Decimal('0.01'))
+        paid_increment = Decimal((request.form.get('amount_paid') or '0').replace(',', '.')).quantize(Decimal('0.01'))
     except (ValueError, InvalidOperation) as exc:
         flash(str(exc) if isinstance(exc, ValueError) else 'Valor inválido para cobrança.', 'danger')
         return redirect(url_for('cobrancas'))
 
-    if charge.amount < 0 or charge.amount_paid < 0:
+    if charge.amount < 0 or paid_increment < 0:
         flash('Valores de cobrança não podem ser negativos.', 'danger')
         return redirect(url_for('cobrancas'))
+
+    charge.amount_paid = (Decimal(charge.amount_paid or 0) + paid_increment).quantize(Decimal('0.01'))
 
     installment_count_raw = (request.form.get('installment_count') or '1').strip()
     try:
