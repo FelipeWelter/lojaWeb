@@ -36,6 +36,11 @@ app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', os.getenv('MAIL_USERNAME'))
 app.config['SECURITY_PASSWORD_SALT'] = os.getenv('SECURITY_PASSWORD_SALT', 'lojaweb-reset-salt')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['LOGIN_THROTTLE_MAX_ATTEMPTS'] = int(os.getenv('LOGIN_THROTTLE_MAX_ATTEMPTS', '5'))
+app.config['LOGIN_THROTTLE_BLOCK_MINUTES'] = int(os.getenv('LOGIN_THROTTLE_BLOCK_MINUTES', '15'))
 
 db = SQLAlchemy(app)
 mail = Mail(app)
@@ -277,6 +282,19 @@ def _get_or_create_throttle(email: str, ip_address: str):
     db.session.add(throttle)
     db.session.flush()
     return throttle
+
+
+def _recent_failed_attempts(email: str, ip_address: str, window_minutes: int):
+    window_start = datetime.utcnow() - timedelta(minutes=window_minutes)
+    email_attempts = db.session.query(db.func.sum(LoginThrottle.failed_attempts)).filter(
+        LoginThrottle.email == email,
+        LoginThrottle.updated_at >= window_start,
+    ).scalar() or 0
+    ip_attempts = db.session.query(db.func.sum(LoginThrottle.failed_attempts)).filter(
+        LoginThrottle.ip_address == ip_address,
+        LoginThrottle.updated_at >= window_start,
+    ).scalar() or 0
+    return email_attempts, ip_attempts
 
 
 def _login_required(view):
@@ -755,14 +773,15 @@ def login():
             flash(f'Muitas tentativas de login. Tente novamente em {remaining} minuto(s).', 'danger')
             return redirect(url_for('login'))
 
+        max_attempts = app.config['LOGIN_THROTTLE_MAX_ATTEMPTS']
+        block_minutes = app.config['LOGIN_THROTTLE_BLOCK_MINUTES']
         user = User.query.filter_by(email=email).first()
         if not user or not check_password_hash(user.password_hash, password):
             throttle.failed_attempts += 1
             throttle.updated_at = datetime.utcnow()
-            email_attempts = db.session.query(db.func.sum(LoginThrottle.failed_attempts)).filter(LoginThrottle.email == email).scalar() or 0
-            ip_attempts = db.session.query(db.func.sum(LoginThrottle.failed_attempts)).filter(LoginThrottle.ip_address == ip_address).scalar() or 0
-            if email_attempts >= 5 or ip_attempts >= 5:
-                block_until = now + timedelta(minutes=15)
+            email_attempts, ip_attempts = _recent_failed_attempts(email, ip_address, block_minutes)
+            if email_attempts >= max_attempts or ip_attempts >= max_attempts:
+                block_until = now + timedelta(minutes=block_minutes)
                 LoginThrottle.query.filter(
                     (LoginThrottle.email == email) | (LoginThrottle.ip_address == ip_address)
                 ).update(
@@ -776,9 +795,16 @@ def login():
             flash('E-mail ou senha incorretos. Verifique os dados e tente novamente.', 'danger')
             return redirect(url_for('login'))
 
-        throttle.failed_attempts = 0
-        throttle.blocked_until = None
-        throttle.updated_at = datetime.utcnow()
+        LoginThrottle.query.filter(
+            (LoginThrottle.email == email) | (LoginThrottle.ip_address == ip_address)
+        ).update(
+            {
+                LoginThrottle.failed_attempts: 0,
+                LoginThrottle.blocked_until: None,
+                LoginThrottle.updated_at: datetime.utcnow(),
+            },
+            synchronize_session=False,
+        )
         session.permanent = remember_me
         session['user_id'] = user.id
         db.session.commit()
