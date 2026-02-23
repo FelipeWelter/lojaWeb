@@ -90,7 +90,15 @@
         <td>R$ {{ '%.2f'|format(sale.subtotal) }}</td>
         <td>R$ {{ '%.2f'|format(sale.discount_amount or 0) }}</td>
         <td>R$ {{ '%.2f'|format(sale.total) }}</td>
-        <td>{% if sale.canceled %}<span class="badge danger">Cancelada</span>{% else %}<span class="badge success">Ativa</span>{% endif %}</td>
+        <td>
+          {% if sale.canceled %}
+            <span class="badge danger">Cancelada</span>
+          {% elif sale.id in finalized_sale_ids %}
+            <span class="badge success">Finalizada</span>
+          {% else %}
+            <span class="badge warning">Ativa</span>
+          {% endif %}
+        </td>
         <td>
           <div class="action-group">
             <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='venda', record_id=sale.id) }}">Imprimir comprovante</button>

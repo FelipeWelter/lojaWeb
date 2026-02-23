@@ -2780,7 +2780,21 @@ def vendas():
         return redirect(url_for('vendas', print_sale_id=sale.id))
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
-    return render_template('sales.html', sales=sales, products=products, clients=clients)
+    finalized_sale_ids: set[int] = set()
+    sale_ids = [sale.id for sale in sales]
+    if sale_ids:
+        charges = Charge.query.filter(Charge.sale_id.in_(sale_ids)).all()
+        charges_by_sale_id: dict[int, list[Charge]] = {}
+        for charge in charges:
+            if not charge.sale_id:
+                continue
+            charges_by_sale_id.setdefault(charge.sale_id, []).append(charge)
+
+        for sale in sales:
+            if _is_sale_finalized_by_payment(sale, charges_by_sale_id.get(sale.id, [])):
+                finalized_sale_ids.add(sale.id)
+
+    return render_template('sales.html', sales=sales, products=products, clients=clients, finalized_sale_ids=finalized_sale_ids)
 
 
 @app.route('/vendas/<int:sale_id>/cancelar', methods=['POST'])
@@ -2879,6 +2893,28 @@ def _charge_ui_status(charge: Charge):
         return 'pendente'
 
     return 'pendente'
+
+
+def _is_sale_finalized_by_payment(sale: Sale, charges: list[Charge]) -> bool:
+    sale_total = Decimal(sale.total or 0).quantize(Decimal('0.01'))
+    for charge in charges:
+        if charge.status == 'cancelado':
+            continue
+        paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        if charge.status == 'confirmado' or paid_amount >= sale_total:
+            return True
+    return False
+
+
+def _is_service_finalized_by_payment(service: ServiceRecord, charges: list[Charge]) -> bool:
+    service_total = Decimal(service.total_price or 0).quantize(Decimal('0.01'))
+    for charge in charges:
+        if charge.status == 'cancelado':
+            continue
+        paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        if charge.status == 'confirmado' or paid_amount >= service_total:
+            return True
+    return False
 
 
 
@@ -3110,7 +3146,44 @@ def historico_cliente(client_id: int):
     sales = Sale.query.filter_by(client_id=client.id).order_by(Sale.created_at.desc()).all()
     maintenances = MaintenanceTicket.query.filter(MaintenanceTicket.client_name == client.name).order_by(MaintenanceTicket.entry_date.desc()).all()
     services = ServiceRecord.query.filter(ServiceRecord.client_name == client.name).order_by(ServiceRecord.created_at.desc()).all()
-    return render_template('client_history.html', client=client, sales=sales, maintenances=maintenances, services=services)
+
+    sale_ids = [sale.id for sale in sales]
+    service_ids = [service.id for service in services]
+    charges = Charge.query.filter(
+        db.or_(
+            Charge.sale_id.in_(sale_ids) if sale_ids else db.false(),
+            Charge.service_id.in_(service_ids) if service_ids else db.false(),
+        )
+    ).all()
+
+    charges_by_sale_id: dict[int, list[Charge]] = {}
+    charges_by_service_id: dict[int, list[Charge]] = {}
+    for charge in charges:
+        if charge.sale_id:
+            charges_by_sale_id.setdefault(charge.sale_id, []).append(charge)
+        if charge.service_id:
+            charges_by_service_id.setdefault(charge.service_id, []).append(charge)
+
+    finalized_sale_ids = {
+        sale.id
+        for sale in sales
+        if _is_sale_finalized_by_payment(sale, charges_by_sale_id.get(sale.id, []))
+    }
+    finalized_service_ids = {
+        service.id
+        for service in services
+        if _is_service_finalized_by_payment(service, charges_by_service_id.get(service.id, []))
+    }
+
+    return render_template(
+        'client_history.html',
+        client=client,
+        sales=sales,
+        maintenances=maintenances,
+        services=services,
+        finalized_sale_ids=finalized_sale_ids,
+        finalized_service_ids=finalized_service_ids,
+    )
 
 
 @app.route('/logs')

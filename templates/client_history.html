@@ -10,7 +10,7 @@
     <thead><tr><th>Data</th><th>Venda</th><th>Itens</th><th>Qtd. linhas</th><th>Total</th><th>Status</th></tr></thead>
     <tbody>
       {% for s in sales %}
-      <tr><td>{{ s.created_at.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ s.sale_name }}</td><td>{% if s.items %}{{ s.items[0].description }}{% else %}{{ s.product.name }}{% endif %}</td><td>{% if s.items %}{{ s.items|length }}{% else %}{{ s.quantity }}{% endif %}</td><td>R$ {{ '%.2f'|format(s.total) }}</td><td>{{ 'Cancelada' if s.canceled else 'Ativa' }}</td></tr>
+      <tr><td>{{ s.created_at.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ s.sale_name }}</td><td>{% if s.items %}{{ s.items[0].description }}{% else %}{{ s.product.name }}{% endif %}</td><td>{% if s.items %}{{ s.items|length }}{% else %}{{ s.quantity }}{% endif %}</td><td>R$ {{ '%.2f'|format(s.total) }}</td><td>{% if s.canceled %}Cancelada{% elif s.id in finalized_sale_ids %}Finalizada{% else %}Ativa{% endif %}</td></tr>
       {% else %}<tr><td colspan="6">Sem compras.</td></tr>{% endfor %}
     </tbody>
   </table>
@@ -29,11 +29,11 @@
 <section class="card">
   <h3>Serviços concluídos</h3>
   <table>
-    <thead><tr><th>Data</th><th>Serviço</th><th>Equipamento</th><th>Total</th></tr></thead>
+    <thead><tr><th>Data</th><th>Serviço</th><th>Equipamento</th><th>Total</th><th>Status</th></tr></thead>
     <tbody>
       {% for r in services %}
-      <tr><td>{{ r.created_at.strftime('%d/%m/%Y') }}</td><td>{{ r.service_name }}</td><td>{{ r.equipment }}</td><td>R$ {{ '%.2f'|format(r.total_price) }}</td></tr>
-      {% else %}<tr><td colspan="4">Sem serviços.</td></tr>{% endfor %}
+      <tr><td>{{ r.created_at.strftime('%d/%m/%Y') }}</td><td>{{ r.service_name }}</td><td>{{ r.equipment }}</td><td>R$ {{ '%.2f'|format(r.total_price) }}</td><td>{{ 'Finalizada' if r.id in finalized_service_ids else 'Ativa' }}</td></tr>
+      {% else %}<tr><td colspan="5">Sem serviços.</td></tr>{% endfor %}
     </tbody>
   </table>
 </section>
