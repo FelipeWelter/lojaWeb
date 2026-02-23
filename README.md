@@ -115,7 +115,3 @@ Para uso em ambiente produtivo, recomenda-se:
 - Testes automatizados de regressão para módulos críticos.
 
 ---
-
-## Licença
-
-Defina aqui o modelo de licenciamento adotado pelo projeto (ex.: MIT, Apache-2.0, proprietário).
