@@ -716,7 +716,7 @@ def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user
         discount_amount=Decimal('0.00'),
         cost=parts_total.quantize(Decimal('0.01')),
         notes=' | '.join(notes_chunks) or f"Finalização automática da OS #{ticket.id}.",
-        performed_by_user_id=current.id if current else None,
+        performed_by_user_id=current_user.id if current_user else None,
     )
     db.session.add(service)
     db.session.flush()
@@ -2107,7 +2107,7 @@ def servicos():
             discount_amount=discount_amount.quantize(Decimal('0.01')),
             cost=cost,
             notes=notes,
-            performed_by_user_id=current.id if current else None,
+            performed_by_user_id=current_user.id if current_user else None,
         )
         db.session.add(service)
         db.session.flush()
@@ -2669,7 +2669,7 @@ def vendas():
             discount_amount=discount_amount,
             total=total,
             payment_method=payment_method,
-            performed_by_user_id=current.id if current else None,
+            performed_by_user_id=current_user.id if current_user else None,
         )
         db.session.add(sale)
         db.session.flush()
