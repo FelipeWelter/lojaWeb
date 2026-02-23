@@ -172,11 +172,15 @@
     else pill.classList.add('ok');
   }
 
+  function scheduleMarginUpdate() {
+    window.requestAnimationFrame(updateMarginRealtime);
+  }
+
   categorySelect.addEventListener('change', togglePieceClass);
   classSelect.addEventListener('change', toggleTechnicalFieldsByClass);
-  document.getElementById('cost-input')?.addEventListener('input', updateMarginRealtime);
-  document.getElementById('freight-input')?.addEventListener('input', updateMarginRealtime);
-  document.getElementById('price-input')?.addEventListener('input', updateMarginRealtime);
+  document.getElementById('cost-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('freight-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('price-input')?.addEventListener('input', scheduleMarginUpdate);
   togglePieceClass();
   toggleTechnicalFieldsByClass();
   updateMarginRealtime();
