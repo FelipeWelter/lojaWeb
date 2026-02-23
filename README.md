@@ -1,4 +1,4 @@
-# LojaWeb (MVP)
+# APLICAÇÃO WEB DE GERENCIAMENTO DE LOJA
 
 Aplicação web em Python para gestão de loja de informática (desktop e mobile), com foco em:
 
@@ -30,9 +30,3 @@ Acesse em `http://localhost:5000`.
 1. Gere os boletos/cobranças na sua conta Mercado Pago.
 2. Cadastre no sistema a referência retornada em **Cobranças**.
 3. Quando o pagamento entrar, use o botão **Confirmar pagamento**.
-
-## Deploy em contêiner (Hostinger)
-
-- Use uma imagem Python 3.11+
-- Exponha a porta `5000`
-- Defina comando de inicialização para `python app.py` (ou use Gunicorn em produção)
