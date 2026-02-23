@@ -20,7 +20,7 @@
   </section>
 
   <section class="form-zone" id="piece-class-step" hidden>
-    <h3>2) Classe da peça</h3>
+    <h3>2) Classe da peça <span id="selected-class-chip" class="badge success" style="display:none;"></span></h3>
     <label>Selecione a classe
       <select id="component-class-step-select">
         <option value="">Selecione</option>
@@ -53,12 +53,12 @@
         <h3>4) Dados técnicos da classe selecionada</h3>
         <p id="piece-help-text" class="piece-help-text">Selecione uma classe para exibir os campos corretos.</p>
 
-        <div id="no-extra-fields" class="component-extra-fields" hidden>
+        <div id="no-extra-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Sem campos adicionais para essa classe</h4>
           <p>Para essa classe, preencha apenas os dados principais, valores e estoque.</p>
         </div>
 
-        <div id="ram-fields" class="component-extra-fields" hidden>
+        <div id="ram-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Memória RAM</h4>
           <label>Tecnologia (DDR)
             <select name="ram_ddr">
@@ -73,7 +73,7 @@
           <label>Capacidade<input name="ram_size" placeholder="Ex: 16 GB" /></label>
         </div>
 
-        <div id="cpu-fields" class="component-extra-fields" hidden>
+        <div id="cpu-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Processador</h4>
           <label>Fabricante
             <select name="cpu_manufacturer">
@@ -86,7 +86,7 @@
           <label>Modelo<input name="cpu_model" placeholder="Ex: Ryzen 5 5600" /></label>
         </div>
 
-        <div id="motherboard-fields" class="component-extra-fields" hidden>
+        <div id="motherboard-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Placa-mãe</h4>
           <label>Marca<input name="motherboard_brand" placeholder="Ex: ASUS" /></label>
           <label>Modelo<input name="motherboard_model" placeholder="Ex: TUF B550M" /></label>
@@ -94,13 +94,13 @@
           <label>Chipset<input name="motherboard_chipset" placeholder="Ex: B550" /></label>
         </div>
 
-        <div id="psu-fields" class="component-extra-fields" hidden>
+        <div id="psu-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Fonte</h4>
           <label>Marca<input name="psu_brand" placeholder="Ex: Corsair" /></label>
           <label>Potência (Watts)<input name="psu_watts" placeholder="Ex: 650W" /></label>
         </div>
 
-        <div id="gpu-fields" class="component-extra-fields" hidden>
+        <div id="gpu-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Placa de vídeo</h4>
           <label>Memória da placa<input name="gpu_memory" placeholder="Ex: 8 GB" /></label>
           <label>Marca<input name="gpu_brand" placeholder="Ex: ASUS" /></label>
@@ -114,7 +114,7 @@
           </label>
         </div>
 
-        <div id="storage-fields" class="component-extra-fields" hidden>
+        <div id="storage-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Armazenamento</h4>
           <label>Tipo
             <select name="storage_type">
@@ -160,6 +160,13 @@
   const classHidden = document.getElementById('component-class-hidden');
   const helpTextEl = document.getElementById('piece-help-text');
 
+  const classChip = document.getElementById('selected-class-chip');
+  const classLabels = {
+    gabinete: 'Gabinete', fans: 'Fans', placa_mae: 'Placa-mãe', placa_video: 'Placa de Vídeo',
+    processador: 'Processador', memoria_ram: 'Memória RAM', armazenamento: 'Armazenamento',
+    fonte: 'Fonte', perifericos: 'Periféricos'
+  };
+
   function activatePieceFlow() {
     computerNextStep.hidden = true;
     pieceClassStep.hidden = false;
@@ -180,6 +187,15 @@
     const selectedClass = classSelect.value;
     classHidden.value = selectedClass;
     pieceForm.hidden = !selectedClass;
+    if (classChip) {
+      if (selectedClass) {
+        classChip.textContent = classLabels[selectedClass] || selectedClass;
+        classChip.style.display = 'inline-flex';
+      } else {
+        classChip.textContent = '';
+        classChip.style.display = 'none';
+      }
+    }
 
     const fieldsMap = {
       memoria_ram: document.getElementById('ram-fields'),
@@ -206,13 +222,16 @@
       if (!fieldContainer) return;
       const visible = selectedClass === key;
       fieldContainer.hidden = !visible;
+      fieldContainer.style.display = visible ? 'block' : 'none';
       fieldContainer.querySelectorAll('input, select').forEach((input) => {
         if (!visible) input.value = '';
       });
     });
 
     if (noExtraFields) {
-      noExtraFields.hidden = !selectedClass || !noExtraClasses.includes(selectedClass);
+      const showNoExtra = Boolean(selectedClass) && noExtraClasses.includes(selectedClass);
+      noExtraFields.hidden = !showNoExtra;
+      noExtraFields.style.display = showNoExtra ? 'block' : 'none';
     }
 
     if (helpTextEl) {
