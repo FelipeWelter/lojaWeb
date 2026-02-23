@@ -2022,11 +2022,33 @@ body.dashboard-page textarea:focus {
   gap: 12px;
 }
 
+.charges-form-block {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid rgba(236, 240, 241, 0.14);
+  border-radius: 10px;
+  background: rgba(44, 62, 80, 0.5);
+}
+
+.charges-form-title {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: #cfe6f8;
+}
+
 .charges-form-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
   align-items: start;
+}
+
+.charges-form-row--primary {
+  grid-template-columns: 1fr;
+  max-width: 720px;
 }
 
 .charges-form-row--details {
