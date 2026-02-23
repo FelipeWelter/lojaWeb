@@ -1160,7 +1160,7 @@ body.dashboard-page textarea::placeholder {
 
 .checkout-grid {
   display: grid;
-  grid-template-columns: 1fr 350px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 330px);
   gap: 20px;
   align-items: start;
 }
@@ -1194,7 +1194,7 @@ body.dashboard-page textarea::placeholder {
 
 .sale-line {
   display: grid;
-  grid-template-columns: 120px 1fr 1fr 80px 120px 120px auto;
+  grid-template-columns: minmax(100px, 120px) minmax(150px, 1fr) minmax(150px, 1fr) 78px 100px 100px auto;
   gap: .5rem;
   align-items: center;
 }
@@ -2098,7 +2098,8 @@ body.dashboard-page textarea:focus {
 
 /* LojaWeb Clean & Pro */
 .btn-loja {
-  padding: 10px 20px;
+  padding: 8px 12px;
+  min-height: 36px;
   border-radius: 6px;
   border: none;
   font-weight: bold;
@@ -2128,6 +2129,18 @@ body.dashboard-page textarea:focus {
 
 .btn-loja:hover {
   filter: brightness(1.08);
+}
+
+.checkout-main,
+.checkout-summary,
+.sale-line,
+.table-actions--client {
+  min-width: 0;
+}
+
+.table-actions--client .btn-loja,
+.table-actions--client .btn-premium {
+  min-height: 34px;
 }
 
 #form-montagem .assembly-lines {

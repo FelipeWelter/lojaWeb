@@ -1736,6 +1736,7 @@ def _build_assembly_edit_data(latest_assemblies):
     return data
 
 @app.route('/montar_pc', methods=['GET', 'POST'])
+@app.route('/montar-pc', methods=['GET', 'POST'])
 @_login_required
 def montar_pc():
     current = _current_user()
@@ -2108,7 +2109,7 @@ def servicos():
             discount_amount=discount_amount.quantize(Decimal('0.01')),
             cost=cost,
             notes=notes,
-            performed_by_user_id=current_user.id if current_user else None,
+            performed_by_user_id=current.id if current else None,
         )
         db.session.add(service)
         db.session.flush()
@@ -2586,7 +2587,13 @@ def vendas():
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
-        client_id = int(request.form['client_id'])
+        client_id_raw = (request.form.get('client_id') or '').strip()
+
+        try:
+            client_id = int(client_id_raw)
+        except ValueError:
+            flash('Selecione um cliente válido para finalizar a venda.', 'danger')
+            return redirect(url_for('vendas'))
 
         if not sale_name:
             flash('Informe um nome para identificar a venda.', 'danger')
@@ -2670,7 +2677,7 @@ def vendas():
             discount_amount=discount_amount,
             total=total,
             payment_method=payment_method,
-            performed_by_user_id=current_user.id if current_user else None,
+            performed_by_user_id=current.id if current else None,
         )
         db.session.add(sale)
         db.session.flush()
