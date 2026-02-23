@@ -1376,6 +1376,7 @@ body.dashboard-page textarea::placeholder {
 .actions-menu { position:relative; }
 .actions-menu summary { cursor:pointer; list-style:none; font-size:1.3rem; }
 .actions-menu-content { position:absolute; right:0; z-index:20; min-width:260px; background:#1e2b38; border:1px solid #334a5f; border-radius:10px; padding:10px; display:grid; gap:8px; }
+.actions-menu:not([open]) .actions-menu-content { display:none; }
 .actions-menu-content .inline-form { display:grid; gap:6px; }
 @media (max-width: 900px){ .charges-kpi-grid { grid-template-columns:1fr; } }
 
@@ -2055,10 +2056,25 @@ body.dashboard-page textarea:focus {
 }
 
 .actions-menu-content {
-  z-index: 999;
+  z-index: 1200;
   width: min(380px, calc(100vw - 48px));
   max-height: 75vh;
   overflow: auto;
+}
+
+.component-extra-fields {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid #4a6572;
+  border-radius: 10px;
+  background: #2f4154;
+  display: grid;
+  gap: 8px;
+}
+
+.component-extra-fields h4 {
+  margin: 0;
+  font-size: 0.92rem;
 }
 
 .actions-menu-content .field-stack > label {

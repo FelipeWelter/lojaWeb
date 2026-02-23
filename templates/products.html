@@ -47,6 +47,53 @@
         </label>
         <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" type="number" min="0" step="0.01" placeholder="Frete/Taxas" value="0" /></div></label>
         <label>Número de Série (S/N)<input name="serial_number" placeholder="Número de Série (S/N)" /></label>
+
+        <div id="ram-fields" class="component-extra-fields" hidden>
+          <h4>Memória RAM</h4>
+          <label>Tecnologia (DDR)
+            <select name="ram_ddr">
+              <option value="">Selecione</option>
+              <option value="DDR3">DDR3</option>
+              <option value="DDR4">DDR4</option>
+              <option value="DDR5">DDR5</option>
+            </select>
+          </label>
+          <label>Marca<input name="ram_brand" placeholder="Ex: Kingston" /></label>
+          <label>Frequência<input name="ram_frequency" placeholder="Ex: 3200 MHz" /></label>
+          <label>Tamanho<input name="ram_size" placeholder="Ex: 16 GB" /></label>
+        </div>
+
+        <div id="psu-fields" class="component-extra-fields" hidden>
+          <h4>Fonte</h4>
+          <label>Potência (Watts)<input name="psu_watts" placeholder="Ex: 650W" /></label>
+        </div>
+
+        <div id="gpu-fields" class="component-extra-fields" hidden>
+          <h4>Placa de vídeo</h4>
+          <label>Memória da placa<input name="gpu_memory" placeholder="Ex: 8 GB" /></label>
+          <label>Marca<input name="gpu_brand" placeholder="Ex: ASUS" /></label>
+          <label>Fabricante
+            <select name="gpu_manufacturer">
+              <option value="">Selecione</option>
+              <option value="NVIDIA">NVIDIA</option>
+              <option value="AMD">AMD</option>
+              <option value="INTEL">INTEL</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="storage-fields" class="component-extra-fields" hidden>
+          <h4>Armazenamento</h4>
+          <label>Tipo
+            <select name="storage_type">
+              <option value="">Selecione</option>
+              <option value="HD">HD</option>
+              <option value="SSD">SSD</option>
+            </select>
+          </label>
+          <label>Capacidade<input name="storage_capacity" placeholder="Ex: 1 TB" /></label>
+          <label>Marca<input name="storage_brand" placeholder="Ex: Western Digital" /></label>
+        </div>
       </section>
 
       <section class="form-zone zone-media full-width">
@@ -71,6 +118,25 @@
     if (!isPiece) classSelect.value = '';
   }
 
+  function toggleTechnicalFieldsByClass() {
+    const selectedClass = classSelect.value;
+    const fieldsMap = {
+      memoria_ram: document.getElementById('ram-fields'),
+      fonte: document.getElementById('psu-fields'),
+      placa_video: document.getElementById('gpu-fields'),
+      armazenamento: document.getElementById('storage-fields'),
+    };
+
+    Object.entries(fieldsMap).forEach(([key, fieldContainer]) => {
+      if (!fieldContainer) return;
+      const visible = selectedClass === key;
+      fieldContainer.hidden = !visible;
+      fieldContainer.querySelectorAll('input, select').forEach((input) => {
+        if (!visible) input.value = '';
+      });
+    });
+  }
+
   function updateMarginRealtime() {
     const cost = Number(document.getElementById('cost-input')?.value || 0);
     const freight = Number(document.getElementById('freight-input')?.value || 0);
@@ -89,10 +155,12 @@
   }
 
   categorySelect.addEventListener('change', togglePieceClass);
+  classSelect.addEventListener('change', toggleTechnicalFieldsByClass);
   document.getElementById('cost-input')?.addEventListener('input', updateMarginRealtime);
   document.getElementById('freight-input')?.addEventListener('input', updateMarginRealtime);
   document.getElementById('price-input')?.addEventListener('input', updateMarginRealtime);
   togglePieceClass();
+  toggleTechnicalFieldsByClass();
   updateMarginRealtime();
 </script>
 {% endblock %}
