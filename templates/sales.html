@@ -64,6 +64,31 @@
         <label class="payment-btn"><input type="radio" name="payment_method" value="boleto"><span>🧾 Boleto</span></label>
       </div>
 
+
+
+      <div class="floating-field">
+        <select name="payment_flow" id="payment-flow" required>
+          <option value="avista" selected>À vista</option>
+          <option value="aprazo">A prazo</option>
+        </select>
+        <label for="payment-flow">Tipo de cobrança</label>
+      </div>
+
+      <div id="credit-flow-fields" class="sale-credit-fields" hidden>
+        <div class="floating-field">
+          <input name="charge_reference" id="charge-reference" type="text" placeholder=" " />
+          <label for="charge-reference">Referência da cobrança (opcional)</label>
+        </div>
+        <div class="floating-field">
+          <input name="due_date" id="due-date" type="date" placeholder=" " />
+          <label for="due-date">Vencimento</label>
+        </div>
+        <div class="floating-field">
+          <input name="installment_count" id="installment-count" type="number" min="1" value="1" placeholder=" " />
+          <label for="installment-count">Qtde. parcelas</label>
+        </div>
+      </div>
+
       <button type="submit" class="btn-loja btn-loja--primary" id="finalize-sale-btn">Finalizar venda</button>
     </aside>
   </form>
@@ -131,6 +156,22 @@
   const changeViewEl = document.getElementById('sale-change-view');
   const finalizeBtn = document.getElementById('finalize-sale-btn');
   const saleForm = document.getElementById('sale-form');
+
+  const paymentFlowSelect = document.getElementById('payment-flow');
+  const creditFlowFields = document.getElementById('credit-flow-fields');
+
+  function togglePaymentFlowFields() {
+    const isCredit = (paymentFlowSelect?.value || 'avista') === 'aprazo';
+    if (creditFlowFields) creditFlowFields.hidden = !isCredit;
+    if (!isCredit) {
+      const due = document.getElementById('due-date');
+      const ref = document.getElementById('charge-reference');
+      const inst = document.getElementById('installment-count');
+      if (due) due.value = '';
+      if (ref) ref.value = '';
+      if (inst) inst.value = '1';
+    }
+  }
 
   function formatBRL(v) {
     return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -212,7 +253,14 @@
   });
 
   discountInput?.addEventListener('input', recalcTotal);
+  paymentFlowSelect?.addEventListener('change', togglePaymentFlowFields);
   amountReceivedInput?.addEventListener('input', recalcTotal);
+
+  [discountInput, amountReceivedInput].forEach((input) => {
+    input?.addEventListener('focus', () => {
+      if (Number(input.value || 0) === 0) input.select();
+    });
+  });
 
   saleForm?.addEventListener('submit', () => {
     if (!finalizeBtn) return;
@@ -221,6 +269,7 @@
     finalizeBtn.textContent = 'Processando...';
   });
   saleLines.querySelectorAll('.sale-line').forEach(bindLine);
+  togglePaymentFlowFields();
   recalcTotal();
 
   const params = new URLSearchParams(window.location.search);

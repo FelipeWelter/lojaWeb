@@ -71,6 +71,13 @@ class Product(db.Model):
     storage_type = db.Column(db.String(20), nullable=True)
     storage_capacity = db.Column(db.String(30), nullable=True)
     storage_brand = db.Column(db.String(60), nullable=True)
+    cpu_brand = db.Column(db.String(60), nullable=True)
+    cpu_manufacturer = db.Column(db.String(60), nullable=True)
+    cpu_model = db.Column(db.String(80), nullable=True)
+    motherboard_brand = db.Column(db.String(60), nullable=True)
+    motherboard_model = db.Column(db.String(80), nullable=True)
+    motherboard_socket = db.Column(db.String(40), nullable=True)
+    motherboard_chipset = db.Column(db.String(40), nullable=True)
     images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
     active = db.Column(db.Boolean, nullable=False, default=True)
 
@@ -1756,6 +1763,13 @@ def produtos():
             storage_type=(request.form.get('storage_type') or '').strip() or None,
             storage_capacity=(request.form.get('storage_capacity') or '').strip() or None,
             storage_brand=(request.form.get('storage_brand') or '').strip() or None,
+            cpu_brand=(request.form.get('cpu_brand') or '').strip() or None,
+            cpu_manufacturer=(request.form.get('cpu_manufacturer') or '').strip() or None,
+            cpu_model=(request.form.get('cpu_model') or '').strip() or None,
+            motherboard_brand=(request.form.get('motherboard_brand') or '').strip() or None,
+            motherboard_model=(request.form.get('motherboard_model') or '').strip() or None,
+            motherboard_socket=(request.form.get('motherboard_socket') or '').strip() or None,
+            motherboard_chipset=(request.form.get('motherboard_chipset') or '').strip() or None,
         )
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
@@ -1863,6 +1877,20 @@ def editar_produto(product_id: int):
         product.storage_capacity = (request.form.get('storage_capacity') or '').strip() or None
     if 'storage_brand' in request.form:
         product.storage_brand = (request.form.get('storage_brand') or '').strip() or None
+    if 'cpu_brand' in request.form:
+        product.cpu_brand = (request.form.get('cpu_brand') or '').strip() or None
+    if 'cpu_manufacturer' in request.form:
+        product.cpu_manufacturer = (request.form.get('cpu_manufacturer') or '').strip() or None
+    if 'cpu_model' in request.form:
+        product.cpu_model = (request.form.get('cpu_model') or '').strip() or None
+    if 'motherboard_brand' in request.form:
+        product.motherboard_brand = (request.form.get('motherboard_brand') or '').strip() or None
+    if 'motherboard_model' in request.form:
+        product.motherboard_model = (request.form.get('motherboard_model') or '').strip() or None
+    if 'motherboard_socket' in request.form:
+        product.motherboard_socket = (request.form.get('motherboard_socket') or '').strip() or None
+    if 'motherboard_chipset' in request.form:
+        product.motherboard_chipset = (request.form.get('motherboard_chipset') or '').strip() or None
 
     if old_price != new_price:
         _log_audit(
@@ -2849,6 +2877,22 @@ def vendas():
         if payment_method not in PAYMENT_METHOD_LABELS:
             payment_method = 'pix'
 
+        payment_flow = (request.form.get('payment_flow') or 'avista').strip()
+        if payment_flow not in {'avista', 'aprazo'}:
+            payment_flow = 'avista'
+
+        due_date = None
+        if payment_flow == 'aprazo':
+            due_date_raw = (request.form.get('due_date') or '').strip()
+            if due_date_raw:
+                try:
+                    due_date = _parse_date_input(due_date_raw)
+                except ValueError as exc:
+                    flash(str(exc), 'danger')
+                    return redirect(url_for('vendas'))
+            else:
+                due_date = (datetime.utcnow() + timedelta(days=30)).date()
+
         sale = Sale(
             sale_name=sale_name,
             client_id=client_id,
@@ -2881,8 +2925,34 @@ def vendas():
                 )
             )
 
+        charge_reference = (request.form.get('charge_reference') or '').strip() or f'VENDA-{sale.id}'
+        installment_count_raw = (request.form.get('installment_count') or '1').strip()
+        try:
+            installment_count = max(1, int(installment_count_raw or '1'))
+        except ValueError:
+            installment_count = 1
+        is_installment = payment_flow == 'aprazo' and installment_count > 1
+        if payment_flow != 'aprazo':
+            installment_count = 1
+
+        charge = Charge(
+            sale_id=sale.id,
+            mercado_pago_reference=charge_reference,
+            due_date=due_date,
+            amount=total,
+            amount_paid=total if payment_flow == 'avista' else Decimal('0.00'),
+            status='confirmado' if payment_flow == 'avista' else 'pendente',
+            payment_method=payment_method,
+            is_installment=is_installment,
+            installment_count=installment_count,
+            installment_value=(total / Decimal(installment_count)).quantize(Decimal('0.01')) if installment_count > 0 else total,
+            payment_confirmed_at=datetime.utcnow() if payment_flow == 'avista' else None,
+        )
+        _normalize_charge_status(charge)
+        db.session.add(charge)
+
         db.session.commit()
-        flash('Venda registrada com sucesso!', 'success')
+        flash('Venda registrada com sucesso e enviada para o fluxo financeiro!', 'success')
         return redirect(url_for('vendas', print_sale_id=sale.id))
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
@@ -3259,6 +3329,44 @@ def excluir_cobranca(charge_id: int):
     flash('Cobrança excluída com sucesso!', 'success')
     return redirect(url_for('cobrancas'))
 
+
+
+@app.route('/caixa')
+@_login_required
+def caixa():
+    today = datetime.utcnow().date()
+    charges = Charge.query.order_by(Charge.id.desc()).all()
+
+    paid_today = Decimal('0.00')
+    pending_total = Decimal('0.00')
+    overdue_total = Decimal('0.00')
+
+    for charge in charges:
+        total_amount = _charge_total_amount(charge)
+        paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        balance = (total_amount - paid_amount).quantize(Decimal('0.01'))
+
+        if charge.payment_confirmed_at and charge.payment_confirmed_at.date() == today:
+            paid_today += paid_amount
+
+        if charge.status != 'cancelado' and balance > 0:
+            pending_total += balance
+            if charge.due_date and charge.due_date < today:
+                overdue_total += balance
+
+    return render_template(
+        'cash_management.html',
+        charges=charges,
+        paid_today=paid_today,
+        pending_total=pending_total,
+        overdue_total=overdue_total,
+        charge_ui_status=_charge_ui_status,
+        charge_balance=_charge_balance,
+        charge_total_amount=_charge_total_amount,
+        payment_method_labels=PAYMENT_METHOD_LABELS,
+    )
+
+
 @app.route('/clientes/<int:client_id>/historico')
 @_login_required
 def historico_cliente(client_id: int):
@@ -3374,6 +3482,20 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN storage_capacity VARCHAR(30)'))
     if 'storage_brand' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN storage_brand VARCHAR(60)'))
+    if 'cpu_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN cpu_brand VARCHAR(60)'))
+    if 'cpu_manufacturer' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN cpu_manufacturer VARCHAR(60)'))
+    if 'cpu_model' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN cpu_model VARCHAR(80)'))
+    if 'motherboard_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_brand VARCHAR(60)'))
+    if 'motherboard_model' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_model VARCHAR(80)'))
+    if 'motherboard_socket' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_socket VARCHAR(40)'))
+    if 'motherboard_chipset' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_chipset VARCHAR(40)'))
     db.session.commit()
 
     db.session.execute(

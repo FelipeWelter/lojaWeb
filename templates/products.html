@@ -1,55 +1,64 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="card">
-  <div class="inventory-header product-header"><h2>Cadastro de produtos</h2><a class="btn-loja btn-loja--primary product-pc-button" href="{{ url_for('montar_pc') }}">🖥️ Montar/Cadastrar PC</a></div>
+<section class="card" id="new-item-flow">
+  <div class="inventory-header product-header">
+    <h2>Novo item no estoque</h2>
+  </div>
 
+  <section class="form-zone">
+    <h3>1) Tipo de item</h3>
+    <div class="action-group">
+      <button type="button" class="btn-loja btn-loja--primary" id="choose-piece-btn">Peça</button>
+      <button type="button" class="btn-loja btn-loja--secondary" id="choose-computer-btn">Computador</button>
+    </div>
+  </section>
 
-  <form method="post" class="grid form-grid piece-form-grid" id="piece-form" enctype="multipart/form-data">
+  <section class="form-zone" id="computer-next-step" hidden>
+    <h3>Cadastro de computador completo</h3>
+    <p>Você selecionou <strong>Computador</strong>. O cadastro completo é feito na tela dedicada para montagem, com seleção de peças do estoque.</p>
+    <a class="btn-loja btn-loja--primary" href="{{ url_for('montar_pc') }}">Abrir tela de cadastrar computador completo</a>
+  </section>
+
+  <section class="form-zone" id="piece-class-step" hidden>
+    <h3>2) Classe da peça <span id="selected-class-chip" class="badge success" style="display:none;"></span></h3>
+    <label>Selecione a classe
+      <select id="component-class-step-select">
+        <option value="">Selecione</option>
+        <option value="gabinete">Gabinete</option>
+        <option value="fans">Fans</option>
+        <option value="placa_mae">Placa-mãe</option>
+        <option value="placa_video">Placa de Vídeo</option>
+        <option value="processador">Processador</option>
+        <option value="memoria_ram">Memória RAM</option>
+        <option value="armazenamento">Armazenamento</option>
+        <option value="fonte">Fonte</option>
+        <option value="perifericos">Periféricos</option>
+      </select>
+    </label>
+  </section>
+
+  <form method="post" class="grid form-grid piece-form-grid" id="piece-form" enctype="multipart/form-data" hidden>
     <input type="hidden" name="form_mode" value="piece" />
+    <input type="hidden" name="category" value="Peça" />
+    <input type="hidden" name="component_class" id="component-class-hidden" />
+
     <div class="product-zone-grid full-width">
       <section class="form-zone zone-identity">
-        <h3>Dados principais</h3>
-        <label>Nome do produto<input name="name" placeholder="Nome" required /></label>
-        <label>Marca<input name="brand" placeholder="Marca" /></label>
-        <label>Categoria
-          <select name="category" id="category-select"><option>Peça</option><option>Computador</option><option>Periféricos</option></select>
-        </label>
-      </section>
-
-      <section class="form-zone zone-finance">
-        <h3>Valores de venda</h3>
-        <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" type="text" data-money="true" placeholder="0,00" required /></div></label>
-        <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" type="text" data-money="true" placeholder="0,00" required /></div></label>
-        <label>Margem de lucro (%)<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
-      </section>
-
-      <section class="form-zone zone-logistics">
-        <h3>Controle de estoque</h3>
-        <label>Estoque atual<input name="stock" type="number" min="0" placeholder="Estoque" required /></label>
-        <label>Estoque mínimo<input name="min_stock" type="number" min="0" placeholder="0" value="0" /></label>
-        <label>Unidade de medida<input name="unit_measure" placeholder="Ex: un, kit" value="un" /></label>
+        <h3>3) Dados principais</h3>
+        <label>Nome da peça<input name="name" placeholder="Ex: Memória Kingston Fury 16GB" required /></label>
+        <label>Número de Série (S/N)<input name="serial_number" placeholder="Número de Série (S/N)" /></label>
       </section>
 
       <section class="form-zone zone-meta">
-        <h3>Dados técnicos</h3>
-        <label>Classe da peça
-          <select name="component_class" id="component-class-select">
-            <option value="">Classe da peça (opcional)</option>
-            <option value="gabinete">Gabinete</option>
-            <option value="fans">Fans</option>
-            <option value="placa_mae">Placa-mãe</option>
-            <option value="placa_video">Placa de Vídeo</option>
-            <option value="processador">Processador</option>
-            <option value="memoria_ram">Memória RAM</option>
-            <option value="armazenamento">Armazenamento</option>
-            <option value="fonte">Fonte</option>
-            <option value="perifericos">Periféricos</option>
-          </select>
-        </label>
-        <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" type="text" data-money="true" placeholder="0,00" value="0,00" /></div></label>
-        <label>Número de Série (S/N)<input name="serial_number" placeholder="Número de Série (S/N)" /></label>
+        <h3>4) Dados técnicos da classe selecionada</h3>
+        <p id="piece-help-text" class="piece-help-text">Selecione uma classe para exibir os campos corretos.</p>
 
-        <div id="ram-fields" class="component-extra-fields" hidden>
+        <div id="no-extra-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Sem campos adicionais para essa classe</h4>
+          <p>Para essa classe, preencha apenas os dados principais, valores e estoque.</p>
+        </div>
+
+        <div id="ram-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Memória RAM</h4>
           <label>Tecnologia (DDR)
             <select name="ram_ddr">
@@ -61,16 +70,37 @@
           </label>
           <label>Marca<input name="ram_brand" placeholder="Ex: Kingston" /></label>
           <label>Frequência<input name="ram_frequency" placeholder="Ex: 3200 MHz" /></label>
-          <label>Tamanho<input name="ram_size" placeholder="Ex: 16 GB" /></label>
+          <label>Capacidade<input name="ram_size" placeholder="Ex: 16 GB" /></label>
         </div>
 
-        <div id="psu-fields" class="component-extra-fields" hidden>
+        <div id="cpu-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Processador</h4>
+          <label>Fabricante
+            <select name="cpu_manufacturer">
+              <option value="">Selecione</option>
+              <option value="Intel">Intel</option>
+              <option value="AMD">AMD</option>
+            </select>
+          </label>
+          <label>Marca<input name="cpu_brand" placeholder="Ex: Ryzen / Core" /></label>
+          <label>Modelo<input name="cpu_model" placeholder="Ex: Ryzen 5 5600" /></label>
+        </div>
+
+        <div id="motherboard-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Placa-mãe</h4>
+          <label>Marca<input name="motherboard_brand" placeholder="Ex: ASUS" /></label>
+          <label>Modelo<input name="motherboard_model" placeholder="Ex: TUF B550M" /></label>
+          <label>Socket<input name="motherboard_socket" placeholder="Ex: AM4 / LGA1700" /></label>
+          <label>Chipset<input name="motherboard_chipset" placeholder="Ex: B550" /></label>
+        </div>
+
+        <div id="psu-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Fonte</h4>
           <label>Marca<input name="psu_brand" placeholder="Ex: Corsair" /></label>
           <label>Potência (Watts)<input name="psu_watts" placeholder="Ex: 650W" /></label>
         </div>
 
-        <div id="gpu-fields" class="component-extra-fields" hidden>
+        <div id="gpu-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Placa de vídeo</h4>
           <label>Memória da placa<input name="gpu_memory" placeholder="Ex: 8 GB" /></label>
           <label>Marca<input name="gpu_brand" placeholder="Ex: ASUS" /></label>
@@ -84,7 +114,7 @@
           </label>
         </div>
 
-        <div id="storage-fields" class="component-extra-fields" hidden>
+        <div id="storage-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Armazenamento</h4>
           <label>Tipo
             <select name="storage_type">
@@ -98,52 +128,119 @@
         </div>
       </section>
 
+      <section class="form-zone zone-finance">
+        <h3>5) Valores</h3>
+        <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" required /></div></label>
+        <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" required /></div></label>
+        <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" /></div></label>
+        <label>Margem de lucro (%)<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
+      </section>
+
+      <section class="form-zone zone-logistics">
+        <h3>6) Estoque</h3>
+        <label>Estoque atual<input name="stock" type="number" min="0" placeholder="Estoque" required /></label>
+      </section>
+
       <section class="form-zone zone-media full-width">
         <h3>Mídia do produto</h3>
         <label class="media-upload-field">Imagem do produto<input name="photo_file" type="file" accept="image/*" /></label>
       </section>
     </div>
-    <button type="submit">Salvar peça</button>
+    <button type="submit">Cadastrar no estoque</button>
   </form>
-
 </section>
 
-
-
 <script>
-  const categorySelect = document.getElementById('category-select');
-  const classSelect = document.getElementById('component-class-select');
+  const choosePieceBtn = document.getElementById('choose-piece-btn');
+  const chooseComputerBtn = document.getElementById('choose-computer-btn');
+  const computerNextStep = document.getElementById('computer-next-step');
+  const pieceClassStep = document.getElementById('piece-class-step');
+  const classSelect = document.getElementById('component-class-step-select');
+  const pieceForm = document.getElementById('piece-form');
+  const classHidden = document.getElementById('component-class-hidden');
+  const helpTextEl = document.getElementById('piece-help-text');
 
-  function togglePieceClass() {
-    const isPiece = categorySelect.value === 'Peça';
-    classSelect.disabled = !isPiece;
-    if (!isPiece) classSelect.value = '';
+  const classChip = document.getElementById('selected-class-chip');
+  const classLabels = {
+    gabinete: 'Gabinete', fans: 'Fans', placa_mae: 'Placa-mãe', placa_video: 'Placa de Vídeo',
+    processador: 'Processador', memoria_ram: 'Memória RAM', armazenamento: 'Armazenamento',
+    fonte: 'Fonte', perifericos: 'Periféricos'
+  };
+
+  function activatePieceFlow() {
+    computerNextStep.hidden = true;
+    pieceClassStep.hidden = false;
+    if (!classSelect.value) {
+      pieceForm.hidden = true;
+    }
+  }
+
+  function activateComputerFlow() {
+    pieceClassStep.hidden = true;
+    pieceForm.hidden = true;
+    classSelect.value = '';
+    classHidden.value = '';
+    computerNextStep.hidden = false;
   }
 
   function toggleTechnicalFieldsByClass() {
     const selectedClass = classSelect.value;
+    classHidden.value = selectedClass;
+    pieceForm.hidden = !selectedClass;
+    if (classChip) {
+      if (selectedClass) {
+        classChip.textContent = classLabels[selectedClass] || selectedClass;
+        classChip.style.display = 'inline-flex';
+      } else {
+        classChip.textContent = '';
+        classChip.style.display = 'none';
+      }
+    }
+
     const fieldsMap = {
       memoria_ram: document.getElementById('ram-fields'),
+      processador: document.getElementById('cpu-fields'),
+      placa_mae: document.getElementById('motherboard-fields'),
       fonte: document.getElementById('psu-fields'),
       placa_video: document.getElementById('gpu-fields'),
       armazenamento: document.getElementById('storage-fields'),
     };
 
+    const helpMap = {
+      memoria_ram: 'RAM: tecnologia DDR, frequência, marca e capacidade. RAM não usa campos de armazenamento.',
+      processador: 'Processador: preencha fabricante, marca e modelo.',
+      placa_mae: 'Placa-mãe: preencha marca, modelo, socket e chipset.',
+      fonte: 'Fonte: informe marca e potência real.',
+      placa_video: 'GPU: informe memória, fabricante da GPU e marca parceira.',
+      armazenamento: 'Armazenamento: informe tipo, capacidade e marca.',
+    };
+
+    const noExtraClasses = ['gabinete', 'fans', 'perifericos'];
+    const noExtraFields = document.getElementById('no-extra-fields');
+
     Object.entries(fieldsMap).forEach(([key, fieldContainer]) => {
       if (!fieldContainer) return;
       const visible = selectedClass === key;
       fieldContainer.hidden = !visible;
+      fieldContainer.style.display = visible ? 'block' : 'none';
       fieldContainer.querySelectorAll('input, select').forEach((input) => {
         if (!visible) input.value = '';
       });
     });
+
+    if (noExtraFields) {
+      const showNoExtra = Boolean(selectedClass) && noExtraClasses.includes(selectedClass);
+      noExtraFields.hidden = !showNoExtra;
+      noExtraFields.style.display = showNoExtra ? 'block' : 'none';
+    }
+
+    if (helpTextEl) {
+      helpTextEl.textContent = helpMap[selectedClass] || 'Para essa classe, preencha somente os campos exibidos abaixo.';
+    }
   }
 
   function parseMoneyValue(value) {
-    const normalized = String(value || '')
-      .replace(/\./g, '')
-      .replace(',', '.')
-      .replace(/[^\d.-]/g, '');
+    const normalized = String(value || '').replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
   }
@@ -151,7 +248,6 @@
   function calculateProfitMargin({ cost, freight, price }) {
     const totalCost = cost + freight;
     const profit = price - totalCost;
-
     if (price <= 0) return 0;
     return (profit / price) * 100;
   }
@@ -166,7 +262,7 @@
     if (marginInput) marginInput.value = margin.toFixed(2).replace('.', ',');
     if (!pill) return;
     pill.textContent = `${margin.toFixed(2).replace('.', ',')}%`;
-    pill.classList.remove('ok','warn','bad');
+    pill.classList.remove('ok', 'warn', 'bad');
     if (margin < 0) pill.classList.add('bad');
     else if (margin < 10) pill.classList.add('warn');
     else pill.classList.add('ok');
@@ -176,13 +272,22 @@
     window.requestAnimationFrame(updateMarginRealtime);
   }
 
-  categorySelect.addEventListener('change', togglePieceClass);
+  choosePieceBtn.addEventListener('click', activatePieceFlow);
+  chooseComputerBtn.addEventListener('click', activateComputerFlow);
   classSelect.addEventListener('change', toggleTechnicalFieldsByClass);
+
   document.getElementById('cost-input')?.addEventListener('input', scheduleMarginUpdate);
   document.getElementById('freight-input')?.addEventListener('input', scheduleMarginUpdate);
   document.getElementById('price-input')?.addEventListener('input', scheduleMarginUpdate);
-  togglePieceClass();
-  toggleTechnicalFieldsByClass();
+
+  document.querySelectorAll('.js-clear-prefill').forEach((input) => {
+    input.addEventListener('focus', () => {
+      if ((input.value || '').trim() === '0,00' || (input.value || '').trim() === '0.00') {
+        input.value = '';
+      }
+    }, { once: true });
+  });
+
   updateMarginRealtime();
 </script>
 {% endblock %}
