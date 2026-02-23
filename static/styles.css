@@ -988,6 +988,33 @@ body.dashboard-page textarea::placeholder {
   accent-color: #2ECC71;
 }
 
+/* Ajustes do formulário de montagem/cadastro de computador */
+#assembled-form .pc-layout {
+  display: block;
+}
+
+#assembled-form .slot-box,
+#form-montagem .slot-box {
+  padding: 0.75rem;
+}
+
+#assembled-form .technical-checklist input[type="checkbox"],
+#form-montagem .technical-checklist input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: #2ECC71;
+}
+
+#assembled-form .technical-checklist label,
+#form-montagem .technical-checklist label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .summary-sidebar {
   position: sticky;
   top: 90px;

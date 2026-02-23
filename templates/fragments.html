@@ -3,7 +3,6 @@
   <h2>LojaWeb</h2>
   <nav>
     <a href="{{ url_for('dashboard') }}" class="{% if endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
-    <a href="{{ url_for('gestao_inventario') }}" class="{% if endpoint in ['gestao_inventario', 'produtos'] %}active{% endif %}">Gestão de Inventário</a>
     <a href="{{ url_for('produtos') }}" class="{% if endpoint == 'produtos' %}active{% endif %}">Produtos</a>
     <a href="{{ url_for('servicos') }}" class="{% if endpoint == 'servicos' %}active{% endif %}">Serviços</a>
     <a href="{{ url_for('clientes') }}" class="{% if endpoint in ['clientes','editar_cliente','historico_cliente'] %}active{% endif %}">Clientes</a>
