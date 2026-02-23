@@ -20,7 +20,7 @@
         <h3>Valores de venda</h3>
         <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" type="text" data-money="true" placeholder="0,00" required /></div></label>
         <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" type="text" data-money="true" placeholder="0,00" required /></div></label>
-        <label>Margem de lucro<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
+        <label>Margem de lucro (%)<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
       </section>
 
       <section class="form-zone zone-logistics">
@@ -148,12 +148,19 @@
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
+  function calculateProfitMargin({ cost, freight, price }) {
+    const totalCost = cost + freight;
+    const profit = price - totalCost;
+
+    if (price <= 0) return 0;
+    return (profit / price) * 100;
+  }
+
   function updateMarginRealtime() {
     const cost = parseMoneyValue(document.getElementById('cost-input')?.value || 0);
     const freight = parseMoneyValue(document.getElementById('freight-input')?.value || 0);
     const price = parseMoneyValue(document.getElementById('price-input')?.value || 0);
-    const base = cost + freight;
-    const margin = base > 0 ? ((price - base) / base) * 100 : 0;
+    const margin = calculateProfitMargin({ cost, freight, price });
     const marginInput = document.getElementById('margin-input');
     const pill = document.getElementById('margin-pill');
     if (marginInput) marginInput.value = margin.toFixed(2).replace('.', ',');
@@ -165,11 +172,15 @@
     else pill.classList.add('ok');
   }
 
+  function scheduleMarginUpdate() {
+    window.requestAnimationFrame(updateMarginRealtime);
+  }
+
   categorySelect.addEventListener('change', togglePieceClass);
   classSelect.addEventListener('change', toggleTechnicalFieldsByClass);
-  document.getElementById('cost-input')?.addEventListener('input', updateMarginRealtime);
-  document.getElementById('freight-input')?.addEventListener('input', updateMarginRealtime);
-  document.getElementById('price-input')?.addEventListener('input', updateMarginRealtime);
+  document.getElementById('cost-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('freight-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('price-input')?.addEventListener('input', scheduleMarginUpdate);
   togglePieceClass();
   toggleTechnicalFieldsByClass();
   updateMarginRealtime();
