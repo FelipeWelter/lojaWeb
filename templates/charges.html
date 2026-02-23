@@ -95,7 +95,6 @@
   <div class="charges-filter-bar">
     <input id="filter-client" type="text" placeholder="Filtrar por Cliente" />
     <input id="filter-month" type="month" />
-    <label class="checkbox-inline"><input id="filter-overdue" type="checkbox" /> Mostrar apenas atrasados</label>
   </div>
 
   <div class="table-wrap charges-table-wrap">
@@ -192,28 +191,23 @@
 <script>
   const filterClient = document.getElementById('filter-client');
   const filterMonth = document.getElementById('filter-month');
-  const filterOverdue = document.getElementById('filter-overdue');
   const tableRows = document.querySelectorAll('#charges-table tbody tr[data-client]');
 
   function applyChargeFilters() {
     const clientValue = (filterClient?.value || '').trim().toLowerCase();
     const monthValue = filterMonth?.value || '';
-    const overdueOnly = filterOverdue?.checked;
 
     tableRows.forEach((row) => {
       const client = row.dataset.client || '';
       const month = row.dataset.month || '';
-      const overdue = row.dataset.overdue === '1';
 
       const matchClient = !clientValue || client.includes(clientValue);
       const matchMonth = !monthValue || month === monthValue;
-      const matchOverdue = !overdueOnly || overdue;
-
-      row.style.display = matchClient && matchMonth && matchOverdue ? '' : 'none';
+      row.style.display = matchClient && matchMonth ? '' : 'none';
     });
   }
 
-  [filterClient, filterMonth, filterOverdue].forEach((el) => {
+  [filterClient, filterMonth].forEach((el) => {
     el?.addEventListener('input', applyChargeFilters);
     el?.addEventListener('change', applyChargeFilters);
   });

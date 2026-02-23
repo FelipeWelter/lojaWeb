@@ -4,10 +4,10 @@
   <nav>
     <a href="{{ url_for('dashboard') }}" class="{% if endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
     <a href="{{ url_for('produtos') }}" class="{% if endpoint == 'produtos' %}active{% endif %}">Produtos</a>
+    <a href="{{ url_for('gestao_inventario') }}" class="{% if endpoint == 'gestao_inventario' %}active{% endif %}">Estoque</a>
     <a href="{{ url_for('servicos') }}" class="{% if endpoint == 'servicos' %}active{% endif %}">Serviços</a>
     <a href="{{ url_for('clientes') }}" class="{% if endpoint in ['clientes','editar_cliente','historico_cliente'] %}active{% endif %}">Clientes</a>
     <a href="{{ url_for('vendas') }}" class="{% if endpoint == 'vendas' %}active{% endif %}">Vendas</a>
-    <a href="{{ url_for('montar_pc') }}" class="{% if endpoint == 'montar_pc' %}active{% endif %}">Montar PC</a>
     <a href="{{ url_for('cobrancas') }}" class="{% if endpoint == 'cobrancas' %}active{% endif %}">Cobranças</a>
     <a href="{{ url_for('logs_auditoria') }}" class="{% if endpoint == 'logs_auditoria' %}active{% endif %}">Logs</a>
     <a href="{{ url_for('usuarios') }}" class="nav-admin {% if endpoint == 'usuarios' %}active{% endif %}">Usuários</a>

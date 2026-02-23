@@ -1372,7 +1372,7 @@ body.dashboard-page textarea::placeholder {
 .status-pill.cancelado { color:#95a5a6; border-color:#95a5a6; }
 .charge-overdue-row { border-left:4px solid #E74C3C; }
 .charges-filter-bar { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0 16px; }
-.charges-filter-bar input, .charges-filter-bar label { background:#2C3E50; color:#ECF0F1; border:1px solid #3f5973; border-radius:8px; padding:8px 10px; }
+.charges-filter-bar input { background:#2C3E50; color:#ECF0F1; border:1px solid #3f5973; border-radius:8px; padding:8px 10px; }
 .actions-menu { position:relative; }
 .actions-menu summary { cursor:pointer; list-style:none; font-size:1.3rem; }
 .actions-menu-content { position:absolute; right:0; z-index:20; min-width:260px; background:#1e2b38; border:1px solid #334a5f; border-radius:10px; padding:10px; display:grid; gap:8px; }
@@ -2018,6 +2018,21 @@ body.dashboard-page textarea:focus {
   font-weight: 700;
 }
 
+
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 0.9rem;
+}
+
+.checkbox-inline input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
 .charges-form-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
