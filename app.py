@@ -703,6 +703,54 @@ def _to_money_decimal(value, default: str = '0.00') -> Decimal:
     return parsed.quantize(Decimal('0.01'))
 
 
+def _load_json_list(raw_value: str | None) -> list[dict]:
+    """Carrega JSON de lista e retorna apenas itens-objeto válidos."""
+    if not raw_value:
+        return []
+    try:
+        loaded = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(loaded, list):
+        return []
+    return [item for item in loaded if isinstance(item, dict)]
+
+
+def _build_maintenance_parts_items(form_data, *, allow_single_fallback: bool = False) -> list[dict]:
+    """Normaliza peças selecionadas no formulário de manutenção."""
+    part_ids = form_data.getlist('maintenance_part_id[]')
+    part_qtys = form_data.getlist('maintenance_part_qty[]')
+
+    if allow_single_fallback and not part_ids and not part_qtys:
+        part_ids = [(form_data.get('maintenance_part_id') or '').strip()]
+        part_qtys = [(form_data.get('maintenance_part_qty') or '1').strip()]
+
+    parts_items = []
+    for idx, raw_part_id in enumerate(part_ids):
+        part_id_raw = (raw_part_id or '').strip()
+        if not part_id_raw or not part_id_raw.isdigit():
+            continue
+
+        product = Product.query.get(int(part_id_raw))
+        if not product:
+            continue
+
+        raw_qty = part_qtys[idx] if idx < len(part_qtys) else '1'
+        try:
+            part_qty = max(1, int((raw_qty or '1').strip()))
+        except ValueError:
+            part_qty = 1
+
+        parts_items.append({
+            'product_id': product.id,
+            'name': product.name,
+            'quantity': part_qty,
+            'unit_price': str(Decimal(product.price or 0).quantize(Decimal('0.01'))),
+        })
+
+    return parts_items
+
+
 DEFAULT_MAINTENANCE_CHECKLIST = [
     'Limpeza interna',
     'Troca de pasta térmica',
@@ -715,12 +763,7 @@ def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user
     if ticket.service_record_id:
         return
 
-    parts_items = []
-    if ticket.parts_json:
-        try:
-            parts_items = json.loads(ticket.parts_json)
-        except json.JSONDecodeError:
-            parts_items = []
+    parts_items = _load_json_list(ticket.parts_json)
 
     parts_total = Decimal('0')
     parts_desc = []
@@ -766,12 +809,7 @@ def _apply_ticket_parts_stock(ticket: 'MaintenanceTicket'):
     if ticket.parts_stock_applied:
         return
 
-    parts_items = []
-    if ticket.parts_json:
-        try:
-            parts_items = json.loads(ticket.parts_json)
-        except json.JSONDecodeError:
-            parts_items = []
+    parts_items = _load_json_list(ticket.parts_json)
 
     if not parts_items:
         ticket.parts_stock_applied = True
@@ -1078,12 +1116,7 @@ def imprimir(tipo: str, record_id: int):
         }
     elif tipo == 'manutencao':
         data = MaintenanceTicket.query.get_or_404(record_id)
-        parts_items = []
-        if data.parts_json:
-            try:
-                parts_items = json.loads(data.parts_json)
-            except json.JSONDecodeError:
-                parts_items = []
+        parts_items = _load_json_list(data.parts_json)
 
         items = [
             {
@@ -1096,8 +1129,8 @@ def imprimir(tipo: str, record_id: int):
         subtotal = Decimal(data.labor_cost or 0)
 
         for part in parts_items:
-            qty = Decimal(str(part.get('quantity', 1) or 1))
-            unit = Decimal(str(part.get('unit_price', 0) or 0))
+            qty = _to_decimal(part.get('quantity') or 1, default='1')
+            unit = _to_money_decimal(part.get('unit_price') or 0)
             total = qty * unit
             subtotal += total
             items.append({
@@ -2201,37 +2234,7 @@ def servicos():
                 flash('Mão de obra deve ser maior ou igual a zero.', 'danger')
                 return redirect(url_for('servicos'))
 
-            part_ids = request.form.getlist('maintenance_part_id[]')
-            part_qtys = request.form.getlist('maintenance_part_qty[]')
-
-            if not part_ids and not part_qtys:
-                single_part_id = (request.form.get('maintenance_part_id') or '').strip()
-                single_part_qty = (request.form.get('maintenance_part_qty') or '1').strip()
-                part_ids = [single_part_id]
-                part_qtys = [single_part_qty]
-
-            for idx, raw_part_id in enumerate(part_ids):
-                part_id_raw = (raw_part_id or '').strip()
-                if not part_id_raw:
-                    continue
-
-                product = Product.query.get(int(part_id_raw)) if part_id_raw.isdigit() else None
-                if not product:
-                    continue
-
-                raw_qty = part_qtys[idx] if idx < len(part_qtys) else '1'
-                try:
-                    part_qty = int((raw_qty or '1').strip())
-                except ValueError:
-                    part_qty = 1
-
-                part_qty = max(part_qty, 1)
-                parts_items.append({
-                    'product_id': product.id,
-                    'name': product.name,
-                    'quantity': part_qty,
-                    'unit_price': str(Decimal(product.price or 0).quantize(Decimal('0.01'))),
-                })
+            parts_items = _build_maintenance_parts_items(request.form, allow_single_fallback=True)
 
             client_name = client_name or 'Não informado'
             equipment = equipment or 'Não informado'
@@ -2349,24 +2352,8 @@ def servicos():
     maintenance_parts_map = {}
     maintenance_checklist_map = {}
     for ticket in maintenance_tickets:
-        parts_items = []
-        if ticket.parts_json:
-            try:
-                loaded_parts = json.loads(ticket.parts_json)
-                if isinstance(loaded_parts, list):
-                    parts_items = [item for item in loaded_parts if isinstance(item, dict)]
-            except json.JSONDecodeError:
-                parts_items = []
-        maintenance_parts_map[ticket.id] = parts_items
-
-        checklist_items = []
-        if ticket.checklist_json:
-            try:
-                loaded_checklist = json.loads(ticket.checklist_json)
-                if isinstance(loaded_checklist, list):
-                    checklist_items = [item for item in loaded_checklist if isinstance(item, dict)]
-            except json.JSONDecodeError:
-                checklist_items = []
+        maintenance_parts_map[ticket.id] = _load_json_list(ticket.parts_json)
+        checklist_items = _load_json_list(ticket.checklist_json)
 
         done_labels = {
             (item.get('label') or '').strip()
@@ -2501,27 +2488,7 @@ def atualizar_manutencao(ticket_id: int):
         ]
         ticket.checklist_json = json.dumps(checklist_items, ensure_ascii=False)
 
-        part_ids = request.form.getlist('maintenance_part_id[]')
-        part_qtys = request.form.getlist('maintenance_part_qty[]')
-        parts_items = []
-        for idx, raw_part_id in enumerate(part_ids):
-            part_id_raw = (raw_part_id or '').strip()
-            if not part_id_raw or not part_id_raw.isdigit():
-                continue
-            product = Product.query.get(int(part_id_raw))
-            if not product:
-                continue
-            raw_qty = part_qtys[idx] if idx < len(part_qtys) else '1'
-            try:
-                part_qty = max(1, int((raw_qty or '1').strip()))
-            except ValueError:
-                part_qty = 1
-            parts_items.append({
-                'product_id': product.id,
-                'name': product.name,
-                'quantity': part_qty,
-                'unit_price': str(Decimal(product.price or 0).quantize(Decimal('0.01'))),
-            })
+        parts_items = _build_maintenance_parts_items(request.form)
 
         ticket.parts_json = json.dumps(parts_items, ensure_ascii=False) if parts_items else None
 
