@@ -2174,6 +2174,140 @@ body.dashboard-page textarea:focus {
   }
 }
 
+
+/* Layout resiliente: evita vazamento de cards/tabelas */
+.container {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.card,
+.checkout-main,
+.checkout-summary,
+.slot-box,
+.assembly-summary,
+.services-shell,
+.components-scroll-area,
+.table-wrap,
+.stock-table-wrap,
+.crm-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.slots-top,
+.slots-bottom {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.summary-sidebar {
+  top: 0;
+  z-index: 100;
+}
+
+.checkout-summary {
+  top: 0;
+  z-index: 100;
+}
+
+.modal::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* Legibilidade de labels e foco dos inputs */
+label,
+.floating-field label,
+.field-stack > label,
+.file-upload-field .field-label {
+  color: #ECF0F1;
+  font-weight: 600;
+}
+
+input,
+select,
+textarea,
+.sale-header-fields input,
+.sale-header-fields select,
+.sale-line input,
+.sale-line select,
+.checkout-summary input,
+.services-form input,
+.services-form select,
+.services-form textarea,
+.history-head input,
+#form-montagem input,
+#form-montagem select,
+#form-montagem textarea {
+  background: #34495E;
+  border: 1px solid #4A6572;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.services-form input:focus,
+.services-form select:focus,
+.services-form textarea:focus,
+.history-head input:focus,
+body.dashboard-page input:focus,
+body.dashboard-page select:focus,
+body.dashboard-page textarea:focus {
+  border-color: #3498DB;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.25);
+}
+
+/* Formulários em pares verticais com respiro */
+#piece-form label,
+#assembled-form label,
+#form-montagem label,
+.crm-form-grid label {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 20px;
+}
+
+.form-zone,
+.checkout-main,
+.checkout-summary,
+.slot-box,
+.assembly-summary,
+.services-shell {
+  padding: 15px;
+}
+
+/* Botões padrão */
+.btn-primary {
+  background: #3498DB;
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+}
+
+.btn-danger {
+  background: transparent;
+  color: #E74C3C;
+  border: 1px solid #E74C3C;
+  border-radius: 6px;
+}
+
+.btn-danger:hover {
+  background: #E74C3C;
+  color: #fff;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid rgba(236, 240, 241, 0.35);
+  color: #ECF0F1;
+  border-radius: 6px;
+}
+
+.btn-ghost:hover {
+  background: rgba(236, 240, 241, 0.12);
+}
+
 .app-shell { display: grid; grid-template-columns: 230px 1fr; min-height: 100vh; }
 .app-sidebar { background: #111827; color: #fff; padding: 1rem; }
 .app-sidebar nav { display: grid; gap: .4rem; }
