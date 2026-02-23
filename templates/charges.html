@@ -107,7 +107,7 @@
 
   <div class="table-wrap charges-table-wrap">
     <table id="charges-table">
-      <thead><tr><th>Data de Vencimento</th><th>Cliente</th><th>Valor</th><th>Status</th><th>Pagamento</th><th>Ref.</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Data de Vencimento</th><th>Cliente</th><th>Descrição</th><th>Valor</th><th>Status</th><th>Pagamento</th><th>Ref.</th><th>Ações</th></tr></thead>
       <tbody>
         {% for c in charges %}
         {% set ui_status = charge_ui_status(c) %}
@@ -116,6 +116,20 @@
         <tr class="{% if ui_status == 'vencido' %}charge-overdue-row{% endif %}" data-client="{{ (c.sale.client.name if c.sale and c.sale.client else (c.service.client_name if c.service else 'Sem cliente'))|lower }}" data-month="{{ c.due_date.strftime('%Y-%m') if c.due_date else '' }}" data-overdue="{{ '1' if ui_status == 'vencido' else '0' }}">
           <td>{{ c.due_date.strftime('%d/%m/%Y') if c.due_date else '-' }}</td>
           <td>{% if c.sale %}{{ c.sale.client.name }}{% elif c.service %}{{ c.service.client_name }}{% else %}Sem cliente{% endif %}</td>
+          <td>
+            {% if c.sale %}
+              {% set sale_descriptions = c.sale.items | map(attribute='description') | list %}
+              <strong>{{ c.sale.sale_name }}</strong>
+              {% if sale_descriptions %}
+                <br><small>{{ sale_descriptions[:2]|join(' • ') }}{% if sale_descriptions|length > 2 %}…{% endif %}</small>
+              {% endif %}
+            {% elif c.service %}
+              <strong>{{ c.service.service_name }}</strong>
+              <br><small>{{ c.service.equipment }}</small>
+            {% else %}
+              -
+            {% endif %}
+          </td>
           <td>
             R$ {{ '%.2f'|format(total_amount) }}
             {% if c.is_installment and (c.installment_count or 1) > 1 %}
@@ -129,9 +143,16 @@
           <td>{{ c.payment_method|capitalize }}{% if c.is_installment and (c.installment_count or 1) > 1 %} • Parcelado{% endif %}</td>
           <td>{{ c.mercado_pago_reference }}</td>
           <td>
-            <details class="actions-menu">
-              <summary>⋮</summary>
-              <div class="actions-menu-content">
+            <button type="button" class="btn-loja btn-loja--secondary btn-secondary actions-menu-trigger js-actions-toggle" data-menu-id="charge-actions-{{ c.id }}" aria-expanded="false">
+              Ações ▾
+            </button>
+            <div id="charge-actions-{{ c.id }}" class="actions-modal" hidden>
+              <div class="actions-modal-panel">
+                <div class="actions-modal-header">
+                  <strong>Ações da cobrança</strong>
+                  <button type="button" class="actions-modal-close js-actions-close" data-menu-id="charge-actions-{{ c.id }}" aria-label="Fechar">✕</button>
+                </div>
+                <div class="actions-menu-content">
                 <form method="post" action="{{ url_for('editar_cobranca', charge_id=c.id) }}" class="inline-form charge-edit-form">
                   <div class="field-stack">
                     <label>Referência Mercado Pago</label>
@@ -197,11 +218,12 @@
                 {% if c.amount_paid > 0 and charge_balance(c) > 0 %}
                 <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}">Imprimir recibo parcial</button>
                 {% endif %}
+                </div>
               </div>
-            </details>
+            </div>
           </td>
         </tr>
-        {% else %}<tr><td colspan="7">Sem cobranças.</td></tr>{% endfor %}
+        {% else %}<tr><td colspan="8">Sem cobranças.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
@@ -220,6 +242,19 @@
   const installmentCheck = document.getElementById('is-installment');
   const installmentCountInput = document.getElementById('installment-count');
   const installmentPreview = document.getElementById('installment-preview');
+  const actionsToggleButtons = document.querySelectorAll('.js-actions-toggle');
+  const actionsCloseButtons = document.querySelectorAll('.js-actions-close');
+
+  function closeActionMenus(exceptMenuId = null) {
+    actionsToggleButtons.forEach((button) => {
+      const menuId = button.dataset.menuId;
+      const menu = menuId ? document.getElementById(menuId) : null;
+      if (!menu || menuId === exceptMenuId) return;
+      menu.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+    });
+    document.body.classList.toggle('modal-open', Boolean(exceptMenuId));
+  }
 
   function applyChargeFilters() {
     const clientValue = (filterClient?.value || '').trim().toLowerCase();
@@ -285,6 +320,39 @@
       if (el === discountInput) syncChargeAmountFromSource();
       else updateInstallmentPreview();
     });
+  });
+
+  actionsToggleButtons.forEach((button) => {
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      const menuId = button.dataset.menuId;
+      const menu = menuId ? document.getElementById(menuId) : null;
+      if (!menu) return;
+      const willOpen = menu.hidden;
+      closeActionMenus(menuId);
+      menu.hidden = !willOpen;
+      button.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    });
+  });
+
+  actionsCloseButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      closeActionMenus();
+    });
+  });
+
+  document.querySelectorAll('.actions-modal').forEach((modal) => {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeActionMenus();
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeActionMenus();
+    }
   });
 
   syncChargeAmountFromSource();
