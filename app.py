@@ -59,6 +59,17 @@ class Product(db.Model):
     photo_url = db.Column(db.String(255), nullable=True)
     component_class = db.Column(db.String(50), nullable=True)
     serial_number = db.Column(db.String(120), nullable=True)
+    ram_ddr = db.Column(db.String(30), nullable=True)
+    ram_frequency = db.Column(db.String(30), nullable=True)
+    ram_size = db.Column(db.String(30), nullable=True)
+    ram_brand = db.Column(db.String(60), nullable=True)
+    psu_watts = db.Column(db.String(30), nullable=True)
+    gpu_memory = db.Column(db.String(30), nullable=True)
+    gpu_brand = db.Column(db.String(60), nullable=True)
+    gpu_manufacturer = db.Column(db.String(30), nullable=True)
+    storage_type = db.Column(db.String(20), nullable=True)
+    storage_capacity = db.Column(db.String(30), nullable=True)
+    storage_brand = db.Column(db.String(60), nullable=True)
     images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
     active = db.Column(db.Boolean, nullable=False, default=True)
 
@@ -1582,6 +1593,17 @@ def produtos():
             photo_url=photo_url,
             component_class=product_dto.component_class,
             serial_number=product_dto.serial_number,
+            ram_ddr=(request.form.get('ram_ddr') or '').strip() or None,
+            ram_frequency=(request.form.get('ram_frequency') or '').strip() or None,
+            ram_size=(request.form.get('ram_size') or '').strip() or None,
+            ram_brand=(request.form.get('ram_brand') or '').strip() or None,
+            psu_watts=(request.form.get('psu_watts') or '').strip() or None,
+            gpu_memory=(request.form.get('gpu_memory') or '').strip() or None,
+            gpu_brand=(request.form.get('gpu_brand') or '').strip() or None,
+            gpu_manufacturer=(request.form.get('gpu_manufacturer') or '').strip() or None,
+            storage_type=(request.form.get('storage_type') or '').strip() or None,
+            storage_capacity=(request.form.get('storage_capacity') or '').strip() or None,
+            storage_brand=(request.form.get('storage_brand') or '').strip() or None,
         )
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
@@ -1665,6 +1687,28 @@ def editar_produto(product_id: int):
     product.cost_price = Decimal(request.form.get('cost_price') or '0')
     product.component_class = component_class
     product.serial_number = (request.form.get('serial_number') or '').strip() or None
+    if 'ram_ddr' in request.form:
+        product.ram_ddr = (request.form.get('ram_ddr') or '').strip() or None
+    if 'ram_frequency' in request.form:
+        product.ram_frequency = (request.form.get('ram_frequency') or '').strip() or None
+    if 'ram_size' in request.form:
+        product.ram_size = (request.form.get('ram_size') or '').strip() or None
+    if 'ram_brand' in request.form:
+        product.ram_brand = (request.form.get('ram_brand') or '').strip() or None
+    if 'psu_watts' in request.form:
+        product.psu_watts = (request.form.get('psu_watts') or '').strip() or None
+    if 'gpu_memory' in request.form:
+        product.gpu_memory = (request.form.get('gpu_memory') or '').strip() or None
+    if 'gpu_brand' in request.form:
+        product.gpu_brand = (request.form.get('gpu_brand') or '').strip() or None
+    if 'gpu_manufacturer' in request.form:
+        product.gpu_manufacturer = (request.form.get('gpu_manufacturer') or '').strip() or None
+    if 'storage_type' in request.form:
+        product.storage_type = (request.form.get('storage_type') or '').strip() or None
+    if 'storage_capacity' in request.form:
+        product.storage_capacity = (request.form.get('storage_capacity') or '').strip() or None
+    if 'storage_brand' in request.form:
+        product.storage_brand = (request.form.get('storage_brand') or '').strip() or None
 
     if old_price != new_price:
         _log_audit(
@@ -3099,6 +3143,28 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN serial_number VARCHAR(120)'))
     if 'active' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN active BOOLEAN NOT NULL DEFAULT 1'))
+    if 'ram_ddr' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN ram_ddr VARCHAR(30)'))
+    if 'ram_frequency' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN ram_frequency VARCHAR(30)'))
+    if 'ram_size' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN ram_size VARCHAR(30)'))
+    if 'ram_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN ram_brand VARCHAR(60)'))
+    if 'psu_watts' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN psu_watts VARCHAR(30)'))
+    if 'gpu_memory' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN gpu_memory VARCHAR(30)'))
+    if 'gpu_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN gpu_brand VARCHAR(60)'))
+    if 'gpu_manufacturer' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN gpu_manufacturer VARCHAR(30)'))
+    if 'storage_type' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN storage_type VARCHAR(20)'))
+    if 'storage_capacity' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN storage_capacity VARCHAR(30)'))
+    if 'storage_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN storage_brand VARCHAR(60)'))
     db.session.commit()
 
     db.session.execute(
