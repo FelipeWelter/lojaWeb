@@ -24,7 +24,7 @@
         <label for="sale_id">Venda (opcional)</label>
         <select id="sale_id" name="sale_id">
           <option value="">Sem venda</option>
-          {% for s in sales %}<option value="{{ s.id }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
+          {% for s in sales %}<option value="{{ s.id }}" data-total="{{ '%.2f'|format(s.total) }}">{{ s.sale_name }} - {{ s.client.name }} - R$ {{ '%.2f'|format(s.total) }}</option>{% endfor %}
         </select>
       </div>
       <div class="field-stack">
@@ -32,13 +32,13 @@
         <select id="service_id" name="service_id">
           <option value="">Sem serviço</option>
           {% for ticket, srv in ready_ticket_services %}
-          <option value="{{ srv.id }}">OS #{{ ticket.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>
+          <option value="{{ srv.id }}" data-total="{{ '%.2f'|format(srv.total_price) }}">OS #{{ ticket.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>
           {% endfor %}
         </select>
       </div>
       <div class="field-stack">
-        <label for="charge-amount">Valor total</label>
-        <input id="charge-amount" name="amount" type="number" min="0" step="0.01" placeholder="0,00" />
+        <label for="charge-source-total">Total da venda/serviço</label>
+        <input id="charge-source-total" type="number" min="0" step="0.01" placeholder="0,00" readonly />
       </div>
     </div>
 
@@ -46,6 +46,14 @@
       <div class="field-stack">
         <label for="due_date">Data de vencimento</label>
         <input id="due_date" name="due_date" type="date" />
+      </div>
+      <div class="field-stack">
+        <label for="charge-discount">Desconto na cobrança</label>
+        <input id="charge-discount" name="charge_discount" type="number" min="0" step="0.01" value="0" />
+      </div>
+      <div class="field-stack">
+        <label for="charge-amount">Valor final da cobrança</label>
+        <input id="charge-amount" name="amount" type="number" min="0" step="0.01" placeholder="0,00" readonly />
       </div>
       <div class="field-stack">
         <label for="amount_paid">Valor pago</label>
@@ -167,14 +175,25 @@
                   <button type="submit" class="btn-loja btn-loja--primary">Salvar</button>
                 </form>
 
-                {% if c.status != 'confirmado' and c.status != 'cancelado' %}
-                <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
-                  <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
-                </form>
+                {% if c.is_installment and (c.installment_count or 1) > 1 %}
+                  {% if c.status != 'confirmado' and c.status != 'cancelado' %}
+                  <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+                    <button type="submit" class="btn-loja btn-loja--primary">Marcar faturas pagas</button>
+                  </form>
+                  {% endif %}
+                {% else %}
+                  {% if c.status != 'confirmado' and c.status != 'cancelado' %}
+                  <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+                    <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
+                  </form>
+                  <form method="post" action="{{ url_for('cancelar_cobranca', charge_id=c.id) }}" onsubmit="return confirm('Deseja cancelar esta cobrança?');">
+                    <button type="submit" class="btn-loja btn-loja--secondary">Cancelar cobrança</button>
+                  </form>
+                  {% endif %}
+                  <form method="post" action="{{ url_for('excluir_cobranca', charge_id=c.id) }}" onsubmit="return confirm('Deseja excluir esta cobrança? Esta ação não pode ser desfeita.');">
+                    <button type="submit" class="btn-loja btn-loja--danger">Excluir cobrança</button>
+                  </form>
                 {% endif %}
-                <form method="post" action="{{ url_for('excluir_cobranca', charge_id=c.id) }}" onsubmit="return confirm('Deseja excluir esta cobrança? Esta ação não pode ser desfeita.');">
-                  <button type="submit" class="btn-loja btn-loja--danger">Excluir cobrança</button>
-                </form>
                 {% if c.amount_paid > 0 and charge_balance(c) > 0 %}
                 <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}">Imprimir recibo parcial</button>
                 {% endif %}
@@ -193,6 +212,15 @@
   const filterMonth = document.getElementById('filter-month');
   const tableRows = document.querySelectorAll('#charges-table tbody tr[data-client]');
 
+  const saleSelect = document.getElementById('sale_id');
+  const serviceSelect = document.getElementById('service_id');
+  const amountInput = document.getElementById('charge-amount');
+  const sourceTotalInput = document.getElementById('charge-source-total');
+  const discountInput = document.getElementById('charge-discount');
+  const installmentCheck = document.getElementById('is-installment');
+  const installmentCountInput = document.getElementById('installment-count');
+  const installmentPreview = document.getElementById('installment-preview');
+
   function applyChargeFilters() {
     const clientValue = (filterClient?.value || '').trim().toLowerCase();
     const monthValue = filterMonth?.value || '';
@@ -207,15 +235,19 @@
     });
   }
 
-  [filterClient, filterMonth].forEach((el) => {
-    el?.addEventListener('input', applyChargeFilters);
-    el?.addEventListener('change', applyChargeFilters);
-  });
+  function selectedTotal(selectEl) {
+    const option = selectEl?.selectedOptions?.[0];
+    return Number((option?.dataset?.total || '0').replace(',', '.')) || 0;
+  }
 
-  const amountInput = document.getElementById('charge-amount');
-  const installmentCheck = document.getElementById('is-installment');
-  const installmentCountInput = document.getElementById('installment-count');
-  const installmentPreview = document.getElementById('installment-preview');
+  function syncChargeAmountFromSource() {
+    const total = Math.max(selectedTotal(saleSelect), selectedTotal(serviceSelect));
+    const discount = Number((discountInput?.value || '0').replace(',', '.')) || 0;
+    const finalValue = Math.max(0, total - discount);
+    if (sourceTotalInput) sourceTotalInput.value = total.toFixed(2);
+    if (amountInput) amountInput.value = finalValue.toFixed(2);
+    updateInstallmentPreview();
+  }
 
   function updateInstallmentPreview() {
     const amount = Number((amountInput?.value || '0').replace(',', '.')) || 0;
@@ -229,11 +261,33 @@
     installmentPreview.textContent = `Parcela: ${part.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
   }
 
-  [amountInput, installmentCheck, installmentCountInput].forEach((el) => {
-    el?.addEventListener('input', updateInstallmentPreview);
-    el?.addEventListener('change', updateInstallmentPreview);
+  [filterClient, filterMonth].forEach((el) => {
+    el?.addEventListener('input', applyChargeFilters);
+    el?.addEventListener('change', applyChargeFilters);
   });
 
+  saleSelect?.addEventListener('change', () => {
+    if (saleSelect.value && serviceSelect) serviceSelect.value = '';
+    syncChargeAmountFromSource();
+  });
+
+  serviceSelect?.addEventListener('change', () => {
+    if (serviceSelect.value && saleSelect) saleSelect.value = '';
+    syncChargeAmountFromSource();
+  });
+
+  [amountInput, installmentCheck, installmentCountInput, discountInput].forEach((el) => {
+    el?.addEventListener('input', () => {
+      if (el === discountInput) syncChargeAmountFromSource();
+      else updateInstallmentPreview();
+    });
+    el?.addEventListener('change', () => {
+      if (el === discountInput) syncChargeAmountFromSource();
+      else updateInstallmentPreview();
+    });
+  });
+
+  syncChargeAmountFromSource();
   updateInstallmentPreview();
 </script>
 {% endblock %}

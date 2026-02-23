@@ -1364,7 +1364,7 @@ body.dashboard-page textarea::placeholder {
 .charges-kpi.danger { border-color:#E74C3C; }
 .charges-kpi.warning { border-color:#F1C40F; }
 .charges-kpi.success { border-color:#2ECC71; }
-.charges-table-wrap { overflow-x:auto; }
+.charges-table-wrap { overflow-x:auto; overflow-y: visible; padding-bottom: 14px; }
 .status-pill { display:inline-block; padding:4px 10px; border-radius:999px; border:1px solid; background:transparent; font-size:.82rem; }
 .status-pill.vencido { color:#E74C3C; border-color:#E74C3C; }
 .status-pill.pendente { color:#F1C40F; border-color:#F1C40F; }
@@ -2392,3 +2392,20 @@ body.dashboard-page textarea:focus {
 .toast.is-hidden { opacity: 0; transform: translateX(20px); transition: all .3s; }
 .inventory-header { display:flex; justify-content:space-between; align-items:center; }
 .inventory-filters { display:grid; grid-template-columns:repeat(3,minmax(120px,1fr)); gap:.6rem; margin:1rem 0; }
+
+
+.product-header {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.product-pc-button {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 16px rgba(52, 152, 219, 0.25);
+}
+
+.product-pc-button:hover {
+  transform: translateY(-1px);
+}

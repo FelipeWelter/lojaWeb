@@ -3,7 +3,6 @@
 <section class="card">
   <div class="inventory-header">
     <h2>Gestão de Inventário</h2>
-    <button type="button" class="btn-primary" data-open-modal="create-product-modal">Novo Produto</button>
   </div>
 
   <div class="inventory-filters">
@@ -55,6 +54,7 @@
               <option value="Computador" {% if p.category == 'Computador' %}selected{% endif %}>Computador</option>
               <option value="Serviço" {% if p.category == 'Serviço' %}selected{% endif %}>Serviço</option>
               <option value="Periférico" {% if p.category == 'Periférico' %}selected{% endif %}>Periférico</option>
+              <option value="Periféricos" {% if p.category == 'Periféricos' %}selected{% endif %}>Periféricos</option>
             </select>
             <div id="edit-component-class-{{ p.id }}" class="inventory-edit-class-wrapper" data-category-value="{{ p.category }}">
               <label for="edit-component-class-select-{{ p.id }}">Classe da peça</label>
@@ -78,35 +78,6 @@
   </table>
 </section>
 
-<dialog id="create-product-modal" class="modal">
-  <div class="modal-content">
-    <h3>Novo produto</h3>
-    <form method="post" action="{{ url_for('produtos') }}" class="inline-form" id="inventory-create-product-form">
-      <input type="hidden" name="form_mode" value="piece" />
-      <input name="name" placeholder="Nome" required />
-      <select name="category" id="inventory-category-select">
-        <option value="Peça">Peça</option>
-        <option value="Computador">Computador</option>
-        <option value="Serviço">Serviço</option>
-        <option value="Periférico">Periférico</option>
-      </select>
-      <div id="inventory-component-class-wrapper">
-        <label for="inventory-component-class">Classe da peça</label>
-        <select name="component_class" id="inventory-component-class">
-          <option value="">Selecione a classe</option>
-          {% for slot_key, slot_label, _ in component_slots %}
-          <option value="{{ slot_key }}">{{ slot_label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <input name="stock" type="number" min="0" placeholder="Estoque" required />
-      <input name="cost_price" type="number" min="0" step="0.01" placeholder="Custo" required />
-      <input name="price" type="number" min="0" step="0.01" placeholder="Venda" required />
-      <button type="submit" class="btn-primary">Cadastrar</button>
-    </form>
-    <button type="button" class="btn-secondary" data-close-modal="create-product-modal">Fechar</button>
-  </div>
-</dialog>
 
 <script>
   (function () {
@@ -136,21 +107,6 @@
     document.querySelectorAll('[data-close-modal]').forEach((btn) => {
       btn.addEventListener('click', () => document.getElementById(btn.dataset.closeModal)?.close());
     });
-
-    const categorySelect = document.getElementById('inventory-category-select');
-    const classWrapper = document.getElementById('inventory-component-class-wrapper');
-    const classSelect = document.getElementById('inventory-component-class');
-
-    const syncComponentClassVisibility = () => {
-      const isPiece = (categorySelect?.value || '') === 'Peça';
-      if (!classWrapper || !classSelect) return;
-      classWrapper.style.display = isPiece ? '' : 'none';
-      classSelect.required = isPiece;
-      if (!isPiece) classSelect.value = '';
-    };
-
-    categorySelect?.addEventListener('change', syncComponentClassVisibility);
-    syncComponentClassVisibility();
 
     const syncEditComponentClassVisibility = () => {
       document.querySelectorAll('.inventory-edit-category').forEach((categoryField) => {
