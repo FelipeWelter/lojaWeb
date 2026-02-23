@@ -230,6 +230,7 @@ class MaintenanceTicket(db.Model):
     entry_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     exit_date = db.Column(db.DateTime, nullable=True)
     waiting_parts = db.Column(db.Boolean, nullable=False, default=False)
+    parts_stock_applied = db.Column(db.Boolean, nullable=False, default=False)
     status = db.Column(db.String(30), nullable=False, default='em_andamento')
     service_record_id = db.Column(db.Integer, db.ForeignKey('service_record.id'), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -759,6 +760,63 @@ def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user
     db.session.add(service)
     db.session.flush()
     ticket.service_record_id = service.id
+
+
+def _apply_ticket_parts_stock(ticket: 'MaintenanceTicket'):
+    if ticket.parts_stock_applied:
+        return
+
+    parts_items = []
+    if ticket.parts_json:
+        try:
+            parts_items = json.loads(ticket.parts_json)
+        except json.JSONDecodeError:
+            parts_items = []
+
+    if not parts_items:
+        ticket.parts_stock_applied = True
+        return
+
+    required_by_product_id: dict[int, int] = {}
+    for part in parts_items:
+        if not isinstance(part, dict):
+            continue
+        product_id = part.get('product_id')
+        if product_id is None:
+            continue
+        try:
+            product_id_int = int(product_id)
+        except (TypeError, ValueError):
+            continue
+
+        try:
+            qty = int(part.get('quantity') or 1)
+        except (TypeError, ValueError):
+            qty = 1
+        qty = max(1, qty)
+        required_by_product_id[product_id_int] = required_by_product_id.get(product_id_int, 0) + qty
+
+    if not required_by_product_id:
+        ticket.parts_stock_applied = True
+        return
+
+    products = Product.query.filter(Product.id.in_(required_by_product_id.keys())).all()
+    products_by_id = {product.id: product for product in products}
+
+    missing_ids = sorted(set(required_by_product_id.keys()) - set(products_by_id.keys()))
+    if missing_ids:
+        raise ValueError('Uma ou mais peças da OS não existem mais no estoque.')
+
+    for product_id, qty in required_by_product_id.items():
+        product = products_by_id[product_id]
+        if int(product.stock or 0) < qty:
+            raise ValueError(f'Estoque insuficiente para a peça "{product.name}". Necessário: {qty}, disponível: {product.stock}.')
+
+    for product_id, qty in required_by_product_id.items():
+        product = products_by_id[product_id]
+        product.stock = int(product.stock or 0) - qty
+
+    ticket.parts_stock_applied = True
 
 
 
@@ -2402,6 +2460,13 @@ def atualizar_manutencao(ticket_id: int):
         ticket.waiting_parts = False
         ticket.exit_date = datetime.utcnow()
 
+        try:
+            _apply_ticket_parts_stock(ticket)
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), 'danger')
+            return redirect(url_for('servicos'))
+
         _ensure_service_record_from_ticket(ticket, current)
 
         db.session.commit()
@@ -2475,6 +2540,12 @@ def atualizar_manutencao(ticket_id: int):
         ticket.status = status
         ticket.waiting_parts = status == 'aguardando_pecas'
         if status == 'pronto_retirada':
+            try:
+                _apply_ticket_parts_stock(ticket)
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), 'danger')
+                return redirect(url_for('servicos'))
             _ensure_service_record_from_ticket(ticket, current)
         db.session.commit()
         flash('OS atualizada com sucesso!', 'success')
@@ -3079,11 +3150,17 @@ def cobrancas():
         return redirect(url_for('cobrancas'))
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
-    ready_ticket_services = (
+    maintenance_service_rows = (
         db.session.query(MaintenanceTicket, ServiceRecord)
         .join(ServiceRecord, ServiceRecord.id == MaintenanceTicket.service_record_id)
-        .filter(MaintenanceTicket.status == 'pronto_retirada')
-        .order_by(MaintenanceTicket.exit_date.desc().nullslast(), MaintenanceTicket.id.desc())
+        .order_by(MaintenanceTicket.id.desc())
+        .all()
+    )
+    maintenance_service_ids = {service.id for _, service in maintenance_service_rows}
+    standalone_services = (
+        ServiceRecord.query
+        .filter(~ServiceRecord.id.in_(maintenance_service_ids) if maintenance_service_ids else db.true())
+        .order_by(ServiceRecord.created_at.desc())
         .all()
     )
     charges = Charge.query.order_by(Charge.id.desc()).all()
@@ -3109,7 +3186,8 @@ def cobrancas():
         'charges.html',
         charges=charges,
         sales=sales,
-        ready_ticket_services=ready_ticket_services,
+        maintenance_service_rows=maintenance_service_rows,
+        standalone_services=standalone_services,
         payment_methods=PAYMENT_METHODS,
         overdue_total=overdue_total,
         pending_total=pending_total,
@@ -3421,6 +3499,7 @@ with app.app_context():
             'entry_date DATETIME NOT NULL, '
             'exit_date DATETIME, '
             'waiting_parts BOOLEAN NOT NULL DEFAULT 0, '
+            'parts_stock_applied BOOLEAN NOT NULL DEFAULT 0, '
             "status VARCHAR(30) NOT NULL DEFAULT 'em_andamento', "
             'service_record_id INTEGER, '
             'created_at DATETIME NOT NULL, '
@@ -3445,6 +3524,8 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN labor_cost NUMERIC(10,2) NOT NULL DEFAULT 0'))
     if 'service_record_id' not in maintenance_columns:
         db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN service_record_id INTEGER'))
+    if 'parts_stock_applied' not in maintenance_columns:
+        db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN parts_stock_applied BOOLEAN NOT NULL DEFAULT 0'))
     db.session.commit()
 
     db.session.commit()

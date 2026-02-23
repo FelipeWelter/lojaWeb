@@ -30,11 +30,14 @@
         </select>
       </div>
       <div class="field-stack">
-        <label for="service_id">Serviço de OS pronto para retirada (opcional)</label>
+        <label for="service_id">Serviço cadastrado (opcional)</label>
         <select id="service_id" name="service_id">
           <option value="">Sem serviço</option>
-          {% for ticket, srv in ready_ticket_services %}
+          {% for ticket, srv in maintenance_service_rows %}
           <option value="{{ srv.id }}" data-total="{{ '%.2f'|format(srv.total_price) }}">OS #{{ ticket.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>
+          {% endfor %}
+          {% for srv in standalone_services %}
+          <option value="{{ srv.id }}" data-total="{{ '%.2f'|format(srv.total_price) }}">Serviço avulso #{{ srv.id }} - {{ srv.service_name }} - {{ srv.client_name }} - R$ {{ '%.2f'|format(srv.total_price) }}</option>
           {% endfor %}
         </select>
       </div>
