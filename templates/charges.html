@@ -19,7 +19,9 @@
   </div>
 
   <form method="post" class="grid form-grid charges-form-grid">
-    <div class="charges-form-row charges-form-row--primary">
+    <div class="charges-form-block">
+      <h3 class="charges-form-title">Origem da cobrança</h3>
+      <div class="charges-form-row charges-form-row--primary">
       <div class="field-stack">
         <label for="sale_id">Venda (opcional)</label>
         <select id="sale_id" name="sale_id">
@@ -41,8 +43,11 @@
         <input id="charge-source-total" type="number" min="0" step="0.01" placeholder="0,00" readonly />
       </div>
     </div>
+    </div>
 
-    <div class="charges-form-row charges-form-row--details">
+    <div class="charges-form-block">
+      <h3 class="charges-form-title">Detalhes da cobrança</h3>
+      <div class="charges-form-row charges-form-row--details">
       <div class="field-stack">
         <label for="due_date">Data de vencimento</label>
         <input id="due_date" name="due_date" type="date" />
@@ -88,6 +93,7 @@
         </div>
         <small id="installment-preview">Parcela: R$ 0,00</small>
       </fieldset>
+    </div>
     </div>
 
     <div class="charges-form-actions">
