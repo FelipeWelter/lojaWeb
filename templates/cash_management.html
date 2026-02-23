@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Gerenciamento de Caixa</h2>
+  <div class="kpi-grid">
+    <article class="kpi-card"><h3>Recebido hoje</h3><strong>R$ {{ '%.2f'|format(paid_today) }}</strong></article>
+    <article class="kpi-card"><h3>Em aberto</h3><strong>R$ {{ '%.2f'|format(pending_total) }}</strong></article>
+    <article class="kpi-card"><h3>Vencido</h3><strong>R$ {{ '%.2f'|format(overdue_total) }}</strong></article>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Fluxo financeiro unificado (vendas e cobranças)</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Ref.</th><th>Origem</th><th>Método</th><th>Status</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for c in charges %}
+        <tr>
+          <td>{{ c.mercado_pago_reference }}</td>
+          <td>
+            {% if c.sale %}Venda #{{ c.sale.id }} - {{ c.sale.sale_name }}{% elif c.service %}Serviço #{{ c.service.id }} - {{ c.service.service_name }}{% else %}Avulso{% endif %}
+          </td>
+          <td>{{ payment_method_labels.get(c.payment_method, c.payment_method) }}</td>
+          <td>{{ charge_ui_status(c) }}</td>
+          <td>R$ {{ '%.2f'|format(charge_total_amount(c)) }}</td>
+          <td>R$ {{ '%.2f'|format(c.amount_paid or 0) }}</td>
+          <td>R$ {{ '%.2f'|format(charge_balance(c)) }}</td>
+          <td>
+            {% if charge_balance(c) > 0 and c.status != 'cancelado' %}
+            <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+              <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
+            </form>
+            {% else %}
+            <span class="badge success">Sem pendências</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8">Sem lançamentos financeiros.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

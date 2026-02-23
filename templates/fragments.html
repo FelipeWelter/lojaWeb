@@ -9,6 +9,7 @@
     <a href="{{ url_for('clientes') }}" class="{% if endpoint in ['clientes','editar_cliente','historico_cliente'] %}active{% endif %}">Clientes</a>
     <a href="{{ url_for('vendas') }}" class="{% if endpoint == 'vendas' %}active{% endif %}">Vendas</a>
     <a href="{{ url_for('cobrancas') }}" class="{% if endpoint == 'cobrancas' %}active{% endif %}">Cobranças</a>
+    <a href="{{ url_for('caixa') }}" class="{% if endpoint == 'caixa' %}active{% endif %}">Caixa</a>
     <a href="{{ url_for('logs_auditoria') }}" class="{% if endpoint == 'logs_auditoria' %}active{% endif %}">Logs</a>
     <a href="{{ url_for('usuarios') }}" class="nav-admin {% if endpoint == 'usuarios' %}active{% endif %}">Usuários</a>
     <a href="{{ url_for('logout') }}" class="nav-admin">Sair</a>
