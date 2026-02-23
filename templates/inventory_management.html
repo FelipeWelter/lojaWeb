@@ -31,16 +31,21 @@
         <td>R$ {{ '%.2f'|format(p.price) }}</td>
         <td>{{ 'Ativo' if p.active else 'Inativo' }}</td>
         <td>
-          <button type="button" class="btn-secondary" data-open-modal="edit-product-modal-{{ p.id }}">Editar</button>
-          {% if p.active %}
-          <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" class="inline-form">
-            <button type="submit" class="btn-danger">Inativar</button>
-          </form>
-          {% else %}
-          <form method="post" action="{{ url_for('ativar_produto', product_id=p.id) }}" class="inline-form">
-            <button type="submit" class="btn-primary">Ativar</button>
-          </form>
-          {% endif %}
+          <div class="action-row-inline">
+            <button type="button" class="btn-secondary" data-open-modal="edit-product-modal-{{ p.id }}">Editar</button>
+            {% if p.active %}
+            <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" class="inline-form">
+              <button type="submit" class="btn-danger">Inativar</button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('ativar_produto', product_id=p.id) }}" class="inline-form">
+              <button type="submit" class="btn-primary">Ativar</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('excluir_produto', product_id=p.id) }}" class="inline-form" onsubmit="return confirm('Deseja excluir permanentemente este item?');">
+              <button type="submit" class="btn-danger">Excluir</button>
+            </form>
+          </div>
         </td>
       </tr>
 
@@ -66,8 +71,8 @@
               </select>
             </div>
             <input name="stock" type="number" min="0" value="{{ p.stock }}" required />
-            <input name="cost_price" type="number" min="0" step="0.01" value="{{ p.cost_price }}" required />
-            <input name="price" type="number" min="0" step="0.01" value="{{ p.price }}" required />
+            <div class="money-wrap"><input name="cost_price" type="text" data-money="true" value="{{ '%.2f'|format(p.cost_price) }}" required /></div>
+            <div class="money-wrap"><input name="price" type="text" data-money="true" value="{{ '%.2f'|format(p.price) }}" required /></div>
             <button type="submit" class="btn-primary">Salvar</button>
           </form>
           <button type="button" class="btn-secondary" data-close-modal="edit-product-modal-{{ p.id }}">Fechar</button>

@@ -46,6 +46,30 @@
     const showOverlay = () => overlay?.classList.remove('hidden');
     const hideOverlay = () => overlay?.classList.add('hidden');
 
+    const moneyInputs = document.querySelectorAll('input[data-money="true"]');
+
+    const formatDigitsToMoney = (digits) => {
+      const onlyDigits = String(digits || '').replace(/\D/g, '');
+      const normalized = onlyDigits || '0';
+      const cents = Number.parseInt(normalized, 10);
+      return (cents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    moneyInputs.forEach((input) => {
+      input.setAttribute('inputmode', 'numeric');
+      input.autocomplete = 'off';
+      input.value = formatDigitsToMoney(input.value);
+
+      input.addEventListener('input', () => {
+        input.value = formatDigitsToMoney(input.value);
+      });
+
+      const closestForm = input.closest('form');
+      closestForm?.addEventListener('submit', () => {
+        input.value = input.value.replace(/\./g, '').replace(',', '.');
+      });
+    });
+
     document.addEventListener('click', (event) => {
       const trigger = event.target.closest('.js-print-trigger');
       if (!trigger) return;

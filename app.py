@@ -696,6 +696,12 @@ def _to_decimal(value, default: str = '0') -> Decimal:
     return parsed
 
 
+def _to_money_decimal(value, default: str = '0.00') -> Decimal:
+    """Normaliza entradas monetárias pt-BR para Decimal com 2 casas."""
+    parsed = _to_decimal(value, default=default)
+    return parsed.quantize(Decimal('0.01'))
+
+
 DEFAULT_MAINTENANCE_CHECKLIST = [
     'Limpeza interna',
     'Troca de pasta térmica',
@@ -877,9 +883,14 @@ def editar_usuario(user_id: int):
     name = (request.form.get('name') or '').strip()
     email = (request.form.get('email') or '').strip().lower()
     is_admin = request.form.get('is_admin') == 'on'
+    new_password = request.form.get('password') or ''
 
     if not name or not email:
         flash('Nome e e-mail são obrigatórios para edição.', 'danger')
+        return redirect(url_for('usuarios'))
+
+    if new_password and len(new_password) < 6:
+        flash('A nova senha deve conter ao menos 6 caracteres.', 'danger')
         return redirect(url_for('usuarios'))
 
     duplicated = User.query.filter(User.email == email, User.id != user.id).first()
@@ -890,6 +901,8 @@ def editar_usuario(user_id: int):
     user.name = name
     user.email = email
     user.is_admin = is_admin
+    if new_password:
+        user.password_hash = generate_password_hash(new_password)
     _log_audit('Edição de usuário', f'Usuário {current.name} editou o cadastro de {user.name} ({user.email}).')
     db.session.commit()
     flash('Usuário atualizado com sucesso!', 'success')
@@ -1625,8 +1638,8 @@ def produtos():
             name=request.form['name'],
             category=category,
             stock=int(request.form['stock']),
-            price=Decimal(request.form['price']),
-            cost_price=Decimal(request.form.get('cost_price') or '0'),
+            price=_to_money_decimal(request.form.get('price')),
+            cost_price=_to_money_decimal(request.form.get('cost_price')),
             component_class=component_class,
             serial_number=(request.form.get('serial_number') or '').strip() or None,
         )
@@ -1726,13 +1739,13 @@ def editar_produto(product_id: int):
         return redirect(url_for('produtos'))
 
     old_price = Decimal(product.price)
-    new_price = Decimal(request.form.get('price') or '0')
+    new_price = _to_money_decimal(request.form.get('price'))
 
     product.name = name
     product.category = category
     product.stock = int(request.form.get('stock') or 0)
     product.price = new_price
-    product.cost_price = Decimal(request.form.get('cost_price') or '0')
+    product.cost_price = _to_money_decimal(request.form.get('cost_price'))
     product.component_class = component_class
     product.serial_number = (request.form.get('serial_number') or '').strip() or None
     if 'ram_ddr' in request.form:
@@ -1801,6 +1814,16 @@ def ativar_produto(product_id: int):
     return redirect(request.referrer or url_for('produtos'))
 
 
+
+
+@app.route('/produtos/<int:product_id>/excluir', methods=['POST'])
+@_login_required
+def excluir_produto(product_id: int):
+    product = Product.query.get_or_404(product_id)
+    db.session.delete(product)
+    db.session.commit()
+    flash('Produto excluído permanentemente.', 'success')
+    return redirect(request.referrer or url_for('gestao_inventario'))
 
 
 def _build_assembly_edit_data(latest_assemblies):
