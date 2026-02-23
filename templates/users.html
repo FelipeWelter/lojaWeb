@@ -29,6 +29,7 @@
                 <form method="post" action="{{ url_for('editar_usuario', user_id=u.id) }}" class="inline-form user-edit-form">
                   <input name="name" value="{{ u.name }}" required />
                   <input type="email" name="email" value="{{ u.email }}" required />
+                  <input type="password" name="password" minlength="6" placeholder="Nova senha (opcional)" />
                   <label class="checkbox-inline admin-inline"><input type="checkbox" name="is_admin" {% if u.is_admin %}checked{% endif %}/> <span>Administrador</span></label>
                   <button type="submit">Salvar</button>
                 </form>

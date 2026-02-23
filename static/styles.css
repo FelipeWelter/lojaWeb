@@ -2488,3 +2488,27 @@ body.dashboard-page textarea:focus {
 .product-pc-button:hover {
   transform: translateY(-1px);
 }
+
+
+.action-row-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+}
+
+input[data-money="true"] {
+  font-variant-numeric: tabular-nums;
+}
+
+input[data-money="true"]::-webkit-outer-spin-button,
+input[data-money="true"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
