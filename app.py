@@ -618,6 +618,7 @@ PAYMENT_METHODS = [
     ('credito', 'Crédito'),
     ('dinheiro', 'Dinheiro'),
     ('pix', 'Pix'),
+    ('boleto', 'Boleto'),
 ]
 
 PAYMENT_METHOD_LABELS = dict(PAYMENT_METHODS)
