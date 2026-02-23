@@ -2848,11 +2848,14 @@ def _parse_date_input(value: str | None):
 
 
 def _charge_total_amount(charge: Charge) -> Decimal:
+    amount = Decimal(charge.amount or 0).quantize(Decimal('0.01'))
+    if amount > 0:
+        return amount
     if charge.sale:
         return Decimal(charge.sale.total or 0).quantize(Decimal('0.01'))
     if charge.service:
         return Decimal(charge.service.total_price or 0).quantize(Decimal('0.01'))
-    return Decimal(charge.amount or 0).quantize(Decimal('0.01'))
+    return Decimal('0.00')
 
 
 def _charge_balance(charge: Charge) -> Decimal:
@@ -2896,23 +2899,25 @@ def _charge_ui_status(charge: Charge):
 
 
 def _is_sale_finalized_by_payment(sale: Sale, charges: list[Charge]) -> bool:
-    sale_total = Decimal(sale.total or 0).quantize(Decimal('0.01'))
     for charge in charges:
         if charge.status == 'cancelado':
             continue
+
+        charge_total = _charge_total_amount(charge)
         paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
-        if charge.status == 'confirmado' or paid_amount >= sale_total:
+        if charge.status == 'confirmado' or paid_amount >= charge_total:
             return True
     return False
 
 
 def _is_service_finalized_by_payment(service: ServiceRecord, charges: list[Charge]) -> bool:
-    service_total = Decimal(service.total_price or 0).quantize(Decimal('0.01'))
     for charge in charges:
         if charge.status == 'cancelado':
             continue
+
+        charge_total = _charge_total_amount(charge)
         paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
-        if charge.status == 'confirmado' or paid_amount >= service_total:
+        if charge.status == 'confirmado' or paid_amount >= charge_total:
             return True
     return False
 

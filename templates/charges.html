@@ -143,11 +143,16 @@
           <td>{{ c.payment_method|capitalize }}{% if c.is_installment and (c.installment_count or 1) > 1 %} • Parcelado{% endif %}</td>
           <td>{{ c.mercado_pago_reference }}</td>
           <td>
-            <div class="actions-dropdown">
-              <button type="button" class="btn-loja btn-loja--secondary btn-secondary actions-menu-trigger js-actions-toggle" data-menu-id="charge-actions-{{ c.id }}" aria-expanded="false">
-                Ações ▾
-              </button>
-              <div id="charge-actions-{{ c.id }}" class="actions-menu-content" hidden>
+            <button type="button" class="btn-loja btn-loja--secondary btn-secondary actions-menu-trigger js-actions-toggle" data-menu-id="charge-actions-{{ c.id }}" aria-expanded="false">
+              Ações ▾
+            </button>
+            <div id="charge-actions-{{ c.id }}" class="actions-modal" hidden>
+              <div class="actions-modal-panel">
+                <div class="actions-modal-header">
+                  <strong>Ações da cobrança</strong>
+                  <button type="button" class="actions-modal-close js-actions-close" data-menu-id="charge-actions-{{ c.id }}" aria-label="Fechar">✕</button>
+                </div>
+                <div class="actions-menu-content">
                 <form method="post" action="{{ url_for('editar_cobranca', charge_id=c.id) }}" class="inline-form charge-edit-form">
                   <div class="field-stack">
                     <label>Referência Mercado Pago</label>
@@ -213,6 +218,7 @@
                 {% if c.amount_paid > 0 and charge_balance(c) > 0 %}
                 <button type="button" class="btn-loja btn-loja--secondary btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='cobranca_recibo_parcial', record_id=c.id) }}">Imprimir recibo parcial</button>
                 {% endif %}
+                </div>
               </div>
             </div>
           </td>
@@ -237,6 +243,7 @@
   const installmentCountInput = document.getElementById('installment-count');
   const installmentPreview = document.getElementById('installment-preview');
   const actionsToggleButtons = document.querySelectorAll('.js-actions-toggle');
+  const actionsCloseButtons = document.querySelectorAll('.js-actions-close');
 
   function closeActionMenus(exceptMenuId = null) {
     actionsToggleButtons.forEach((button) => {
@@ -246,6 +253,7 @@
       menu.hidden = true;
       button.setAttribute('aria-expanded', 'false');
     });
+    document.body.classList.toggle('modal-open', Boolean(exceptMenuId));
   }
 
   function applyChargeFilters() {
@@ -327,10 +335,18 @@
     });
   });
 
-  document.addEventListener('click', (event) => {
-    if (!event.target.closest('.actions-dropdown')) {
+  actionsCloseButtons.forEach((button) => {
+    button.addEventListener('click', () => {
       closeActionMenus();
-    }
+    });
+  });
+
+  document.querySelectorAll('.actions-modal').forEach((modal) => {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeActionMenus();
+      }
+    });
   });
 
   document.addEventListener('keydown', (event) => {
