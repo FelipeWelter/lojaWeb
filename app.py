@@ -64,6 +64,7 @@ class Product(db.Model):
     ram_size = db.Column(db.String(30), nullable=True)
     ram_brand = db.Column(db.String(60), nullable=True)
     psu_watts = db.Column(db.String(30), nullable=True)
+    psu_brand = db.Column(db.String(60), nullable=True)
     gpu_memory = db.Column(db.String(30), nullable=True)
     gpu_brand = db.Column(db.String(60), nullable=True)
     gpu_manufacturer = db.Column(db.String(30), nullable=True)
@@ -641,6 +642,7 @@ COMPONENT_SLOTS = [
     ('memoria_ram', 'Memória RAM', True),
     ('armazenamento', 'Armazenamento', True),
     ('fonte', 'Fonte', False),
+    ('perifericos', 'Periféricos', False),
 ]
 
 PAYMENT_METHODS = [
@@ -1598,6 +1600,7 @@ def produtos():
             ram_size=(request.form.get('ram_size') or '').strip() or None,
             ram_brand=(request.form.get('ram_brand') or '').strip() or None,
             psu_watts=(request.form.get('psu_watts') or '').strip() or None,
+            psu_brand=(request.form.get('psu_brand') or '').strip() or None,
             gpu_memory=(request.form.get('gpu_memory') or '').strip() or None,
             gpu_brand=(request.form.get('gpu_brand') or '').strip() or None,
             gpu_manufacturer=(request.form.get('gpu_manufacturer') or '').strip() or None,
@@ -1697,6 +1700,8 @@ def editar_produto(product_id: int):
         product.ram_brand = (request.form.get('ram_brand') or '').strip() or None
     if 'psu_watts' in request.form:
         product.psu_watts = (request.form.get('psu_watts') or '').strip() or None
+    if 'psu_brand' in request.form:
+        product.psu_brand = (request.form.get('psu_brand') or '').strip() or None
     if 'gpu_memory' in request.form:
         product.gpu_memory = (request.form.get('gpu_memory') or '').strip() or None
     if 'gpu_brand' in request.form:
@@ -2900,16 +2905,25 @@ def cobrancas():
             flash('Selecione apenas uma origem: venda ou serviço.', 'danger')
             return redirect(url_for('cobrancas'))
 
+        sale_ref = Sale.query.get(sale_id) if sale_id else None
+        service_ref = ServiceRecord.query.get(service_id) if service_id else None
+
         try:
             due_date = _parse_date_input(request.form.get('due_date'))
-            amount = Decimal((request.form.get('amount') or '0').replace(',', '.')).quantize(Decimal('0.01'))
             amount_paid = Decimal((request.form.get('amount_paid') or '0').replace(',', '.')).quantize(Decimal('0.01'))
+            discount_amount = Decimal((request.form.get('charge_discount') or '0').replace(',', '.')).quantize(Decimal('0.01'))
         except (ValueError, InvalidOperation) as exc:
             flash(str(exc) if isinstance(exc, ValueError) else 'Valor inválido para cobrança.', 'danger')
             return redirect(url_for('cobrancas'))
 
-        if amount < 0 or amount_paid < 0:
+        if amount_paid < 0 or discount_amount < 0:
             flash('Valores de cobrança não podem ser negativos.', 'danger')
+            return redirect(url_for('cobrancas'))
+
+        source_total = Decimal(sale_ref.total or 0) if sale_ref else Decimal(service_ref.total_price or 0)
+        amount = (source_total - discount_amount).quantize(Decimal('0.01'))
+        if amount < 0:
+            flash('O desconto não pode ser maior que o valor total da venda/serviço.', 'danger')
             return redirect(url_for('cobrancas'))
 
         is_installment = request.form.get('is_installment') == 'on'
@@ -3153,6 +3167,8 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN ram_brand VARCHAR(60)'))
     if 'psu_watts' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN psu_watts VARCHAR(30)'))
+    if 'psu_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN psu_brand VARCHAR(60)'))
     if 'gpu_memory' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN gpu_memory VARCHAR(30)'))
     if 'gpu_brand' not in columns:

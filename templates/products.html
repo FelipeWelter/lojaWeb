@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <section class="card">
-  <div class="inventory-header"><h2>Novo produto</h2><a class="btn-secondary" href="{{ url_for('montar_pc') }}">Montar/Cadastrar PC</a></div>
+  <div class="inventory-header product-header"><h2>Cadastro de produtos</h2><a class="btn-loja btn-loja--primary product-pc-button" href="{{ url_for('montar_pc') }}">🖥️ Montar/Cadastrar PC</a></div>
 
 
   <form method="post" class="grid form-grid piece-form-grid" id="piece-form" enctype="multipart/form-data">
@@ -12,7 +12,7 @@
         <label>Nome do produto<input name="name" placeholder="Nome" required /></label>
         <label>Marca<input name="brand" placeholder="Marca" /></label>
         <label>Categoria
-          <select name="category" id="category-select"><option>Peça</option><option>Computador</option></select>
+          <select name="category" id="category-select"><option>Peça</option><option>Computador</option><option>Periféricos</option></select>
         </label>
       </section>
 
@@ -43,6 +43,7 @@
             <option value="memoria_ram">Memória RAM</option>
             <option value="armazenamento">Armazenamento</option>
             <option value="fonte">Fonte</option>
+            <option value="perifericos">Periféricos</option>
           </select>
         </label>
         <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" type="number" min="0" step="0.01" placeholder="Frete/Taxas" value="0" /></div></label>
@@ -65,6 +66,7 @@
 
         <div id="psu-fields" class="component-extra-fields" hidden>
           <h4>Fonte</h4>
+          <label>Marca<input name="psu_brand" placeholder="Ex: Corsair" /></label>
           <label>Potência (Watts)<input name="psu_watts" placeholder="Ex: 650W" /></label>
         </div>
 
