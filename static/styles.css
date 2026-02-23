@@ -72,6 +72,7 @@ h1, h2, h3, p { margin-top: 0; }
 body.auth-page .container {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   max-width: 100%;
@@ -196,7 +197,7 @@ body.auth-page .alert.danger {
 }
 
 .login-card {
-  width: min(460px, 100%);
+  width: min(420px, 100%);
   padding: 1.7rem;
   background: #34495e;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -227,6 +228,8 @@ body.auth-page .alert.danger {
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+  width: min(300px, 100%);
+  margin: 0 auto;
 }
 
 .login-form input {
@@ -289,6 +292,25 @@ body.auth-page .alert.danger {
 
 .login-card a {
   color: #a9d7ff;
+}
+
+@media (max-width: 540px) {
+  body.auth-page .container {
+    padding: 0.85rem;
+  }
+
+  body.auth-page .alerts {
+    width: 100%;
+  }
+
+  .login-card {
+    width: 100%;
+    padding: 1.2rem;
+  }
+
+  .login-form {
+    width: 100%;
+  }
 }
 
 .full-width { grid-column: 1 / -1; }
