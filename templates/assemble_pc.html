@@ -13,7 +13,7 @@
       <input type="hidden" name="slot_{{ slot_key }}_stock_id" class="stock-id-input" />
       <datalist id="datalist-{{ slot_key }}">
         {% for part in parts_by_class[slot_key] if part.stock > 0 %}
-        <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})"></option>
+        <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.cost_price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.cost_price) }}, estoque: {{ part.stock }})"></option>
         {% endfor %}
       </datalist>
     </label>
@@ -39,7 +39,7 @@
         <input type="hidden" name="{{ slot_key }}_stock_ids[]" class="stock-id-input" />
         <datalist id="datalist-{{ slot_key }}">
           {% for part in parts_by_class[slot_key] if part.stock > 0 %}
-          <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.price) }}, estoque: {{ part.stock }})"></option>
+          <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.cost_price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.cost_price) }}, estoque: {{ part.stock }})"></option>
           {% endfor %}
         </datalist>
       </div>
