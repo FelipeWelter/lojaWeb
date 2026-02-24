@@ -2468,6 +2468,19 @@ def servicos():
         flash('Serviço realizado cadastrado com sucesso!', 'success')
         return redirect(url_for('servicos'))
 
+    edit_ticket = None
+    edit_ticket_id_raw = (request.args.get('edit_ticket_id') or '').strip()
+    if edit_ticket_id_raw:
+        try:
+            edit_ticket = MaintenanceTicket.query.get(int(edit_ticket_id_raw))
+        except ValueError:
+            flash('Ordem de serviço inválida para edição.', 'danger')
+            return redirect(url_for('servicos'))
+
+        if edit_ticket is None:
+            flash('Ordem de serviço não encontrada para edição.', 'danger')
+            return redirect(url_for('servicos'))
+
     recent_services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).all()
     maintenance_tickets = MaintenanceTicket.query.order_by(MaintenanceTicket.entry_date.desc()).limit(80).all()
     maintenance_parts_map = {}
