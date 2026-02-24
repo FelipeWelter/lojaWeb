@@ -2,7 +2,7 @@
 {% block content %}
 <section class="card checkout-card">
   <h2>PDV • Nova venda</h2>
-  <form method="post" id="sale-form" class="checkout-grid">
+  <form method="post" id="sale-form" class="checkout-grid" data-prefill-product-id="{{ prefill_product.id if prefill_product else "" }}">
     <div class="checkout-main">
       <div class="grid form-grid sale-header-fields">
         <input name="sale_name" placeholder="Nome da venda (ex: Venda João - Combo)" required />
@@ -207,6 +207,22 @@
   const changeViewEl = document.getElementById('sale-change-view');
   const finalizeBtn = document.getElementById('finalize-sale-btn');
   const saleForm = document.getElementById('sale-form');
+  const prefillProductId = saleForm?.dataset.prefillProductId || '';
+
+  function applyAssembledPrefill() {
+    if (!prefillProductId) return;
+    const firstLine = saleLines?.querySelector('.sale-line');
+    const productSelect = firstLine?.querySelector('.line-product');
+    if (!productSelect) return;
+    productSelect.value = prefillProductId;
+    productSelect.dispatchEvent(new Event('change'));
+    const saleName = saleForm?.querySelector('input[name="sale_name"]');
+    if (saleName && !saleName.value.trim()) {
+      const selected = productSelect.options[productSelect.selectedIndex];
+      saleName.value = `Venda - ${selected?.textContent?.split(' (estoque')[0] || 'Computador montado'}`;
+    }
+  }
+
 
   const paymentFlowCheckbox = document.getElementById('payment-flow-aprazo');
   const creditFlowFields = document.getElementById('credit-flow-fields');
@@ -347,6 +363,7 @@
   });
   saleLines.querySelectorAll('.sale-line').forEach(bindLine);
   togglePaymentFlowFields();
+  applyAssembledPrefill();
   recalcTotal();
 
 

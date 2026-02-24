@@ -1,0 +1,61 @@
+{% macro piece_slot(slot_key, slot_label, parts_by_class, icon='🧩', allow_multiple=False) -%}
+{% if allow_multiple %}
+<div class="slot-box slot-multiple" data-slot="{{ slot_key }}">
+  <div class="slot-heading">
+    <h3>{{ slot_label }}</h3>
+    <span class="slot-icon" aria-hidden="true">⚙️</span>
+  </div>
+  <div class="multi-list" data-slot="{{ slot_key }}">
+    <div class="multi-row">
+      <div class="field-stack multi-item-field">
+        <label>Item</label>
+        <input name="{{ slot_key }}_entries[]" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione ou escreva" />
+        <input type="hidden" name="{{ slot_key }}_stock_ids[]" class="stock-id-input" />
+        <datalist id="datalist-{{ slot_key }}">
+          {% for part in parts_by_class[slot_key] if part.stock > 0 %}
+          <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.cost_price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.cost_price) }}, estoque: {{ part.stock }})"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+      <div class="field-stack multi-cost-field">
+        <label>Custo (R$)</label>
+        <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="0,00" />
+      </div>
+      <div class="field-stack multi-qty-field">
+        <label>Quantidade</label>
+        <div class="qty-control" title="Quantidade">
+          <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
+          <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
+          <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+        </div>
+      </div>
+      <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
+    </div>
+  </div>
+  <button type="button" class="add-item btn-secondary" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
+</div>
+{% else %}
+<div class="slot-box single-slot" data-slot="{{ slot_key }}">
+  <div class="slot-heading">
+    <h3>{{ slot_label }}</h3>
+    <span class="slot-icon" aria-hidden="true">{{ icon }}</span>
+  </div>
+  <div class="field-grid single-item-grid">
+    <label>
+      Item
+      <input name="slot_{{ slot_key }}_entry" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione do estoque ou digite manualmente" />
+      <input type="hidden" name="slot_{{ slot_key }}_stock_id" class="stock-id-input" />
+      <datalist id="datalist-{{ slot_key }}">
+        {% for part in parts_by_class[slot_key] if part.stock > 0 %}
+        <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ part.cost_price }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(part.cost_price) }}, estoque: {{ part.stock }})"></option>
+        {% endfor %}
+      </datalist>
+    </label>
+    <label>
+      Custo (R$)
+      <input name="slot_{{ slot_key }}_cost" type="number" min="0" step="0.01" placeholder="0,00" />
+    </label>
+  </div>
+</div>
+{% endif %}
+{%- endmacro %}

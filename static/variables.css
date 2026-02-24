@@ -1,0 +1,58 @@
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-soft: #f8faff;
+  --primary: #3498db;
+  --primary-hover: #2d86c4;
+  --success: #2ecc71;
+  --success-hover: #28b765;
+  --danger: #e74c3c;
+  --danger-hover: #cf3f31;
+  --secondary: #95a5a6;
+  --secondary-hover: #7f8c8d;
+  --text: #1f2937;
+  --muted: #667085;
+  --border: #dbe2f3;
+  --shadow: 0 12px 28px rgba(20, 31, 69, 0.08);
+
+  --label-color-dark: #ecf0f1;
+  --input-bg-dark: #34495e;
+  --input-border-dark: #4a6572;
+  --input-focus: #3498db;
+}
+
+.btn-primary,
+.btn-loja--primary {
+  background: linear-gradient(135deg, var(--primary), var(--success));
+  color: #fff;
+  border: none;
+}
+
+.btn-primary:hover,
+.btn-loja--primary:hover {
+  background: linear-gradient(135deg, var(--primary-hover), var(--success-hover));
+}
+
+.btn-danger,
+.btn-loja--danger {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+}
+
+.btn-danger:hover,
+.btn-loja--danger:hover {
+  background: var(--danger-hover);
+}
+
+.btn-secondary,
+.btn-loja--secondary {
+  background: transparent;
+  color: var(--secondary-hover);
+  border: 1px solid var(--secondary);
+}
+
+.btn-secondary:hover,
+.btn-loja--secondary:hover {
+  background: rgba(149, 165, 166, 0.15);
+}
