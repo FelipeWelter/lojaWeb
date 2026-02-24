@@ -1814,11 +1814,24 @@ def produtos():
         slot_key: Product.query.filter_by(category='Peça', component_class=slot_key, active=True).order_by(Product.name).all()
         for slot_key, _, _ in COMPONENT_SLOTS
     }
+
+    edit_product = None
+    edit_product_id = request.args.get('edit_product_id', type=int)
+    if edit_product_id:
+        edit_product = Product.query.get(edit_product_id)
+        if not edit_product:
+            flash('Produto para edição não encontrado.', 'danger')
+        elif edit_product.category != 'Peça' or not edit_product.component_class:
+            flash('A edição guiada está disponível apenas para produtos da categoria Peça.', 'danger')
+            edit_product = None
+
     return render_template(
         'products.html',
         products=products,
         parts_by_class=parts_by_class,
         component_slots=COMPONENT_SLOTS,
+        edit_product=edit_product,
+        return_to=(request.args.get('return_to') or '').strip() or None,
     )
 
 
@@ -1863,10 +1876,14 @@ def atualizar_foto_produto(product_id: int):
 def editar_produto(product_id: int):
     product = Product.query.get_or_404(product_id)
 
+    return_to = (request.form.get('return_to') or '').strip()
+    fallback_edit_url = url_for('produtos', edit_product_id=product.id, return_to=return_to) if return_to else url_for('produtos', edit_product_id=product.id)
+    success_redirect = return_to or url_for('produtos')
+
     name = (request.form.get('name') or '').strip()
     if not name:
         flash('Informe o nome do produto.', 'danger')
-        return redirect(url_for('produtos'))
+        return redirect(fallback_edit_url)
 
     category = request.form.get('category') or product.category
     component_class = request.form.get('component_class') or None
@@ -1875,7 +1892,7 @@ def editar_produto(product_id: int):
         component_class = None
     elif not component_class:
         flash('Informe a classe da peça para produtos da categoria Peça.', 'danger')
-        return redirect(url_for('produtos'))
+        return redirect(fallback_edit_url)
 
     old_price = Decimal(product.price)
     new_price = _to_money_decimal(request.form.get('price'))
@@ -1934,7 +1951,7 @@ def editar_produto(product_id: int):
 
     db.session.commit()
     flash('Produto atualizado com sucesso!', 'success')
-    return redirect(url_for('produtos'))
+    return redirect(success_redirect)
 
 
 @app.route('/produtos/<int:product_id>/remover', methods=['POST'])

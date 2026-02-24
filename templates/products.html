@@ -2,7 +2,8 @@
 {% block content %}
 <section class="card" id="new-item-flow">
   <div class="inventory-header product-header">
-    <h2>Novo item no estoque</h2>
+    <h2>{% if edit_product %}Editar item no estoque{% else %}Novo item no estoque{% endif %}</h2>
+    {% if edit_product %}<p>Editando <strong>{{ edit_product.name }}</strong>. Ajuste os dados e salve.</p>{% endif %}
   </div>
 
   <section class="form-zone">
@@ -37,16 +38,17 @@
     </label>
   </section>
 
-  <form method="post" class="grid form-grid piece-form-grid" id="piece-form" enctype="multipart/form-data" hidden>
+  <form method="post" action="{% if edit_product %}{{ url_for('editar_produto', product_id=edit_product.id) }}{% else %}{{ url_for('produtos') }}{% endif %}" class="grid form-grid piece-form-grid" id="piece-form" enctype="multipart/form-data" hidden>
     <input type="hidden" name="form_mode" value="piece" />
     <input type="hidden" name="category" value="Peça" />
-    <input type="hidden" name="component_class" id="component-class-hidden" />
+    <input type="hidden" name="component_class" id="component-class-hidden" value="{{ edit_product.component_class if edit_product else "" }}" />
+    {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}" />{% endif %}
 
     <div class="product-zone-grid full-width">
       <section class="form-zone zone-identity">
         <h3>3) Dados principais</h3>
-        <label>Nome da peça<input name="name" placeholder="Ex: Memória Kingston Fury 16GB" required /></label>
-        <label>Número de Série (S/N)<input name="serial_number" placeholder="Número de Série (S/N)" /></label>
+        <label>Nome da peça<input name="name" placeholder="Ex: Memória Kingston Fury 16GB" value="{{ edit_product.name if edit_product else "" }}" required /></label>
+        <label>Número de Série (S/N)<input name="serial_number" placeholder="Número de Série (S/N)" value="{{ edit_product.serial_number if edit_product else "" }}" /></label>
       </section>
 
       <section class="form-zone zone-meta">
@@ -63,14 +65,14 @@
           <label>Tecnologia (DDR)
             <select name="ram_ddr">
               <option value="">Selecione</option>
-              <option value="DDR3">DDR3</option>
-              <option value="DDR4">DDR4</option>
-              <option value="DDR5">DDR5</option>
+              <option value="DDR3" {% if edit_product and edit_product.ram_ddr == "DDR3" %}selected{% endif %}>DDR3</option>
+              <option value="DDR4" {% if edit_product and edit_product.ram_ddr == "DDR4" %}selected{% endif %}>DDR4</option>
+              <option value="DDR5" {% if edit_product and edit_product.ram_ddr == "DDR5" %}selected{% endif %}>DDR5</option>
             </select>
           </label>
-          <label>Marca<input name="ram_brand" placeholder="Ex: Kingston" /></label>
-          <label>Frequência<input name="ram_frequency" placeholder="Ex: 3200 MHz" /></label>
-          <label>Capacidade<input name="ram_size" placeholder="Ex: 16 GB" /></label>
+          <label>Marca<input name="ram_brand" placeholder="Ex: Kingston" value="{{ edit_product.ram_brand if edit_product else "" }}" /></label>
+          <label>Frequência<input name="ram_frequency" placeholder="Ex: 3200 MHz" value="{{ edit_product.ram_frequency if edit_product else "" }}" /></label>
+          <label>Capacidade<input name="ram_size" placeholder="Ex: 16 GB" value="{{ edit_product.ram_size if edit_product else "" }}" /></label>
         </div>
 
         <div id="cpu-fields" class="component-extra-fields" hidden style="display:none;">
@@ -78,38 +80,38 @@
           <label>Fabricante
             <select name="cpu_manufacturer">
               <option value="">Selecione</option>
-              <option value="Intel">Intel</option>
-              <option value="AMD">AMD</option>
+              <option value="Intel" {% if edit_product and edit_product.cpu_manufacturer == "Intel" %}selected{% endif %}>Intel</option>
+              <option value="AMD" {% if edit_product and edit_product.cpu_manufacturer == "AMD" %}selected{% endif %}>AMD</option>
             </select>
           </label>
-          <label>Marca<input name="cpu_brand" placeholder="Ex: Ryzen / Core" /></label>
-          <label>Modelo<input name="cpu_model" placeholder="Ex: Ryzen 5 5600" /></label>
+          <label>Marca<input name="cpu_brand" placeholder="Ex: Ryzen / Core" value="{{ edit_product.cpu_brand if edit_product else "" }}" /></label>
+          <label>Modelo<input name="cpu_model" placeholder="Ex: Ryzen 5 5600" value="{{ edit_product.cpu_model if edit_product else "" }}" /></label>
         </div>
 
         <div id="motherboard-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Placa-mãe</h4>
-          <label>Marca<input name="motherboard_brand" placeholder="Ex: ASUS" /></label>
-          <label>Modelo<input name="motherboard_model" placeholder="Ex: TUF B550M" /></label>
-          <label>Socket<input name="motherboard_socket" placeholder="Ex: AM4 / LGA1700" /></label>
-          <label>Chipset<input name="motherboard_chipset" placeholder="Ex: B550" /></label>
+          <label>Marca<input name="motherboard_brand" placeholder="Ex: ASUS" value="{{ edit_product.motherboard_brand if edit_product else "" }}" /></label>
+          <label>Modelo<input name="motherboard_model" placeholder="Ex: TUF B550M" value="{{ edit_product.motherboard_model if edit_product else "" }}" /></label>
+          <label>Socket<input name="motherboard_socket" placeholder="Ex: AM4 / LGA1700" value="{{ edit_product.motherboard_socket if edit_product else "" }}" /></label>
+          <label>Chipset<input name="motherboard_chipset" placeholder="Ex: B550" value="{{ edit_product.motherboard_chipset if edit_product else "" }}" /></label>
         </div>
 
         <div id="psu-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Fonte</h4>
-          <label>Marca<input name="psu_brand" placeholder="Ex: Corsair" /></label>
-          <label>Potência (Watts)<input name="psu_watts" placeholder="Ex: 650W" /></label>
+          <label>Marca<input name="psu_brand" placeholder="Ex: Corsair" value="{{ edit_product.psu_brand if edit_product else "" }}" /></label>
+          <label>Potência (Watts)<input name="psu_watts" placeholder="Ex: 650W" value="{{ edit_product.psu_watts if edit_product else "" }}" /></label>
         </div>
 
         <div id="gpu-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Placa de vídeo</h4>
-          <label>Memória da placa<input name="gpu_memory" placeholder="Ex: 8 GB" /></label>
-          <label>Marca<input name="gpu_brand" placeholder="Ex: ASUS" /></label>
+          <label>Memória da placa<input name="gpu_memory" placeholder="Ex: 8 GB" value="{{ edit_product.gpu_memory if edit_product else "" }}" /></label>
+          <label>Marca<input name="gpu_brand" placeholder="Ex: ASUS" value="{{ edit_product.gpu_brand if edit_product else "" }}" /></label>
           <label>Fabricante
             <select name="gpu_manufacturer">
               <option value="">Selecione</option>
-              <option value="NVIDIA">NVIDIA</option>
-              <option value="AMD">AMD</option>
-              <option value="INTEL">INTEL</option>
+              <option value="NVIDIA" {% if edit_product and edit_product.gpu_manufacturer == "NVIDIA" %}selected{% endif %}>NVIDIA</option>
+              <option value="AMD" {% if edit_product and edit_product.cpu_manufacturer == "AMD" %}selected{% endif %}>AMD</option>
+              <option value="INTEL" {% if edit_product and edit_product.gpu_manufacturer == "INTEL" %}selected{% endif %}>INTEL</option>
             </select>
           </label>
         </div>
@@ -119,26 +121,26 @@
           <label>Tipo
             <select name="storage_type">
               <option value="">Selecione</option>
-              <option value="HD">HD</option>
-              <option value="SSD">SSD</option>
+              <option value="HD" {% if edit_product and edit_product.storage_type == "HD" %}selected{% endif %}>HD</option>
+              <option value="SSD" {% if edit_product and edit_product.storage_type == "SSD" %}selected{% endif %}>SSD</option>
             </select>
           </label>
-          <label>Capacidade<input name="storage_capacity" placeholder="Ex: 1 TB" /></label>
-          <label>Marca<input name="storage_brand" placeholder="Ex: Western Digital" /></label>
+          <label>Capacidade<input name="storage_capacity" placeholder="Ex: 1 TB" value="{{ edit_product.storage_capacity if edit_product else "" }}" /></label>
+          <label>Marca<input name="storage_brand" placeholder="Ex: Western Digital" value="{{ edit_product.storage_brand if edit_product else "" }}" /></label>
         </div>
       </section>
 
       <section class="form-zone zone-finance">
         <h3>5) Valores</h3>
-        <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" required /></div></label>
-        <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" required /></div></label>
+        <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.cost_price) if edit_product else "0,00" }}" required /></div></label>
+        <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.price) if edit_product else "0,00" }}" required /></div></label>
         <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" /></div></label>
         <label>Margem de lucro (%)<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
       </section>
 
       <section class="form-zone zone-logistics">
         <h3>6) Estoque</h3>
-        <label>Estoque atual<input name="stock" type="number" min="0" placeholder="Estoque" required /></label>
+        <label>Estoque atual<input name="stock" type="number" min="0" placeholder="Estoque" value="{{ edit_product.stock if edit_product else "" }}" required /></label>
       </section>
 
       <section class="form-zone zone-media full-width">
@@ -146,7 +148,7 @@
         <label class="media-upload-field">Imagem do produto<input name="photo_file" type="file" accept="image/*" /></label>
       </section>
     </div>
-    <button type="submit">Cadastrar no estoque</button>
+    <button type="submit">{% if edit_product %}Salvar alterações{% else %}Cadastrar no estoque{% endif %}</button>
   </form>
 </section>
 
@@ -287,6 +289,13 @@
       }
     }, { once: true });
   });
+
+
+  {% if edit_product %}
+  activatePieceFlow();
+  classSelect.value = '{{ edit_product.component_class }}';
+  toggleTechnicalFieldsByClass();
+  {% endif %}
 
   updateMarginRealtime();
 </script>
