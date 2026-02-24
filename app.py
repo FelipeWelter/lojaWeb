@@ -13,6 +13,7 @@ from flask_mail import Mail, Message
 
 from crud import ClientDTO, GenericCrudService, ProductDTO
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import SQLAlchemyError
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -2511,16 +2512,20 @@ def servicos():
         if charge.service_id:
             charges_by_service_id.setdefault(charge.service_id, []).append(charge)
 
-    sale_item_service_rows = (
-        db.session.query(SaleItem.service_record_id, Charge)
-        .join(Sale, Sale.id == SaleItem.sale_id)
-        .join(Charge, Charge.sale_id == Sale.id)
-        .filter(
-            SaleItem.service_record_id.in_(service_ids) if service_ids else db.false(),
-            Sale.canceled.is_(False),
+    sale_item_service_rows = []
+    try:
+        sale_item_service_rows = (
+            db.session.query(SaleItem.service_record_id, Charge)
+            .join(Sale, Sale.id == SaleItem.sale_id)
+            .join(Charge, Charge.sale_id == Sale.id)
+            .filter(
+                SaleItem.service_record_id.in_(service_ids) if service_ids else db.false(),
+                Sale.canceled.is_(False),
+            )
+            .all()
         )
-        .all()
-    )
+    except SQLAlchemyError as exc:
+        app.logger.warning('Falha ao carregar cobranças de serviços vinculadas à venda: %s', exc)
     seen_service_charge_pairs: set[tuple[int, int]] = set()
     for service_record_id, charge in sale_item_service_rows:
         if not service_record_id or not charge:
