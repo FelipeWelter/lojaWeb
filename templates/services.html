@@ -163,81 +163,21 @@
 </section>
 
 <section class="card services-shell">
-  <h2>Pronto para retirada (aguardando pagamento/retirada)</h2>
-  <table>
-    <thead>
-      <tr><th>Entrada</th><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Pagamento</th><th>Entrega</th><th>Ações</th></tr>
-    </thead>
-    <tbody>
-      {% for ticket in ready_for_pickup_tickets %}
-      {% set linked_service = maintenance_service_map.get(ticket.id) %}
-      {% set finance_info = ready_ticket_finance_map.get(ticket.id) %}
-      <tr>
-        <td>{{ ticket.entry_date.strftime('%d/%m/%Y %H:%M') }}</td>
-        <td>{{ ticket.client_name }}</td>
-        <td>{{ ticket.equipment }}</td>
-        <td>{{ ticket.service_description }}</td>
-        <td>{% if finance_info and finance_info.payment_ok %}<span class="badge success">Pago</span>{% else %}<span class="badge warning">Pendente</span>{% endif %}</td>
-        <td><span class="badge {% if linked_service and linked_service.delivery_status == 'entregue' %}success{% elif linked_service and linked_service.delivery_status == 'desistencia' %}danger{% else %}info{% endif %}">{{ service_delivery_status_labels.get(linked_service.delivery_status if linked_service else 'aguardando', 'Aguardando retirada') }}</span></td>
-        <td>
-          <details class="service-actions-menu">
-            <summary>⋯</summary>
-            <div class="service-actions-list">
-              <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}">🖨️ Imprimir OS</button>
-              {% if ticket.service_record_id %}
-              <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='servico', record_id=ticket.service_record_id) }}">🧾 Imprimir recibo</button>
-              {% endif %}
-              {% if linked_service %}
-              <form method="post" action="{{ url_for('confirmar_retirada_servico', service_id=linked_service.id) }}" onsubmit="return confirm('Confirmar que o equipamento foi entregue ao cliente?');">
-                <input type="hidden" name="action" value="entregue" />
-                <button type="submit" class="btn-success">📦 Confirmar retirada/entrega</button>
-              </form>
-              <form method="post" action="{{ url_for('confirmar_retirada_servico', service_id=linked_service.id) }}" onsubmit="return confirm('Confirmar desistência do cliente para este serviço?');">
-                <input type="hidden" name="action" value="desistencia" />
-                <button type="submit" class="btn-loja btn-loja--danger">🚫 Confirmar desistência</button>
-              </form>
-              <details>
-                <summary>✏️ Editar serviço</summary>
-                <form method="post" action="{{ url_for('editar_servico', service_id=linked_service.id) }}" class="inline-form">
-                  <input name="service_name" value="{{ linked_service.service_name }}" placeholder="Nome do serviço" required />
-                  <input name="client_name" value="{{ linked_service.client_name }}" placeholder="Cliente" required />
-                  <input name="equipment" value="{{ linked_service.equipment }}" placeholder="Equipamento" required />
-                  <input name="total_price" type="number" min="0" step="0.01" value="{{ '%.2f'|format(linked_service.total_price or 0) }}" />
-                  <input name="cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(linked_service.cost or 0) }}" />
-                  <textarea name="notes" rows="2" placeholder="Observações">{{ linked_service.notes or '' }}</textarea>
-                  <button type="submit" class="btn-secondary">Salvar edição</button>
-                </form>
-              </details>
-              <form method="post" action="{{ url_for('excluir_servico', service_id=linked_service.id) }}" onsubmit="return confirm('Deseja excluir este serviço?');">
-                <button type="submit" class="btn-loja btn-loja--danger">🗑️ Excluir serviço</button>
-              </form>
-              {% endif %}
-            </div>
-          </details>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="7">Nenhuma OS pronta para retirada.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</section>
-
-<section class="card services-shell">
   <div class="history-head">
-    <h2>Histórico Unificado (Serviços concluídos + OS concluídas pagas e retiradas)</h2>
+    <h2>Fluxo Unificado de Serviços (Pronto para retirada + Histórico)</h2>
     <input id="service-history-search" type="search" placeholder="Buscar cliente, equipamento ou serviço..." />
   </div>
   <table>
     <thead>
-      <tr><th>Data</th><th>Origem</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Valor final</th><th>Pagamento</th><th>Entrega</th><th>Ações</th></tr>
+      <tr><th>Data</th><th>Etapa</th><th>Origem</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Valor final</th><th>Pagamento</th><th>Entrega</th><th>Ações</th></tr>
     </thead>
     <tbody id="service-history-body">
-      {% for item in unified_completed_history %}
+      {% for item in unified_service_history %}
       {% set service = item.service %}
       <tr>
         <td>{{ item.date.strftime('%d/%m/%Y %H:%M') if item.date else '-' }}</td>
-        <td>{% if item.type == 'os_concluida' %}OS concluída{% else %}Serviço avulso{% endif %}</td>
+        <td>{% if item.stage == 'pronto_retirada' %}<span class="badge info">Pronto para retirada</span>{% else %}<span class="badge success">Concluído</span>{% endif %}</td>
+        <td>{% if item.type in ['os_pronta', 'os_concluida'] %}OS{% else %}Serviço avulso{% endif %}</td>
         <td>{{ item.service_name }}</td>
         <td>{{ item.client_name }}</td>
         <td>{{ item.equipment }}</td>
@@ -253,6 +193,14 @@
               {% endif %}
               {% if service %}
               <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='servico', record_id=service.id) }}">🧾 Imprimir recibo</button>
+              <form method="post" action="{{ url_for('confirmar_retirada_servico', service_id=service.id) }}" onsubmit="return confirm('Confirmar que o equipamento foi entregue ao cliente?');">
+                <input type="hidden" name="action" value="entregue" />
+                <button type="submit" class="btn-success">📦 Confirmar retirada/entrega</button>
+              </form>
+              <form method="post" action="{{ url_for('confirmar_retirada_servico', service_id=service.id) }}" onsubmit="return confirm('Confirmar desistência do cliente para este serviço?');">
+                <input type="hidden" name="action" value="desistencia" />
+                <button type="submit" class="btn-loja btn-loja--danger">🚫 Confirmar desistência</button>
+              </form>
               <details>
                 <summary>✏️ Editar serviço</summary>
                 <form method="post" action="{{ url_for('editar_servico', service_id=service.id) }}" class="inline-form">
@@ -274,7 +222,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9">Nenhum serviço concluído cadastrado.</td></tr>
+      <tr><td colspan="10">Nenhum registro de serviço disponível.</td></tr>
       {% endfor %}
     </tbody>
   </table>
