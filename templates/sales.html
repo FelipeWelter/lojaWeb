@@ -100,11 +100,6 @@
 
 <section class="card">
   <h2>Pagamentos da venda</h2>
-  <div class="payment-tabs" role="tablist" aria-label="Abas de pagamentos">
-    <button type="button" class="btn-loja btn-loja--secondary js-payment-tab is-active" data-target="tab-caixa" role="tab" aria-selected="true">Caixa</button>
-    <button type="button" class="btn-loja btn-loja--secondary js-payment-tab" data-target="tab-cobranca" role="tab" aria-selected="false">Cobrança</button>
-  </div>
-
   <div id="tab-caixa" class="payment-tab-panel is-active" role="tabpanel">
     <div class="kpi-grid">
       <article class="kpi-card"><h3>Recebido hoje</h3><strong>R$ {{ '%.2f'|format(paid_today) }}</strong></article>
@@ -146,50 +141,8 @@
     </div>
   </div>
 
-  <div id="tab-cobranca" class="payment-tab-panel" role="tabpanel" hidden>
-    <div class="charges-kpi-grid">
-      <article class="charges-kpi danger">
-        <small>🔴 Vencidas</small>
-        <strong>R$ {{ '%.2f'|format(charge_overdue_total) }}</strong>
-      </article>
-      <article class="charges-kpi warning">
-        <small>🟡 Pendentes (7 dias)</small>
-        <strong>R$ {{ '%.2f'|format(charge_pending_total) }}</strong>
-      </article>
-      <article class="charges-kpi success">
-        <small>🟢 Recebidas</small>
-        <strong>R$ {{ '%.2f'|format(charge_received_total) }}</strong>
-      </article>
-    </div>
 
-    <div class="table-wrap charges-table-wrap">
-      <table>
-        <thead><tr><th>Ref.</th><th>Origem</th><th>Status</th><th>Método</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ações</th></tr></thead>
-        <tbody>
-          {% for c in finance_charges %}
-          <tr>
-            <td>{{ c.mercado_pago_reference }}</td>
-            <td>{% if c.sale %}Venda #{{ c.sale.id }}{% elif c.service %}Serviço #{{ c.service.id }}{% else %}Avulso{% endif %}</td>
-            <td><span class="badge">{{ charge_ui_status(c) }}</span></td>
-            <td>{{ payment_method_labels.get(c.payment_method, c.payment_method) }}</td>
-            <td>R$ {{ '%.2f'|format(charge_total_amount(c)) }}</td>
-            <td>R$ {{ '%.2f'|format(c.amount_paid or 0) }}</td>
-            <td>R$ {{ '%.2f'|format(charge_balance(c)) }}</td>
-            <td>
-              {% if c.status != 'confirmado' and c.status != 'cancelado' %}
-              <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
-                <button type="submit" class="btn-loja btn-loja--primary">Confirmar</button>
-              </form>
-              {% else %}
-              <span class="badge success">Finalizada</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}<tr><td colspan="8">Sem cobranças.</td></tr>{% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
+
 </section>
 
 <section class="card">
@@ -396,25 +349,6 @@
   togglePaymentFlowFields();
   recalcTotal();
 
-
-
-  const paymentTabs = document.querySelectorAll('.js-payment-tab');
-  const paymentPanels = document.querySelectorAll('.payment-tab-panel');
-  paymentTabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      const targetId = tab.dataset.target;
-      paymentTabs.forEach((item) => {
-        const active = item === tab;
-        item.classList.toggle('is-active', active);
-        item.setAttribute('aria-selected', active ? 'true' : 'false');
-      });
-      paymentPanels.forEach((panel) => {
-        const active = panel.id === targetId;
-        panel.classList.toggle('is-active', active);
-        panel.hidden = !active;
-      });
-    });
-  });
 
   const params = new URLSearchParams(window.location.search);
   const printSaleId = params.get('print_sale_id');

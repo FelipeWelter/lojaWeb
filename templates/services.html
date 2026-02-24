@@ -166,17 +166,19 @@
   <h2>Pronto para retirada (aguardando pagamento/retirada)</h2>
   <table>
     <thead>
-      <tr><th>Entrada</th><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Status</th><th>Ações</th></tr>
+      <tr><th>Entrada</th><th>Cliente</th><th>Equipamento</th><th>Serviço</th><th>Pagamento</th><th>Entrega</th><th>Ações</th></tr>
     </thead>
     <tbody>
       {% for ticket in ready_for_pickup_tickets %}
       {% set linked_service = maintenance_service_map.get(ticket.id) %}
+      {% set finance_info = ready_ticket_finance_map.get(ticket.id) %}
       <tr>
         <td>{{ ticket.entry_date.strftime('%d/%m/%Y %H:%M') }}</td>
         <td>{{ ticket.client_name }}</td>
         <td>{{ ticket.equipment }}</td>
         <td>{{ ticket.service_description }}</td>
-        <td><span class="badge success">{{ maintenance_status_labels.get(ticket.status, ticket.status) }}</span></td>
+        <td>{% if finance_info and finance_info.payment_ok %}<span class="badge success">Pago</span>{% else %}<span class="badge warning">Pendente</span>{% endif %}</td>
+        <td><span class="badge {% if linked_service and linked_service.delivery_status == 'entregue' %}success{% elif linked_service and linked_service.delivery_status == 'desistencia' %}danger{% else %}info{% endif %}">{{ service_delivery_status_labels.get(linked_service.delivery_status if linked_service else 'aguardando', 'Aguardando retirada') }}</span></td>
         <td>
           <details class="service-actions-menu">
             <summary>⋯</summary>
@@ -186,6 +188,14 @@
               <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='servico', record_id=ticket.service_record_id) }}">🧾 Imprimir recibo</button>
               {% endif %}
               {% if linked_service %}
+              <form method="post" action="{{ url_for('confirmar_retirada_servico', service_id=linked_service.id) }}" onsubmit="return confirm('Confirmar que o equipamento foi entregue ao cliente?');">
+                <input type="hidden" name="action" value="entregue" />
+                <button type="submit" class="btn-success">📦 Confirmar retirada/entrega</button>
+              </form>
+              <form method="post" action="{{ url_for('confirmar_retirada_servico', service_id=linked_service.id) }}" onsubmit="return confirm('Confirmar desistência do cliente para este serviço?');">
+                <input type="hidden" name="action" value="desistencia" />
+                <button type="submit" class="btn-loja btn-loja--danger">🚫 Confirmar desistência</button>
+              </form>
               <details>
                 <summary>✏️ Editar serviço</summary>
                 <form method="post" action="{{ url_for('editar_servico', service_id=linked_service.id) }}" class="inline-form">
@@ -207,7 +217,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6">Nenhuma OS pronta para retirada.</td></tr>
+      <tr><td colspan="7">Nenhuma OS pronta para retirada.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -220,7 +230,7 @@
   </div>
   <table>
     <thead>
-      <tr><th>Data</th><th>Origem</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Valor final</th><th>Ações</th></tr>
+      <tr><th>Data</th><th>Origem</th><th>Serviço</th><th>Cliente</th><th>Equipamento</th><th>Valor final</th><th>Pagamento</th><th>Entrega</th><th>Ações</th></tr>
     </thead>
     <tbody id="service-history-body">
       {% for item in unified_completed_history %}
@@ -232,6 +242,8 @@
         <td>{{ item.client_name }}</td>
         <td>{{ item.equipment }}</td>
         <td>R$ {{ '%.2f'|format(item.total_price or 0) }}</td>
+        <td>{% if item.payment_status == 'pago' %}<span class="badge success">Pago</span>{% else %}<span class="badge warning">Pendente</span>{% endif %}</td>
+        <td><span class="badge {% if item.delivery_status == 'entregue' %}success{% elif item.delivery_status == 'desistencia' %}danger{% else %}info{% endif %}">{{ service_delivery_status_labels.get(item.delivery_status, item.delivery_status) }}</span></td>
         <td>
           <details class="service-actions-menu">
             <summary>⋯</summary>
@@ -262,7 +274,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7">Nenhum serviço concluído cadastrado.</td></tr>
+      <tr><td colspan="9">Nenhum serviço concluído cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>
