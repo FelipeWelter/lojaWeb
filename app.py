@@ -3007,6 +3007,38 @@ def vendas():
         return redirect(url_for('vendas', print_sale_id=sale.id))
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
+    finance_charges = Charge.query.order_by(Charge.id.desc()).all()
+
+    today = datetime.utcnow().date()
+    next_week = today + timedelta(days=7)
+    paid_today = Decimal('0.00')
+    cash_pending_total = Decimal('0.00')
+    cash_overdue_total = Decimal('0.00')
+    charge_overdue_total = Decimal('0.00')
+    charge_pending_total = Decimal('0.00')
+    charge_received_total = Decimal('0.00')
+
+    for charge in finance_charges:
+        total_amount = _charge_total_amount(charge)
+        paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        balance = _charge_balance(charge)
+        status_ui = _charge_ui_status(charge)
+
+        if charge.payment_confirmed_at and charge.payment_confirmed_at.date() == today:
+            paid_today += paid_amount
+
+        if charge.status != 'cancelado' and balance > 0:
+            cash_pending_total += balance
+            if charge.due_date and charge.due_date < today:
+                cash_overdue_total += balance
+
+        if status_ui == 'vencido' and balance > 0:
+            charge_overdue_total += balance
+        elif status_ui == 'pendente' and charge.due_date and today <= charge.due_date <= next_week and balance > 0:
+            charge_pending_total += balance
+        if status_ui == 'recebido':
+            charge_received_total += total_amount
+
     finalized_sale_ids: set[int] = set()
     sale_ids = [sale.id for sale in sales]
     if sale_ids:
@@ -3021,7 +3053,24 @@ def vendas():
             if _is_sale_finalized_by_payment(sale, charges_by_sale_id.get(sale.id, [])):
                 finalized_sale_ids.add(sale.id)
 
-    return render_template('sales.html', sales=sales, products=products, clients=clients, finalized_sale_ids=finalized_sale_ids)
+    return render_template(
+        'sales.html',
+        sales=sales,
+        products=products,
+        clients=clients,
+        finalized_sale_ids=finalized_sale_ids,
+        finance_charges=finance_charges,
+        paid_today=paid_today,
+        cash_pending_total=cash_pending_total,
+        cash_overdue_total=cash_overdue_total,
+        charge_overdue_total=charge_overdue_total,
+        charge_pending_total=charge_pending_total,
+        charge_received_total=charge_received_total,
+        charge_ui_status=_charge_ui_status,
+        charge_balance=_charge_balance,
+        charge_total_amount=_charge_total_amount,
+        payment_method_labels=PAYMENT_METHOD_LABELS,
+    )
 
 
 @app.route('/vendas/<int:sale_id>/cancelar', methods=['POST'])
