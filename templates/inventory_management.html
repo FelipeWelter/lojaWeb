@@ -32,7 +32,7 @@
         <td>{{ 'Ativo' if p.active else 'Inativo' }}</td>
         <td>
           <div class="action-row-inline">
-            <button type="button" class="btn-secondary" data-open-modal="edit-product-modal-{{ p.id }}">Editar</button>
+            <a class="btn-secondary" href="{{ url_for('produtos', edit_product_id=p.id, return_to=url_for('gestao_inventario')) }}">Editar</a>
             {% if p.active %}
             <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" class="inline-form">
               <button type="submit" class="btn-danger">Inativar</button>
@@ -48,36 +48,6 @@
           </div>
         </td>
       </tr>
-
-      <dialog id="edit-product-modal-{{ p.id }}" class="modal">
-        <div class="modal-content">
-          <h3>Editar produto</h3>
-          <form method="post" action="{{ url_for('editar_produto', product_id=p.id) }}" class="inline-form">
-            <input name="name" value="{{ p.name }}" required />
-            <select name="category" class="inventory-edit-category" data-target="edit-component-class-{{ p.id }}">
-              <option value="Peça" {% if p.category == 'Peça' %}selected{% endif %}>Peça</option>
-              <option value="Computador" {% if p.category == 'Computador' %}selected{% endif %}>Computador</option>
-              <option value="Serviço" {% if p.category == 'Serviço' %}selected{% endif %}>Serviço</option>
-              <option value="Periférico" {% if p.category == 'Periférico' %}selected{% endif %}>Periférico</option>
-              <option value="Periféricos" {% if p.category == 'Periféricos' %}selected{% endif %}>Periféricos</option>
-            </select>
-            <div id="edit-component-class-{{ p.id }}" class="inventory-edit-class-wrapper" data-category-value="{{ p.category }}">
-              <label for="edit-component-class-select-{{ p.id }}">Classe da peça</label>
-              <select name="component_class" id="edit-component-class-select-{{ p.id }}">
-                <option value="">Selecione a classe</option>
-                {% for slot_key, slot_label, _ in component_slots %}
-                <option value="{{ slot_key }}" {% if p.component_class == slot_key %}selected{% endif %}>{{ slot_label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <input name="stock" type="number" min="0" value="{{ p.stock }}" required />
-            <div class="money-wrap"><input name="cost_price" type="text" data-money="true" value="{{ '%.2f'|format(p.cost_price) }}" required /></div>
-            <div class="money-wrap"><input name="price" type="text" data-money="true" value="{{ '%.2f'|format(p.price) }}" required /></div>
-            <button type="submit" class="btn-primary">Salvar</button>
-          </form>
-          <button type="button" class="btn-secondary" data-close-modal="edit-product-modal-{{ p.id }}">Fechar</button>
-        </div>
-      </dialog>
       {% endfor %}
     </tbody>
   </table>
@@ -105,32 +75,6 @@
     };
 
     [filterName, filterCategory, filterStatus].forEach((el) => el.addEventListener('input', applyFilters));
-
-    document.querySelectorAll('[data-open-modal]').forEach((btn) => {
-      btn.addEventListener('click', () => document.getElementById(btn.dataset.openModal)?.showModal());
-    });
-    document.querySelectorAll('[data-close-modal]').forEach((btn) => {
-      btn.addEventListener('click', () => document.getElementById(btn.dataset.closeModal)?.close());
-    });
-
-    const syncEditComponentClassVisibility = () => {
-      document.querySelectorAll('.inventory-edit-category').forEach((categoryField) => {
-        const targetId = categoryField.dataset.target;
-        const classWrapperEdit = document.getElementById(targetId);
-        const classSelectEdit = classWrapperEdit?.querySelector('select[name="component_class"]');
-        if (!classWrapperEdit || !classSelectEdit) return;
-
-        const isPiece = (categoryField.value || '') === 'Peça';
-        classWrapperEdit.style.display = isPiece ? '' : 'none';
-        classSelectEdit.required = isPiece;
-        if (!isPiece) classSelectEdit.value = '';
-      });
-    };
-
-    document.querySelectorAll('.inventory-edit-category').forEach((el) => {
-      el.addEventListener('change', syncEditComponentClassVisibility);
-    });
-    syncEditComponentClassVisibility();
 
   })();
 </script>
