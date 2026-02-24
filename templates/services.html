@@ -36,20 +36,21 @@
     </label>
     <div class="full-width">
       <span>Peças do estoque (opcional)</span>
-      <div id="maintenance-parts-list" class="grid form-grid">
+      <div id="maintenance-parts-list" class="grid form-grid maintenance-parts-stack">
         <div class="maintenance-part-row">
           <label class="floating-field">
             <span>Peça do estoque</span>
             <select name="maintenance_part_id[]">
               <option value="">Sem troca de peça</option>
               {% for product in products %}
-              <option value="{{ product.id }}">{{ product.name }}</option>
+              <option value="{{ product.id }}" data-description="{{ product.inventory_display_name }}">{{ product.inventory_display_name }}</option>
               {% endfor %}
             </select>
+            <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
           </label>
-          <label class="floating-field">
+          <label class="floating-field maintenance-qty-field">
             <span>Qtd. peça</span>
-            <input name="maintenance_part_qty[]" type="number" min="1" value="1" />
+            <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="1" />
           </label>
           <button type="button" class="btn-secondary remove-part-row" style="align-self:end;" hidden>Remover</button>
         </div>
@@ -145,17 +146,18 @@
                   <div>
                     <small>Peças da OS</small>
                     {% set existing_parts = maintenance_parts_map.get(ticket.id, []) %}
-                    <div class="grid form-grid edit-maintenance-parts-list">
+                    <div class="grid form-grid edit-maintenance-parts-list maintenance-parts-stack">
                       {% if existing_parts %}
                         {% for part in existing_parts %}
                         <div class="maintenance-part-row">
                           <select name="maintenance_part_id[]">
                             <option value="">Sem troca de peça</option>
                             {% for product in products %}
-                            <option value="{{ product.id }}" {% if part.get('product_id') == product.id %}selected{% endif %}>{{ product.name }}</option>
+                            <option value="{{ product.id }}" data-description="{{ product.inventory_display_name }}" {% if part.get('product_id') == product.id %}selected{% endif %}>{{ product.inventory_display_name }}</option>
                             {% endfor %}
                           </select>
-                          <input name="maintenance_part_qty[]" type="number" min="1" value="{{ part.get('quantity') or 1 }}" />
+                          <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
+                          <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="{{ part.get('quantity') or 1 }}" />
                           <button type="button" class="btn-secondary remove-part-row">Remover</button>
                         </div>
                         {% endfor %}
@@ -164,10 +166,11 @@
                           <select name="maintenance_part_id[]">
                             <option value="">Sem troca de peça</option>
                             {% for product in products %}
-                            <option value="{{ product.id }}">{{ product.name }}</option>
+                            <option value="{{ product.id }}" data-description="{{ product.inventory_display_name }}">{{ product.inventory_display_name }}</option>
                             {% endfor %}
                           </select>
-                          <input name="maintenance_part_qty[]" type="number" min="1" value="1" />
+                          <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
+                          <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="1" />
                           <button type="button" class="btn-secondary remove-part-row" hidden>Remover</button>
                         </div>
                       {% endif %}
@@ -311,8 +314,6 @@
     });
   });
 
-
-
   const clonePartRow = (sourceRow) => {
     const clone = sourceRow.cloneNode(true);
     clone.querySelectorAll('select, input').forEach((field) => {
@@ -320,6 +321,26 @@
       if (field.tagName === 'INPUT') field.value = '1';
     });
     return clone;
+  };
+
+  const syncPartDescription = (row) => {
+    const select = row?.querySelector('select[name="maintenance_part_id[]"]');
+    const helper = row?.querySelector('.selected-part-description');
+    if (!select || !helper) return;
+    const opt = select.options[select.selectedIndex];
+    const desc = opt?.dataset?.description || '';
+    helper.textContent = desc || helper.dataset.empty || '';
+  };
+
+  const bindPartDescriptionRows = (scope = document) => {
+    const rows = scope.querySelectorAll('.maintenance-part-row');
+    rows.forEach((row) => {
+      const select = row.querySelector('select[name="maintenance_part_id[]"]');
+      if (!select || select.dataset.descBound === '1') return;
+      select.dataset.descBound = '1';
+      select.addEventListener('change', () => syncPartDescription(row));
+      syncPartDescription(row);
+    });
   };
 
   document.querySelectorAll('.service-edit-form').forEach((form) => {
@@ -345,16 +366,19 @@
       if (!firstRow) return;
       partsContainer.appendChild(clonePartRow(firstRow));
       updateButtons();
+      bindPartDescriptionRows(partsContainer);
     });
 
     updateButtons();
+    bindPartDescriptionRows(partsContainer);
   });
+
   const partsList = document.getElementById('maintenance-parts-list');
   const addPartButton = document.getElementById('add-maintenance-part');
 
   const updatePartButtons = () => {
     const rows = Array.from(partsList?.querySelectorAll('.maintenance-part-row') || []);
-    rows.forEach((row, index) => {
+    rows.forEach((row) => {
       const removeButton = row.querySelector('.remove-part-row');
       if (!removeButton) return;
       removeButton.hidden = rows.length === 1;
@@ -368,15 +392,24 @@
   addPartButton?.addEventListener('click', () => {
     const firstRow = partsList?.querySelector('.maintenance-part-row');
     if (!firstRow || !partsList) return;
-    const clone = firstRow.cloneNode(true);
-    clone.querySelectorAll('select, input').forEach((field) => {
-      if (field.tagName === 'SELECT') field.value = '';
-      if (field.tagName === 'INPUT') field.value = '1';
-    });
+    const clone = clonePartRow(firstRow);
     partsList.appendChild(clone);
     updatePartButtons();
+    bindPartDescriptionRows(partsList);
   });
 
   updatePartButtons();
+  bindPartDescriptionRows();
+
+  document.querySelectorAll('.js-print-trigger').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const url = btn.dataset.printUrl;
+      if (!url) return;
+      const overlay = document.getElementById('print-loading-overlay');
+      overlay?.classList.remove('hidden');
+      window.open(url, '_blank');
+      window.setTimeout(() => overlay?.classList.add('hidden'), 1200);
+    });
+  });
 </script>
 {% endblock %}

@@ -1698,11 +1698,36 @@ button:hover,
   grid-template-columns: repeat(2, minmax(220px, 1fr));
 }
 
+.maintenance-parts-stack {
+  display: flex !important;
+  flex-direction: column;
+  gap: .6rem;
+}
+
 .maintenance-part-row {
+  background: rgba(44, 62, 80, 0.35);
+  border: 1px solid rgba(236, 240, 241, 0.15);
+  border-radius: 10px;
+  padding: .6rem;
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: minmax(260px, 1fr) 120px auto;
   gap: .6rem;
   align-items: end;
+}
+
+.maintenance-qty-field {
+  max-width: 120px;
+}
+
+.maintenance-part-qty-input {
+  text-align: center;
+}
+
+.selected-part-description {
+  display: block;
+  margin-top: .2rem;
+  font-size: .78rem;
+  color: rgba(236, 240, 241, 0.86);
 }
 
 .client-history-row > td { padding: .55rem .7rem .8rem; }

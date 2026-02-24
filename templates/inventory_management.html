@@ -24,8 +24,8 @@
     <thead><tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Venda</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>
       {% for p in products %}
-      <tr data-name="{{ p.name|lower }}" data-category="{{ p.category|lower }}" data-status="{{ 'ativo' if p.active else 'inativo' }}">
-        <td>{{ p.name }}</td>
+      <tr data-name="{{ p.inventory_display_name|lower }}" data-category="{{ p.category|lower }}" data-status="{{ 'ativo' if p.active else 'inativo' }}">
+        <td>{{ p.inventory_display_name }}</td>
         <td>{{ p.category }}</td>
         <td>{{ p.stock }}</td>
         <td>R$ {{ '%.2f'|format(p.price) }}</td>
