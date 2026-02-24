@@ -81,6 +81,37 @@ class Product(db.Model):
     images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
     active = db.Column(db.Boolean, nullable=False, default=True)
 
+    @property
+    def inventory_spec_summary(self):
+        specs = []
+
+        def add_spec(label, value):
+            cleaned = (value or '').strip()
+            if cleaned:
+                specs.append(f'{label}: {cleaned}')
+
+        add_spec('Classe', COMPONENT_CLASS_LABELS.get(self.component_class, self.component_class or ''))
+        add_spec('Fabricante', self.motherboard_brand or self.cpu_manufacturer or self.gpu_manufacturer)
+        add_spec('Marca', self.cpu_brand or self.ram_brand or self.gpu_brand or self.storage_brand or self.psu_brand)
+        add_spec('Modelo', self.motherboard_model or self.cpu_model)
+        add_spec('Socket', self.motherboard_socket)
+        add_spec('Chipset', self.motherboard_chipset)
+        add_spec('DDR', self.ram_ddr)
+        add_spec('Frequência', self.ram_frequency)
+        add_spec('Capacidade RAM', self.ram_size)
+        add_spec('Memória GPU', self.gpu_memory)
+        add_spec('Armazenamento', self.storage_type)
+        add_spec('Capacidade', self.storage_capacity)
+        add_spec('Fonte', self.psu_watts)
+        add_spec('S/N', self.serial_number)
+
+        return ' • '.join(specs)
+
+    @property
+    def inventory_display_name(self):
+        summary = self.inventory_spec_summary
+        return f'{self.name} — {summary}' if summary else self.name
+
 
 class ProductImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -652,6 +683,9 @@ COMPONENT_SLOTS = [
     ('fonte', 'Fonte', False),
     ('perifericos', 'Periféricos', False),
 ]
+
+COMPONENT_CLASS_LABELS = dict((slot_key, slot_label) for slot_key, slot_label, _ in COMPONENT_SLOTS)
+
 
 PAYMENT_METHODS = [
     ('credito', 'Crédito'),
