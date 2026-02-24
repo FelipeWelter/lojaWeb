@@ -36,7 +36,7 @@
     </label>
     <div class="full-width">
       <span>Peças do estoque (opcional)</span>
-      <div id="maintenance-parts-list" class="grid form-grid">
+      <div id="maintenance-parts-list" class="grid form-grid maintenance-parts-stack">
         <div class="maintenance-part-row">
           <label class="floating-field">
             <span>Peça do estoque</span>
@@ -48,9 +48,9 @@
             </select>
             <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
           </label>
-          <label class="floating-field">
+          <label class="floating-field maintenance-qty-field">
             <span>Qtd. peça</span>
-            <input name="maintenance_part_qty[]" type="number" min="1" value="1" />
+            <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="1" />
           </label>
           <button type="button" class="btn-secondary remove-part-row" style="align-self:end;" hidden>Remover</button>
         </div>
@@ -146,7 +146,7 @@
                   <div>
                     <small>Peças da OS</small>
                     {% set existing_parts = maintenance_parts_map.get(ticket.id, []) %}
-                    <div class="grid form-grid edit-maintenance-parts-list">
+                    <div class="grid form-grid edit-maintenance-parts-list maintenance-parts-stack">
                       {% if existing_parts %}
                         {% for part in existing_parts %}
                         <div class="maintenance-part-row">
@@ -157,7 +157,7 @@
                             {% endfor %}
                           </select>
                           <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
-                          <input name="maintenance_part_qty[]" type="number" min="1" value="{{ part.get('quantity') or 1 }}" />
+                          <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="{{ part.get('quantity') or 1 }}" />
                           <button type="button" class="btn-secondary remove-part-row">Remover</button>
                         </div>
                         {% endfor %}
@@ -170,7 +170,7 @@
                             {% endfor %}
                           </select>
                           <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
-                          <input name="maintenance_part_qty[]" type="number" min="1" value="1" />
+                          <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="1" />
                           <button type="button" class="btn-secondary remove-part-row" hidden>Remover</button>
                         </div>
                       {% endif %}
