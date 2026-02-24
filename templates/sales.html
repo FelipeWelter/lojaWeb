@@ -26,7 +26,7 @@
           <select name="item_product_id[]" class="line-product">
             <option value="">Selecione o produto</option>
             {% for product in products %}
-            <option value="{{ product.id }}" data-price="{{ product.price }}" data-cost="{{ product.cost_price }}">{{ product.name }} (estoque: {{ product.stock }})</option>
+            <option value="{{ product.id }}" data-price="{{ product.price }}" data-cost="{{ product.cost_price }}" data-description="{{ product.inventory_display_name }}">{{ product.inventory_display_name }} (estoque: {{ product.stock }})</option>
             {% endfor %}
           </select>
           <input name="item_description[]" class="line-description" placeholder="Descrição do item/serviço" />
@@ -219,7 +219,7 @@
         const opt = productSel.options[productSel.selectedIndex];
         if (!priceInput.value) priceInput.value = opt?.dataset?.price || '';
         if (!costInput.value || Number(costInput.value) === 0) costInput.value = opt?.dataset?.cost || '0';
-        if (!descInput.value) descInput.value = opt?.textContent?.split(' (estoque')[0] || '';
+        if (!descInput.value) descInput.value = opt?.dataset?.description || opt?.textContent?.split(' (estoque')[0] || '';
       }
       recalcTotal();
     };
