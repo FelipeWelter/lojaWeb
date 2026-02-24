@@ -18,6 +18,9 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+from services.estoque_service import buscar_pecas_disponiveis, buscar_pecas_por_classe
+from utils.financeiro import calcular_margem_lucro, calcular_preco_sugerido
+
 try:
     from xhtml2pdf import pisa
 except ImportError:
@@ -624,7 +627,7 @@ def _build_computer_with_parts(
                 raise ValueError(f"Custo inválido para peça personalizada: {custom_item['name']}")
             custo_total += Decimal(custom_item['qty']) * custom_item['unit_cost']
 
-        preco_sugerido = (custo_total * Decimal('1.20')).quantize(Decimal('0.01'))
+        preco_sugerido = calcular_preco_sugerido(custo_total)
 
         if not computer:
             computer = Product(
@@ -705,6 +708,7 @@ def _build_computer_with_parts(
         'preco_sugerido': preco_sugerido,
         'new_photo_urls': uploaded_photo_urls,
         'previous_photo_urls': previous_photo_urls,
+        'computer_id': computer.id,
     }
 
 
@@ -1307,7 +1311,10 @@ def imprimir(tipo: str, record_id: int):
                 if via == 'gerente':
                     cost_total = sum((Decimal(i.unit_cost or 0) * Decimal(i.quantity or 0)) for i in sale.items)
                     margin_value = sale_total - cost_total
-                    payload['source_label'] = f'Custo: R$ {cost_total:.2f} | Margem: R$ {margin_value:.2f}'
+                    margin_percent = calcular_margem_lucro(cost_total, sale_total)
+                    payload['source_label'] = (
+                        f'Custo: R$ {cost_total:.2f} | Margem: R$ {margin_value:.2f} ({margin_percent:.2f}%)'
+                    )
                 items.append(payload)
 
         context = {
@@ -1501,7 +1508,7 @@ def imprimir_etiquetas_produtos():
 @app.route('/produtos/imprimir-inventario', methods=['POST'])
 @_login_required
 def imprimir_inventario_produtos():
-    products = Product.query.filter_by(active=True).order_by(Product.name).all()
+    products = buscar_pecas_disponiveis(Product)
 
     total_stock = sum(int(p.stock or 0) for p in products)
     total_cost = sum(Decimal(p.cost_price or 0) * Decimal(p.stock or 0) for p in products)
@@ -1852,10 +1859,7 @@ def produtos():
         return redirect(url_for('produtos'))
 
     products = Product.query.filter_by(active=True).order_by(Product.category, Product.component_class, Product.name).all()
-    parts_by_class = {
-        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key, active=True).order_by(Product.name).all()
-        for slot_key, _, _ in COMPONENT_SLOTS
-    }
+    parts_by_class = buscar_pecas_por_classe(Product, COMPONENT_SLOTS)
 
     edit_product = None
     edit_product_id = request.args.get('edit_product_id', type=int)
@@ -2095,10 +2099,7 @@ def _build_assembly_edit_data(latest_assemblies):
 @_login_required
 def montar_pc():
     current = _current_user()
-    parts_by_class = {
-        slot_key: Product.query.filter_by(category='Peça', component_class=slot_key, active=True).order_by(Product.name).all()
-        for slot_key, _, _ in COMPONENT_SLOTS
-    }
+    parts_by_class = buscar_pecas_por_classe(Product, COMPONENT_SLOTS)
 
     if request.method == 'POST':
         computer_name = (request.form.get('computer_name') or '').strip()
@@ -2115,6 +2116,7 @@ def montar_pc():
         bios_updated = request.form.get('bios_updated') == 'on'
         stress_test_done = request.form.get('stress_test_done') == 'on'
         os_installed = request.form.get('os_installed') == 'on'
+        send_to_sales = request.form.get('send_to_sales') == 'on'
 
         try:
             result = _build_computer_with_parts(
@@ -2137,6 +2139,9 @@ def montar_pc():
                 f'Preço sugerido R$ {result["preco_sugerido"]:.2f}.',
                 'success',
             )
+            if send_to_sales and result.get('computer_id'):
+                flash('Montagem enviada para o carrinho de vendas.', 'success')
+                return redirect(url_for('vendas', assembled_product_id=result['computer_id']))
         except ValueError as exc:
             db.session.rollback()
             flash(str(exc), 'danger')
@@ -3007,7 +3012,7 @@ def remover_cliente(client_id: int):
 @_login_required
 def vendas():
     current = _current_user()
-    products = Product.query.filter_by(active=True).order_by(Product.name).all()
+    products = buscar_pecas_disponiveis(Product)
     clients = db.session.query(Client).filter(Client.active.is_(True)).group_by(Client.id).order_by(db.func.lower(Client.name)).all()
     services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).all()
 
@@ -3225,6 +3230,14 @@ def vendas():
             if _is_sale_finalized_by_payment(sale, charges_by_sale_id.get(sale.id, [])):
                 finalized_sale_ids.add(sale.id)
 
+    assembled_product_id_raw = (request.args.get('assembled_product_id') or '').strip()
+    prefill_product = None
+    if assembled_product_id_raw:
+        try:
+            prefill_product = Product.query.get(int(assembled_product_id_raw))
+        except ValueError:
+            prefill_product = None
+
     return render_template(
         'sales.html',
         sales=sales,
@@ -3243,6 +3256,8 @@ def vendas():
         charge_balance=_charge_balance,
         charge_total_amount=_charge_total_amount,
         payment_method_labels=PAYMENT_METHOD_LABELS,
+        prefill_product=prefill_product,
+        calcular_margem_lucro=calcular_margem_lucro,
     )
 
 

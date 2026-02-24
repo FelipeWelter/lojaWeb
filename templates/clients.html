@@ -104,6 +104,11 @@
   </div>
 </section>
 
+{% set modal_id='client-confirm-modal' %}
+{% set modal_title='Confirmação' %}
+{% set modal_message='Confirme a operação para continuar.' %}
+{% include 'includes/modal.html' %}
+
 <script>
   const searchInput = document.getElementById('client-search');
   const searchableRows = document.querySelectorAll('.client-row');

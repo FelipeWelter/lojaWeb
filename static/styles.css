@@ -1,24 +1,48 @@
-:root {
-  --bg: #f4f6fb;
-  --surface: #ffffff;
-  --surface-soft: #f8faff;
-  --primary: #3156d3;
-  --primary-hover: #2848b6;
-  --danger: #c73838;
-  --danger-hover: #ab2f2f;
-  --text: #1f2937;
-  --muted: #667085;
-  --border: #dbe2f3;
-  --shadow: 0 12px 28px rgba(20, 31, 69, 0.08);
-}
-
-* { box-sizing: border-box; }
+* , *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
   font-family: "Inter", "Segoe UI", Arial, sans-serif;
   background: linear-gradient(180deg, #f8faff 0%, #f3f6fd 100%);
   color: var(--text);
+}
+
+.container { max-width: 1200px; margin: 1.1rem auto; padding: 0 1rem 2.8rem; width: 100%; }
+
+.card,
+.montaje-card,
+.crm-toolbar {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.grid.form-grid,
+.crm-form-grid,
+.pc-layout,
+.assembly-row.two-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.dashboard-page label,
+.dashboard-page .field-label {
+  color: var(--label-color-dark);
+}
+
+.dashboard-page input,
+.dashboard-page select,
+.dashboard-page textarea {
+  background: var(--input-bg-dark);
+  border: 1px solid var(--input-border-dark);
+  color: #fff;
+}
+
+.dashboard-page input:focus,
+.dashboard-page select:focus,
+.dashboard-page textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--input-focus) 35%, transparent);
+  border-color: var(--input-focus);
 }
 
 body.auth-page {
@@ -67,8 +91,6 @@ h1, h2, h3, p { margin-top: 0; }
 .header a:hover { background: #eaf0ff; }
 .header a.active { background: #3156d3; color: #fff; box-shadow: 0 8px 18px rgba(49,86,211,.25); }
 
-.container { max-width: 1200px; margin: 1.1rem auto; padding: 0 1rem 2.8rem; }
-
 body.auth-page .container {
   min-height: 100vh;
   display: flex;
@@ -107,8 +129,8 @@ body.auth-page .container {
 
 .grid.form-grid {
   display: grid;
-  gap: 0.8rem;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
 label { display: grid; gap: 0.35rem; font-weight: 600; }
@@ -144,15 +166,6 @@ button:hover { background: var(--primary-hover); }
 button:active { transform: translateY(1px); }
 button:disabled { opacity: .75; cursor: not-allowed; }
 
-.btn-secondary {
-  background: #ecf1ff;
-  color: #2747bc;
-}
-
-.btn-secondary:hover { background: #dde8ff; }
-
-.btn-danger { background: var(--danger); color: #fff; }
-.btn-danger:hover { background: var(--danger-hover); }
 
 table {
   width: 100%;
