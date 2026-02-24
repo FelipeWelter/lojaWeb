@@ -1,42 +1,69 @@
 {% extends 'base.html' %}
 {% block content %}
 <section class="card services-shell">
-  <h2>Abertura de Nova OS</h2>
-  <p class="montage-subtitle">Preencha os dados iniciais para enviar o equipamento direto para a bancada.</p>
-  <form method="post" class="grid form-grid services-form services-form-two-col">
+  <h2>{% if edit_ticket %}Editar OS #{{ edit_ticket.id }}{% else %}Abertura de Nova OS{% endif %}</h2>
+  <p class="montage-subtitle">{% if edit_ticket %}Revise os dados abaixo e atualize a ordem de serviço mantendo o histórico.{% else %}Preencha os dados iniciais para enviar o equipamento direto para a bancada.{% endif %}</p>
+  <form method="post" action="{% if edit_ticket %}{{ url_for('atualizar_manutencao', ticket_id=edit_ticket.id) }}{% endif %}" class="grid form-grid services-form services-form-two-col">
+    {% if edit_ticket %}
+    <input type="hidden" name="action" value="editar" />
+    {% else %}
     <input type="hidden" name="form_type" value="maintenance_ticket" />
+    {% endif %}
 
     <label class="floating-field">
       <span>Nome do cliente</span>
-      <input name="maintenance_client_name" placeholder="Opcional na abertura" />
+      <input name="maintenance_client_name" placeholder="Opcional na abertura" value="{{ edit_ticket.client_name if edit_ticket else '' }}" />
     </label>
     <label class="floating-field">
       <span>Telefone</span>
-      <input name="maintenance_client_phone" />
+      <input name="maintenance_client_phone" value="{{ edit_ticket.client_phone if edit_ticket else '' }}" />
     </label>
     <label class="floating-field">
       <span>Equipamento</span>
-      <input name="maintenance_equipment" placeholder="Opcional na abertura" />
+      <input name="maintenance_equipment" placeholder="Opcional na abertura" value="{{ edit_ticket.equipment if edit_ticket else '' }}" />
     </label>
     <label class="floating-field">
       <span>Serviço solicitado</span>
-      <input name="maintenance_service_description" placeholder="Opcional na abertura" />
+      <input name="maintenance_service_description" placeholder="Opcional na abertura" value="{{ edit_ticket.service_description if edit_ticket else '' }}" />
     </label>
     <label class="floating-field">
       <span>Status inicial</span>
       <select name="maintenance_status">
+        {% set selected_status = ("em_analise" if edit_ticket and edit_ticket.status == "em_andamento" else (edit_ticket.status if edit_ticket else "em_analise")) %}
         {% for value, label in maintenance_status_options %}
-        <option value="{{ value }}">{{ label }}</option>
+        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </label>
     <label class="floating-field">
       <span>Data de entrada</span>
-      <input name="maintenance_entry_date" type="datetime-local" />
+      <input name="maintenance_entry_date" type="datetime-local" value="{{ edit_ticket.entry_date.strftime('%Y-%m-%dT%H:%M') if edit_ticket and edit_ticket.entry_date else '' }}" />
     </label>
     <div class="full-width">
       <span>Peças do estoque (opcional)</span>
       <div id="maintenance-parts-list" class="grid form-grid maintenance-parts-stack">
+        {% set opening_parts = maintenance_parts_map.get(edit_ticket.id, []) if edit_ticket else [] %}
+        {% if opening_parts %}
+          {% for part in opening_parts %}
+        <div class="maintenance-part-row">
+          <label class="floating-field">
+            <span>Peça do estoque</span>
+            <select name="maintenance_part_id[]">
+              <option value="">Sem troca de peça</option>
+              {% for product in products %}
+              <option value="{{ product.id }}" data-description="{{ product.inventory_display_name }}" {% if part.get('product_id') == product.id %}selected{% endif %}>{{ product.inventory_display_name }}</option>
+              {% endfor %}
+            </select>
+            <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
+          </label>
+          <label class="floating-field maintenance-qty-field">
+            <span>Qtd. peça</span>
+            <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="{{ part.get('quantity') or 1 }}" />
+          </label>
+          <button type="button" class="btn-secondary remove-part-row" style="align-self:end;" {% if opening_parts|length == 1 %}hidden{% endif %}>Remover</button>
+        </div>
+          {% endfor %}
+        {% else %}
         <div class="maintenance-part-row">
           <label class="floating-field">
             <span>Peça do estoque</span>
@@ -54,37 +81,39 @@
           </label>
           <button type="button" class="btn-secondary remove-part-row" style="align-self:end;" hidden>Remover</button>
         </div>
+        {% endif %}
       </div>
       <button type="button" id="add-maintenance-part" class="btn-secondary" style="margin-top:8px;">+ Adicionar peça</button>
     </div>
     <label class="floating-field">
       <span>Mão de obra (R$)</span>
-      <input name="maintenance_labor_cost" type="number" min="0" step="0.01" placeholder="0,00" />
+      <input name="maintenance_labor_cost" type="number" min="0" step="0.01" placeholder="0,00" value="{{ '%.2f'|format(edit_ticket.labor_cost or 0) if edit_ticket else '' }}" />
     </label>
 
     <label class="floating-field full-width">
       <span>Relato do cliente</span>
-      <textarea name="maintenance_customer_report" rows="2"></textarea>
+      <textarea name="maintenance_customer_report" rows="2">{{ edit_ticket.customer_report if edit_ticket else '' }}</textarea>
     </label>
     <label class="floating-field full-width">
       <span>Diagnóstico técnico</span>
-      <textarea name="maintenance_technical_diagnosis" rows="2"></textarea>
+      <textarea name="maintenance_technical_diagnosis" rows="2">{{ edit_ticket.technical_diagnosis if edit_ticket else '' }}</textarea>
     </label>
     <label class="floating-field full-width">
       <span>Observações da bancada</span>
-      <textarea name="maintenance_observations" rows="2"></textarea>
+      <textarea name="maintenance_observations" rows="2">{{ edit_ticket.observations if edit_ticket else '' }}</textarea>
     </label>
 
     <div class="checklist-block full-width">
       <p>Checklist de manutenção</p>
       <div class="checklist-list">
+        {% set edit_done_labels = maintenance_checklist_map.get(edit_ticket.id, []) if edit_ticket else [] %}
         {% for item in maintenance_checklist %}
-        <label><input type="checkbox" name="check_{{ loop.index0 }}" /> {{ item }}</label>
+        <label><input type="checkbox" name="check_{{ loop.index0 }}" {% if item in edit_done_labels %}checked{% endif %}/> {{ item }}</label>
         {% endfor %}
       </div>
     </div>
 
-    <button type="submit">Abrir OS</button>
+    <button type="submit">{% if edit_ticket %}Salvar alterações da OS{% else %}Abrir OS{% endif %}</button>
   </form>
 </section>
 
@@ -116,70 +145,7 @@
           <details class="service-actions-menu">
             <summary>⋯</summary>
             <div class="service-actions-list">
-              <details>
-                <summary>⚙️ Editar OS completa</summary>
-                <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}" class="inline-form service-edit-form" data-ticket-id="{{ ticket.id }}">
-                  <input type="hidden" name="action" value="editar" />
-                  <input name="maintenance_client_name" value="{{ ticket.client_name }}" placeholder="Nome do cliente" />
-                  <input name="maintenance_client_phone" value="{{ ticket.client_phone or '' }}" placeholder="Telefone" />
-                  <input name="maintenance_equipment" value="{{ ticket.equipment }}" placeholder="Equipamento" />
-                  <input name="maintenance_service_description" value="{{ ticket.service_description }}" placeholder="Serviço" />
-                  <input name="maintenance_labor_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(ticket.labor_cost or 0) }}" placeholder="Mão de obra" />
-                  <select name="status">
-                    {% set edit_status = "em_analise" if ticket.status == "em_andamento" else ticket.status %}
-                    {% for value, label in maintenance_status_options %}
-                    <option value="{{ value }}" {% if edit_status == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                  </select>
-                  <textarea name="maintenance_customer_report" rows="2" placeholder="Relato do cliente">{{ ticket.customer_report or '' }}</textarea>
-                  <textarea name="maintenance_technical_diagnosis" rows="2" placeholder="Diagnóstico técnico">{{ ticket.technical_diagnosis or '' }}</textarea>
-                  <textarea name="maintenance_observations" rows="2" placeholder="Observações">{{ ticket.observations or '' }}</textarea>
-                  <div class="checklist-block">
-                    <p>Checklist de manutenção</p>
-                    <div class="checklist-list">
-                      {% set done_labels = maintenance_checklist_map.get(ticket.id, []) %}
-                      {% for item in maintenance_checklist %}
-                      <label><input type="checkbox" name="check_{{ loop.index0 }}" {% if item in done_labels %}checked{% endif %}/> {{ item }}</label>
-                      {% endfor %}
-                    </div>
-                  </div>
-                  <div>
-                    <small>Peças da OS</small>
-                    {% set existing_parts = maintenance_parts_map.get(ticket.id, []) %}
-                    <div class="grid form-grid edit-maintenance-parts-list maintenance-parts-stack">
-                      {% if existing_parts %}
-                        {% for part in existing_parts %}
-                        <div class="maintenance-part-row">
-                          <select name="maintenance_part_id[]">
-                            <option value="">Sem troca de peça</option>
-                            {% for product in products %}
-                            <option value="{{ product.id }}" data-description="{{ product.inventory_display_name }}" {% if part.get('product_id') == product.id %}selected{% endif %}>{{ product.inventory_display_name }}</option>
-                            {% endfor %}
-                          </select>
-                          <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
-                          <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="{{ part.get('quantity') or 1 }}" />
-                          <button type="button" class="btn-secondary remove-part-row">Remover</button>
-                        </div>
-                        {% endfor %}
-                      {% else %}
-                        <div class="maintenance-part-row">
-                          <select name="maintenance_part_id[]">
-                            <option value="">Sem troca de peça</option>
-                            {% for product in products %}
-                            <option value="{{ product.id }}" data-description="{{ product.inventory_display_name }}">{{ product.inventory_display_name }}</option>
-                            {% endfor %}
-                          </select>
-                          <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
-                          <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="1" />
-                          <button type="button" class="btn-secondary remove-part-row" hidden>Remover</button>
-                        </div>
-                      {% endif %}
-                    </div>
-                    <button type="button" class="btn-secondary add-edit-maintenance-part" style="margin-top:8px;">+ Adicionar peça</button>
-                  </div>
-                  <button type="submit" class="btn-secondary">Salvar alterações</button>
-                </form>
-              </details>
+              <a class="btn-secondary" href="{{ url_for('servicos', edit_ticket_id=ticket.id) }}">⚙️ Editar OS completa</a>
               <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=ticket.id) }}">🖨️ Imprimir OS</button>
               <form method="post" action="{{ url_for('atualizar_manutencao', ticket_id=ticket.id) }}">
                 <input type="hidden" name="action" value="finalizar" />
@@ -342,36 +308,6 @@
       syncPartDescription(row);
     });
   };
-
-  document.querySelectorAll('.service-edit-form').forEach((form) => {
-    const partsContainer = form.querySelector('.edit-maintenance-parts-list');
-    const addBtn = form.querySelector('.add-edit-maintenance-part');
-    if (!partsContainer || !addBtn) return;
-
-    const updateButtons = () => {
-      const rows = Array.from(partsContainer.querySelectorAll('.maintenance-part-row'));
-      rows.forEach((row) => {
-        const removeBtn = row.querySelector('.remove-part-row');
-        if (!removeBtn) return;
-        removeBtn.hidden = rows.length === 1;
-        removeBtn.onclick = () => {
-          row.remove();
-          updateButtons();
-        };
-      });
-    };
-
-    addBtn.addEventListener('click', () => {
-      const firstRow = partsContainer.querySelector('.maintenance-part-row');
-      if (!firstRow) return;
-      partsContainer.appendChild(clonePartRow(firstRow));
-      updateButtons();
-      bindPartDescriptionRows(partsContainer);
-    });
-
-    updateButtons();
-    bindPartDescriptionRows(partsContainer);
-  });
 
   const partsList = document.getElementById('maintenance-parts-list');
   const addPartButton = document.getElementById('add-maintenance-part');
