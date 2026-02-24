@@ -32,7 +32,7 @@
         <td>{{ 'Ativo' if p.active else 'Inativo' }}</td>
         <td>
           <div class="action-row-inline">
-            <a class="btn-secondary" href="{{ url_for('produtos', edit_product_id=p.id, return_to=url_for('gestao_inventario')) }}">Editar</a>
+            <a class="btn-loja btn-loja--secondary btn-secondary" href="{{ url_for('produtos', edit_product_id=p.id, return_to=url_for('gestao_inventario')) }}">Editar</a>
             {% if p.active %}
             <form method="post" action="{{ url_for('remover_produto', product_id=p.id) }}" class="inline-form">
               <button type="submit" class="btn-danger">Inativar</button>

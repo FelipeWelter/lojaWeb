@@ -2499,6 +2499,16 @@ def servicos():
 
     unified_completed_history.sort(key=lambda item: item.get('date') or datetime.min, reverse=True)
 
+    edit_ticket = None
+    edit_ticket_id_raw = (request.args.get('edit_ticket_id') or '').strip()
+    if edit_ticket_id_raw:
+        try:
+            edit_ticket_id = int(edit_ticket_id_raw)
+        except ValueError:
+            edit_ticket_id = None
+        if edit_ticket_id:
+            edit_ticket = next((ticket for ticket in maintenance_tickets if ticket.id == edit_ticket_id), None)
+
     clients = Client.query.order_by(Client.name.asc()).all()
     products = Product.query.order_by(Product.name.asc()).all()
     return render_template(
@@ -2514,6 +2524,7 @@ def servicos():
         maintenance_parts_map=maintenance_parts_map,
         maintenance_checklist_map=maintenance_checklist_map,
         maintenance_service_map=maintenance_service_map,
+        edit_ticket=edit_ticket,
         unified_completed_history=unified_completed_history,
         clients=clients,
         products=products,
@@ -2556,7 +2567,7 @@ def atualizar_manutencao(ticket_id: int):
         ticket.technical_diagnosis = (request.form.get('maintenance_technical_diagnosis') or '').strip() or None
         ticket.observations = (request.form.get('maintenance_observations') or '').strip() or None
 
-        status = _normalize_maintenance_status(request.form.get('status') or ticket.status)
+        status = _normalize_maintenance_status(request.form.get('maintenance_status') or request.form.get('status') or ticket.status)
 
         labor_cost_raw = (request.form.get('maintenance_labor_cost') or '0').strip()
         try:
@@ -2578,6 +2589,14 @@ def atualizar_manutencao(ticket_id: int):
         parts_items = _build_maintenance_parts_items(request.form)
 
         ticket.parts_json = json.dumps(parts_items, ensure_ascii=False) if parts_items else None
+
+        entry_date_raw = request.form.get('maintenance_entry_date')
+        if entry_date_raw:
+            try:
+                ticket.entry_date = datetime.fromisoformat(entry_date_raw)
+            except ValueError:
+                flash('Data de entrada inválida.', 'danger')
+                return redirect(url_for('servicos', edit_ticket_id=ticket.id))
 
         exit_date_raw = request.form.get('exit_date')
         if status == 'pronto_retirada' and not exit_date_raw:
@@ -2605,7 +2624,7 @@ def atualizar_manutencao(ticket_id: int):
         flash('OS atualizada com sucesso!', 'success')
         return redirect(url_for('servicos'))
 
-    status = _normalize_maintenance_status(request.form.get('status') or ticket.status)
+    status = _normalize_maintenance_status(request.form.get('maintenance_status') or request.form.get('status') or ticket.status)
     exit_date_raw = request.form.get('exit_date')
     if status == 'pronto_retirada' and not exit_date_raw:
         ticket.exit_date = datetime.utcnow()
