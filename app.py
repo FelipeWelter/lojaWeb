@@ -383,6 +383,7 @@ def _log_audit(action: str, details: str):
 def _parse_sale_items(form):
     raw_types = form.getlist('item_type[]')
     raw_product_ids = form.getlist('item_product_id[]')
+    raw_service_ids = form.getlist('item_service_id[]')
     raw_descriptions = form.getlist('item_description[]')
     raw_quantities = form.getlist('item_quantity[]')
     raw_unit_prices = form.getlist('item_unit_price[]')
@@ -391,6 +392,7 @@ def _parse_sale_items(form):
     max_len = max(
         len(raw_types),
         len(raw_product_ids),
+        len(raw_service_ids),
         len(raw_descriptions),
         len(raw_quantities),
         len(raw_unit_prices),
@@ -405,12 +407,13 @@ def _parse_sale_items(form):
             line_type = 'produto'
 
         product_id_raw = (raw_product_ids[idx] if idx < len(raw_product_ids) else '').strip()
+        service_id_raw = (raw_service_ids[idx] if idx < len(raw_service_ids) else '').strip()
         description = (raw_descriptions[idx] if idx < len(raw_descriptions) else '').strip()
         qty_raw = (raw_quantities[idx] if idx < len(raw_quantities) else '').strip()
         unit_price_raw = (raw_unit_prices[idx] if idx < len(raw_unit_prices) else '').strip()
         unit_cost_raw = (raw_unit_costs[idx] if idx < len(raw_unit_costs) else '').strip()
 
-        if not any([product_id_raw, description, qty_raw, unit_price_raw, unit_cost_raw]):
+        if not any([product_id_raw, service_id_raw, description, qty_raw, unit_price_raw, unit_cost_raw]):
             continue
 
         try:
@@ -446,6 +449,11 @@ def _parse_sale_items(form):
                 item['product_id'] = int(product_id_raw)
             except ValueError as exc:
                 raise ValueError(f'Produto inválido na linha {idx + 1}.') from exc
+        elif service_id_raw:
+            try:
+                int(service_id_raw)
+            except ValueError as exc:
+                raise ValueError(f'Serviço inválido na linha {idx + 1}.') from exc
 
         if not item['description']:
             item['description'] = 'Item sem descrição'
@@ -2844,6 +2852,7 @@ def vendas():
     current = _current_user()
     products = Product.query.filter_by(active=True).order_by(Product.name).all()
     clients = db.session.query(Client).filter(Client.active.is_(True)).group_by(Client.id).order_by(db.func.lower(Client.name)).all()
+    services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).all()
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
@@ -2928,9 +2937,7 @@ def vendas():
         if payment_method not in PAYMENT_METHOD_LABELS:
             payment_method = 'pix'
 
-        payment_flow = (request.form.get('payment_flow') or 'avista').strip()
-        if payment_flow not in {'avista', 'aprazo'}:
-            payment_flow = 'avista'
+        payment_flow = 'aprazo' if request.form.get('payment_flow_aprazo') == 'on' else 'avista'
 
         due_date = None
         if payment_flow == 'aprazo':
@@ -3007,6 +3014,38 @@ def vendas():
         return redirect(url_for('vendas', print_sale_id=sale.id))
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
+    finance_charges = Charge.query.order_by(Charge.id.desc()).all()
+
+    today = datetime.utcnow().date()
+    next_week = today + timedelta(days=7)
+    paid_today = Decimal('0.00')
+    cash_pending_total = Decimal('0.00')
+    cash_overdue_total = Decimal('0.00')
+    charge_overdue_total = Decimal('0.00')
+    charge_pending_total = Decimal('0.00')
+    charge_received_total = Decimal('0.00')
+
+    for charge in finance_charges:
+        total_amount = _charge_total_amount(charge)
+        paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        balance = _charge_balance(charge)
+        status_ui = _charge_ui_status(charge)
+
+        if charge.payment_confirmed_at and charge.payment_confirmed_at.date() == today:
+            paid_today += paid_amount
+
+        if charge.status != 'cancelado' and balance > 0:
+            cash_pending_total += balance
+            if charge.due_date and charge.due_date < today:
+                cash_overdue_total += balance
+
+        if status_ui == 'vencido' and balance > 0:
+            charge_overdue_total += balance
+        elif status_ui == 'pendente' and charge.due_date and today <= charge.due_date <= next_week and balance > 0:
+            charge_pending_total += balance
+        if status_ui == 'recebido':
+            charge_received_total += total_amount
+
     finalized_sale_ids: set[int] = set()
     sale_ids = [sale.id for sale in sales]
     if sale_ids:
@@ -3021,7 +3060,25 @@ def vendas():
             if _is_sale_finalized_by_payment(sale, charges_by_sale_id.get(sale.id, [])):
                 finalized_sale_ids.add(sale.id)
 
-    return render_template('sales.html', sales=sales, products=products, clients=clients, finalized_sale_ids=finalized_sale_ids)
+    return render_template(
+        'sales.html',
+        sales=sales,
+        products=products,
+        clients=clients,
+        services=services,
+        finalized_sale_ids=finalized_sale_ids,
+        finance_charges=finance_charges,
+        paid_today=paid_today,
+        cash_pending_total=cash_pending_total,
+        cash_overdue_total=cash_overdue_total,
+        charge_overdue_total=charge_overdue_total,
+        charge_pending_total=charge_pending_total,
+        charge_received_total=charge_received_total,
+        charge_ui_status=_charge_ui_status,
+        charge_balance=_charge_balance,
+        charge_total_amount=_charge_total_amount,
+        payment_method_labels=PAYMENT_METHOD_LABELS,
+    )
 
 
 @app.route('/vendas/<int:sale_id>/cancelar', methods=['POST'])

@@ -29,6 +29,12 @@
             <option value="{{ product.id }}" data-price="{{ product.price }}" data-cost="{{ product.cost_price }}" data-description="{{ product.inventory_display_name }}">{{ product.inventory_display_name }} (estoque: {{ product.stock }})</option>
             {% endfor %}
           </select>
+          <select name="item_service_id[]" class="line-service" hidden>
+            <option value="">Selecione o serviço</option>
+            {% for service in services %}
+            <option value="{{ service.id }}" data-price="{{ service.total_price }}" data-cost="{{ service.cost }}" data-description="{{ service.service_name }}">{{ service.service_name }} - {{ service.client_name }}</option>
+            {% endfor %}
+          </select>
           <input name="item_description[]" class="line-description" placeholder="Descrição do item/serviço" />
           <input name="item_quantity[]" class="line-qty" type="number" min="1" value="1" required />
           <input name="item_unit_price[]" class="line-price" type="number" min="0" step="0.01" placeholder="Preço unit." required />
@@ -52,10 +58,10 @@
         <label for="sale-discount">Desconto (R$)</label>
       </div>
       <div class="floating-field">
-        <input name="amount_received" id="sale-amount-received" type="number" min="0" step="0.01" value="0" placeholder=" " />
+        <input name="amount_received" id="sale-amount-received" type="number" min="0" step="0.01" value="" placeholder=" " />
         <label for="sale-amount-received">Valor recebido (R$)</label>
       </div>
-      <small id="sale-change-view" class="sale-change neutral">Troco: R$ 0,00</small>
+      <small id="sale-change-view" class="sale-change neutral">Troco: —</small>
 
       <div class="payment-methods" role="radiogroup" aria-label="Forma de pagamento">
         <label class="payment-btn"><input type="radio" name="payment_method" value="credito" required><span>💳 Cartão</span></label>
@@ -66,13 +72,10 @@
 
 
 
-      <div class="floating-field">
-        <select name="payment_flow" id="payment-flow" required>
-          <option value="avista" selected>À vista</option>
-          <option value="aprazo">A prazo</option>
-        </select>
-        <label for="payment-flow">Tipo de cobrança</label>
-      </div>
+      <label class="checkbox-inline sale-credit-toggle">
+        <input type="checkbox" name="payment_flow_aprazo" id="payment-flow-aprazo" />
+        Marque se for a prazo.
+      </label>
 
       <div id="credit-flow-fields" class="sale-credit-fields" hidden>
         <div class="floating-field">
@@ -92,6 +95,101 @@
       <button type="submit" class="btn-loja btn-loja--primary" id="finalize-sale-btn">Finalizar venda</button>
     </aside>
   </form>
+</section>
+
+
+<section class="card">
+  <h2>Pagamentos da venda</h2>
+  <div class="payment-tabs" role="tablist" aria-label="Abas de pagamentos">
+    <button type="button" class="btn-loja btn-loja--secondary js-payment-tab is-active" data-target="tab-caixa" role="tab" aria-selected="true">Caixa</button>
+    <button type="button" class="btn-loja btn-loja--secondary js-payment-tab" data-target="tab-cobranca" role="tab" aria-selected="false">Cobrança</button>
+  </div>
+
+  <div id="tab-caixa" class="payment-tab-panel is-active" role="tabpanel">
+    <div class="kpi-grid">
+      <article class="kpi-card"><h3>Recebido hoje</h3><strong>R$ {{ '%.2f'|format(paid_today) }}</strong></article>
+      <article class="kpi-card"><h3>Em aberto</h3><strong>R$ {{ '%.2f'|format(cash_pending_total) }}</strong></article>
+      <article class="kpi-card"><h3>Vencido</h3><strong>R$ {{ '%.2f'|format(cash_overdue_total) }}</strong></article>
+    </div>
+
+    <h3>Fluxo financeiro unificado (vendas e cobranças)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Ref.</th><th>Origem</th><th>Método</th><th>Status</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ações</th></tr></thead>
+        <tbody>
+          {% for c in finance_charges %}
+          <tr>
+            <td>{{ c.mercado_pago_reference }}</td>
+            <td>
+              {% if c.sale %}Venda #{{ c.sale.id }} - {{ c.sale.sale_name }}{% elif c.service %}Serviço #{{ c.service.id }} - {{ c.service.service_name }}{% else %}Avulso{% endif %}
+            </td>
+            <td>{{ payment_method_labels.get(c.payment_method, c.payment_method) }}</td>
+            <td>{{ charge_ui_status(c) }}</td>
+            <td>R$ {{ '%.2f'|format(charge_total_amount(c)) }}</td>
+            <td>R$ {{ '%.2f'|format(c.amount_paid or 0) }}</td>
+            <td>R$ {{ '%.2f'|format(charge_balance(c)) }}</td>
+            <td>
+              {% if charge_balance(c) > 0 and c.status != 'cancelado' %}
+              <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+                <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
+              </form>
+              {% else %}
+              <span class="badge success">Sem pendências</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8">Sem lançamentos financeiros.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="tab-cobranca" class="payment-tab-panel" role="tabpanel" hidden>
+    <div class="charges-kpi-grid">
+      <article class="charges-kpi danger">
+        <small>🔴 Vencidas</small>
+        <strong>R$ {{ '%.2f'|format(charge_overdue_total) }}</strong>
+      </article>
+      <article class="charges-kpi warning">
+        <small>🟡 Pendentes (7 dias)</small>
+        <strong>R$ {{ '%.2f'|format(charge_pending_total) }}</strong>
+      </article>
+      <article class="charges-kpi success">
+        <small>🟢 Recebidas</small>
+        <strong>R$ {{ '%.2f'|format(charge_received_total) }}</strong>
+      </article>
+    </div>
+
+    <div class="table-wrap charges-table-wrap">
+      <table>
+        <thead><tr><th>Ref.</th><th>Origem</th><th>Status</th><th>Método</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ações</th></tr></thead>
+        <tbody>
+          {% for c in finance_charges %}
+          <tr>
+            <td>{{ c.mercado_pago_reference }}</td>
+            <td>{% if c.sale %}Venda #{{ c.sale.id }}{% elif c.service %}Serviço #{{ c.service.id }}{% else %}Avulso{% endif %}</td>
+            <td><span class="badge">{{ charge_ui_status(c) }}</span></td>
+            <td>{{ payment_method_labels.get(c.payment_method, c.payment_method) }}</td>
+            <td>R$ {{ '%.2f'|format(charge_total_amount(c)) }}</td>
+            <td>R$ {{ '%.2f'|format(c.amount_paid or 0) }}</td>
+            <td>R$ {{ '%.2f'|format(charge_balance(c)) }}</td>
+            <td>
+              {% if c.status != 'confirmado' and c.status != 'cancelado' %}
+              <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
+                <button type="submit" class="btn-loja btn-loja--primary">Confirmar</button>
+              </form>
+              {% else %}
+              <span class="badge success">Finalizada</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}<tr><td colspan="8">Sem cobranças.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </section>
 
 <section class="card">
@@ -157,11 +255,11 @@
   const finalizeBtn = document.getElementById('finalize-sale-btn');
   const saleForm = document.getElementById('sale-form');
 
-  const paymentFlowSelect = document.getElementById('payment-flow');
+  const paymentFlowCheckbox = document.getElementById('payment-flow-aprazo');
   const creditFlowFields = document.getElementById('credit-flow-fields');
 
   function togglePaymentFlowFields() {
-    const isCredit = (paymentFlowSelect?.value || 'avista') === 'aprazo';
+    const isCredit = !!paymentFlowCheckbox?.checked;
     if (creditFlowFields) creditFlowFields.hidden = !isCredit;
     if (!isCredit) {
       const due = document.getElementById('due-date');
@@ -188,22 +286,31 @@
 
     const discount = Math.max(0, Number(discountInput?.value || 0));
     const total = Math.max(0, subtotal - discount);
-    const received = Math.max(0, Number(amountReceivedInput?.value || 0));
+    const receivedRaw = (amountReceivedInput?.value || '').trim();
+    const hasReceived = receivedRaw !== '';
+    const received = hasReceived ? Math.max(0, Number(receivedRaw || 0)) : 0;
     const change = received - total;
     subtotalEl.textContent = formatBRL(subtotal);
     discountViewEl.textContent = formatBRL(discount);
     totalEl.textContent = formatBRL(total);
     if (changeViewEl) {
-      changeViewEl.textContent = `Troco: ${formatBRL(change)}`;
-      changeViewEl.classList.toggle('positive', change > 0);
-      changeViewEl.classList.toggle('negative', change < 0);
-      changeViewEl.classList.toggle('neutral', change === 0);
+      if (!hasReceived) {
+        changeViewEl.textContent = 'Troco: —';
+        changeViewEl.classList.remove('positive', 'negative');
+        changeViewEl.classList.add('neutral');
+      } else {
+        changeViewEl.textContent = `Troco: ${formatBRL(change)}`;
+        changeViewEl.classList.toggle('positive', change > 0);
+        changeViewEl.classList.toggle('negative', change < 0);
+        changeViewEl.classList.toggle('neutral', change === 0);
+      }
     }
   }
 
   function bindLine(line) {
     const typeSel = line.querySelector('.line-type');
     const productSel = line.querySelector('.line-product');
+    const serviceSel = line.querySelector('.line-service');
     const descInput = line.querySelector('.line-description');
     const priceInput = line.querySelector('.line-price');
     const costInput = line.querySelector('.line-cost');
@@ -212,20 +319,36 @@
       const isService = typeSel.value === 'servico';
       productSel.disabled = isService;
       productSel.required = !isService;
+      productSel.hidden = isService;
+      serviceSel.disabled = !isService;
+      serviceSel.required = false;
+      serviceSel.hidden = !isService;
+
       if (isService) {
         productSel.value = '';
+      } else {
+        serviceSel.value = '';
       }
+
       if (!isService && productSel.value) {
         const opt = productSel.options[productSel.selectedIndex];
         if (!priceInput.value) priceInput.value = opt?.dataset?.price || '';
         if (!costInput.value || Number(costInput.value) === 0) costInput.value = opt?.dataset?.cost || '0';
         if (!descInput.value) descInput.value = opt?.dataset?.description || opt?.textContent?.split(' (estoque')[0] || '';
       }
+
+      if (isService && serviceSel.value) {
+        const opt = serviceSel.options[serviceSel.selectedIndex];
+        if (!priceInput.value) priceInput.value = opt?.dataset?.price || '';
+        if (!costInput.value || Number(costInput.value) === 0) costInput.value = opt?.dataset?.cost || '0';
+        if (!descInput.value) descInput.value = opt?.dataset?.description || '';
+      }
       recalcTotal();
     };
 
     typeSel.addEventListener('change', syncLine);
     productSel.addEventListener('change', syncLine);
+    serviceSel.addEventListener('change', syncLine);
     line.querySelectorAll('input').forEach((input) => input.addEventListener('input', recalcTotal));
     line.querySelector('.remove-line').addEventListener('click', () => {
       if (saleLines.querySelectorAll('.sale-line').length > 1) {
@@ -247,13 +370,14 @@
     });
     clone.querySelector('.line-type').value = 'produto';
     clone.querySelector('.line-product').value = '';
+    clone.querySelector('.line-service').value = '';
     saleLines.appendChild(clone);
     bindLine(clone);
     recalcTotal();
   });
 
   discountInput?.addEventListener('input', recalcTotal);
-  paymentFlowSelect?.addEventListener('change', togglePaymentFlowFields);
+  paymentFlowCheckbox?.addEventListener('change', togglePaymentFlowFields);
   amountReceivedInput?.addEventListener('input', recalcTotal);
 
   [discountInput, amountReceivedInput].forEach((input) => {
@@ -271,6 +395,26 @@
   saleLines.querySelectorAll('.sale-line').forEach(bindLine);
   togglePaymentFlowFields();
   recalcTotal();
+
+
+
+  const paymentTabs = document.querySelectorAll('.js-payment-tab');
+  const paymentPanels = document.querySelectorAll('.payment-tab-panel');
+  paymentTabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const targetId = tab.dataset.target;
+      paymentTabs.forEach((item) => {
+        const active = item === tab;
+        item.classList.toggle('is-active', active);
+        item.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      paymentPanels.forEach((panel) => {
+        const active = panel.id === targetId;
+        panel.classList.toggle('is-active', active);
+        panel.hidden = !active;
+      });
+    });
+  });
 
   const params = new URLSearchParams(window.location.search);
   const printSaleId = params.get('print_sale_id');
