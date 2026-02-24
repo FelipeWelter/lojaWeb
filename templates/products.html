@@ -10,14 +10,8 @@
     <h3>1) Tipo de item</h3>
     <div class="action-group">
       <button type="button" class="btn-loja btn-loja--primary" id="choose-piece-btn">Peça</button>
-      <button type="button" class="btn-loja btn-loja--secondary" id="choose-computer-btn">Computador</button>
+      <a class="btn-loja btn-loja--secondary" id="choose-computer-btn" href="{{ url_for('montar_pc') }}">Computador</a>
     </div>
-  </section>
-
-  <section class="form-zone" id="computer-next-step" hidden>
-    <h3>Cadastro de computador completo</h3>
-    <p>Você selecionou <strong>Computador</strong>. O cadastro completo é feito na tela dedicada para montagem, com seleção de peças do estoque.</p>
-    <a class="btn-loja btn-loja--primary" href="{{ url_for('montar_pc') }}">Abrir tela de cadastrar computador completo</a>
   </section>
 
   <section class="form-zone" id="piece-class-step" hidden>
@@ -154,8 +148,6 @@
 
 <script>
   const choosePieceBtn = document.getElementById('choose-piece-btn');
-  const chooseComputerBtn = document.getElementById('choose-computer-btn');
-  const computerNextStep = document.getElementById('computer-next-step');
   const pieceClassStep = document.getElementById('piece-class-step');
   const classSelect = document.getElementById('component-class-step-select');
   const pieceForm = document.getElementById('piece-form');
@@ -170,19 +162,10 @@
   };
 
   function activatePieceFlow() {
-    computerNextStep.hidden = true;
     pieceClassStep.hidden = false;
     if (!classSelect.value) {
       pieceForm.hidden = true;
     }
-  }
-
-  function activateComputerFlow() {
-    pieceClassStep.hidden = true;
-    pieceForm.hidden = true;
-    classSelect.value = '';
-    classHidden.value = '';
-    computerNextStep.hidden = false;
   }
 
   function toggleTechnicalFieldsByClass() {
@@ -275,7 +258,6 @@
   }
 
   choosePieceBtn.addEventListener('click', activatePieceFlow);
-  chooseComputerBtn.addEventListener('click', activateComputerFlow);
   classSelect.addEventListener('change', toggleTechnicalFieldsByClass);
 
   document.getElementById('cost-input')?.addEventListener('input', scheduleMarginUpdate);
