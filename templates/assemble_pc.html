@@ -63,6 +63,9 @@
 {%- endmacro %}
 
 <section class="card montaje-card">
+  <div class="action-group" style="margin-bottom:10px;">
+    <a href="{{ url_for('produtos') }}" class="btn-loja btn-loja--secondary">⬅ Voltar para Produtos</a>
+  </div>
   <h2>Montagem de Computadores</h2>
   <p class="montage-subtitle">Monte uma configuração profissional em poucos cliques.</p>
   <form method="post" class="grid form-grid" id="form-montagem" enctype="multipart/form-data">
