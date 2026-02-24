@@ -111,6 +111,17 @@
   .thermal-receipt h3 {
     margin: 0 0 4px;
   }
+
+  .thermal-receipt,
+  .thermal-receipt .card,
+  .thermal-receipt header,
+  .thermal-receipt p,
+  .thermal-receipt h2,
+  .thermal-receipt h3,
+  .thermal-receipt td,
+  .thermal-receipt th {
+    text-align: center !important;
+  }
 }
 
 

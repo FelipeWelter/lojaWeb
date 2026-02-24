@@ -225,12 +225,14 @@ class SaleItem(db.Model):
     line_type = db.Column(db.String(20), nullable=False, default='produto')
     description = db.Column(db.String(180), nullable=False)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=True)
+    service_record_id = db.Column(db.Integer, db.ForeignKey('service_record.id'), nullable=True)
     quantity = db.Column(db.Integer, nullable=False, default=1)
     unit_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     unit_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     line_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
 
     product = db.relationship('Product')
+    service_record = db.relationship('ServiceRecord', foreign_keys=[service_record_id])
 
 
 class Charge(db.Model):
@@ -261,6 +263,9 @@ class ServiceRecord(db.Model):
     discount_amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     notes = db.Column(db.Text, nullable=True)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    canceled_at = db.Column(db.DateTime, nullable=True)
+    delivery_status = db.Column(db.String(30), nullable=False, default='aguardando')
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     performed_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
@@ -457,6 +462,7 @@ def _parse_sale_items(form):
         item = {
             'line_type': line_type,
             'product_id': None,
+            'service_record_id': None,
             'description': description,
             'quantity': quantity,
             'unit_price': unit_price.quantize(Decimal('0.01')),
@@ -472,7 +478,7 @@ def _parse_sale_items(form):
                 raise ValueError(f'Produto inválido na linha {idx + 1}.') from exc
         elif service_id_raw:
             try:
-                int(service_id_raw)
+                item['service_record_id'] = int(service_id_raw)
             except ValueError as exc:
                 raise ValueError(f'Serviço inválido na linha {idx + 1}.') from exc
 
@@ -725,6 +731,12 @@ PAYMENT_METHODS = [
 
 PAYMENT_METHOD_LABELS = dict(PAYMENT_METHODS)
 
+SERVICE_DELIVERY_STATUS_LABELS = {
+    'aguardando': 'Aguardando retirada',
+    'entregue': 'Entregue ao cliente',
+    'desistencia': 'Desistência do cliente',
+}
+
 MAINTENANCE_STATUS_LABELS = {
     'aguardando_pecas': 'Aguardando peças',
     'em_analise': 'Em análise/Bancada',
@@ -802,7 +814,7 @@ def _build_maintenance_parts_items(form_data, *, allow_single_fallback: bool = F
             continue
 
         product = Product.query.get(int(part_id_raw))
-        if not product:
+        if not product or product.category != 'Peça':
             continue
 
         raw_qty = part_qtys[idx] if idx < len(part_qtys) else '1'
@@ -2492,11 +2504,42 @@ def servicos():
         if ticket.service_record_id
     }
 
-    unified_completed_history = []
-    for ticket in concluded_tickets:
+    service_ids = [service.id for service in recent_services]
+    service_charges = Charge.query.filter(Charge.service_id.in_(service_ids) if service_ids else db.false()).all()
+    charges_by_service_id: dict[int, list[Charge]] = {}
+    for charge in service_charges:
+        if charge.service_id:
+            charges_by_service_id.setdefault(charge.service_id, []).append(charge)
+
+    sale_item_service_rows = (
+        db.session.query(SaleItem.service_record_id, Charge)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .join(Charge, Charge.sale_id == Sale.id)
+        .filter(
+            SaleItem.service_record_id.in_(service_ids) if service_ids else db.false(),
+            Sale.canceled.is_(False),
+        )
+        .all()
+    )
+    seen_service_charge_pairs: set[tuple[int, int]] = set()
+    for service_record_id, charge in sale_item_service_rows:
+        if not service_record_id or not charge:
+            continue
+        pair_key = (int(service_record_id), int(charge.id))
+        if pair_key in seen_service_charge_pairs:
+            continue
+        seen_service_charge_pairs.add(pair_key)
+        charges_by_service_id.setdefault(int(service_record_id), []).append(charge)
+
+    unified_service_history = []
+
+    for ticket in ready_for_pickup_tickets:
         linked_service = service_by_id.get(ticket.service_record_id)
-        unified_completed_history.append({
-            'type': 'os_concluida',
+        linked_charges = charges_by_service_id.get(linked_service.id, []) if linked_service else []
+        payment_ok = _is_service_finalized_by_payment(linked_service, linked_charges) if linked_service else False
+        unified_service_history.append({
+            'stage': 'pronto_retirada',
+            'type': 'os_pronta',
             'date': ticket.exit_date or ticket.entry_date,
             'ticket': ticket,
             'service': linked_service,
@@ -2504,21 +2547,50 @@ def servicos():
             'client_name': linked_service.client_name if linked_service else ticket.client_name,
             'equipment': linked_service.equipment if linked_service else ticket.equipment,
             'total_price': Decimal(linked_service.total_price or 0) if linked_service else Decimal('0.00'),
+            'delivery_status': linked_service.delivery_status if linked_service else 'aguardando',
+            'payment_status': 'pago' if payment_ok else 'pendente',
+            'delivered_at': linked_service.delivered_at if linked_service else None,
+        })
+
+    for ticket in concluded_tickets:
+        linked_service = service_by_id.get(ticket.service_record_id)
+        linked_charges = charges_by_service_id.get(linked_service.id, []) if linked_service else []
+        payment_ok = _is_service_finalized_by_payment(linked_service, linked_charges) if linked_service else False
+        unified_service_history.append({
+            'stage': 'concluido',
+            'type': 'os_concluida',
+            'date': (linked_service.delivered_at if linked_service else None) or ticket.exit_date or ticket.entry_date,
+            'ticket': ticket,
+            'service': linked_service,
+            'service_name': linked_service.service_name if linked_service else f"OS #{ticket.id} - {ticket.service_description}",
+            'client_name': linked_service.client_name if linked_service else ticket.client_name,
+            'equipment': linked_service.equipment if linked_service else ticket.equipment,
+            'total_price': Decimal(linked_service.total_price or 0) if linked_service else Decimal('0.00'),
+            'delivery_status': linked_service.delivery_status if linked_service else 'aguardando',
+            'payment_status': 'pago' if payment_ok else 'pendente',
+            'delivered_at': linked_service.delivered_at if linked_service else None,
         })
 
     for service in standalone_services:
-        unified_completed_history.append({
+        linked_charges = charges_by_service_id.get(service.id, [])
+        payment_ok = _is_service_finalized_by_payment(service, linked_charges)
+        stage = 'concluido' if service.delivery_status in {'entregue', 'desistencia'} else 'pronto_retirada'
+        unified_service_history.append({
+            'stage': stage,
             'type': 'servico_avulso',
-            'date': service.created_at,
+            'date': service.delivered_at or service.created_at,
             'ticket': None,
             'service': service,
             'service_name': service.service_name,
             'client_name': service.client_name,
             'equipment': service.equipment,
             'total_price': Decimal(service.total_price or 0),
+            'delivery_status': service.delivery_status,
+            'payment_status': 'pago' if payment_ok else 'pendente',
+            'delivered_at': service.delivered_at,
         })
 
-    unified_completed_history.sort(key=lambda item: item.get('date') or datetime.min, reverse=True)
+    unified_service_history.sort(key=lambda item: item.get('date') or datetime.min, reverse=True)
 
     edit_ticket = None
     edit_ticket_id_raw = (request.args.get('edit_ticket_id') or '').strip()
@@ -2531,7 +2603,7 @@ def servicos():
             edit_ticket = next((ticket for ticket in maintenance_tickets if ticket.id == edit_ticket_id), None)
 
     clients = Client.query.order_by(Client.name.asc()).all()
-    products = Product.query.order_by(Product.name.asc()).all()
+    products = Product.query.filter(Product.active.is_(True), Product.category == 'Peça', Product.stock > 0).order_by(Product.name.asc()).all()
     return render_template(
         'services.html',
         services=service_catalog,
@@ -2545,8 +2617,9 @@ def servicos():
         maintenance_parts_map=maintenance_parts_map,
         maintenance_checklist_map=maintenance_checklist_map,
         maintenance_service_map=maintenance_service_map,
+        service_delivery_status_labels=SERVICE_DELIVERY_STATUS_LABELS,
         edit_ticket=edit_ticket,
-        unified_completed_history=unified_completed_history,
+        unified_service_history=unified_service_history,
         clients=clients,
         products=products,
         payment_methods=PAYMENT_METHODS,
@@ -2664,6 +2737,30 @@ def atualizar_manutencao(ticket_id: int):
     flash('Status da manutenção atualizado!', 'success')
     return redirect(url_for('servicos'))
 
+
+
+
+@app.route('/servicos/<int:service_id>/confirmar-retirada', methods=['POST'])
+@_login_required
+def confirmar_retirada_servico(service_id: int):
+    service = ServiceRecord.query.get_or_404(service_id)
+    action = (request.form.get('action') or 'entregue').strip()
+
+    if action == 'desistencia':
+        service.delivery_status = 'desistencia'
+    else:
+        service.delivery_status = 'entregue'
+
+    service.delivered_at = datetime.utcnow()
+    if service.delivery_status != 'desistencia':
+        service.canceled_at = None
+    else:
+        service.canceled_at = datetime.utcnow()
+
+    _sync_service_ticket_status(service.id)
+    db.session.commit()
+    flash('Fluxo de retirada atualizado com sucesso!', 'success')
+    return redirect(url_for('servicos'))
 
 
 
@@ -2960,17 +3057,24 @@ def vendas():
         if product_ids:
             anchor_product_id = product_ids[0]
         else:
-            service_placeholder = Product.query.filter_by(category='Serviço', name='Serviço avulso').first()
+            service_placeholder = Product.query.filter_by(name='Serviço avulso').first()
             if not service_placeholder:
                 service_placeholder = Product(
                     name='Serviço avulso',
                     category='Serviço',
-                    stock=999999,
+                    stock=0,
                     price=Decimal('0.00'),
                     cost_price=Decimal('0.00'),
+                    active=False,
                 )
                 db.session.add(service_placeholder)
                 db.session.flush()
+            else:
+                service_placeholder.category = 'Serviço'
+                service_placeholder.stock = 0
+                service_placeholder.price = Decimal('0.00')
+                service_placeholder.cost_price = Decimal('0.00')
+                service_placeholder.active = False
             anchor_product_id = service_placeholder.id
 
         payment_method = (request.form.get('payment_method') or 'pix').strip()
@@ -3016,6 +3120,7 @@ def vendas():
                     line_type=item['line_type'],
                     description=item['description'],
                     product_id=item['product_id'],
+                    service_record_id=item.get('service_record_id'),
                     quantity=item['quantity'],
                     unit_price=item['unit_price'],
                     unit_cost=item['unit_cost'],
@@ -3247,6 +3352,30 @@ def _is_service_finalized_by_payment(service: ServiceRecord, charges: list[Charg
 
 
 
+def _sync_service_ticket_status(service_id: int | None):
+    if not service_id:
+        return
+    service = ServiceRecord.query.get(service_id)
+    if not service:
+        return
+
+    ticket = MaintenanceTicket.query.filter_by(service_record_id=service_id).first()
+    if not ticket:
+        return
+
+    if service.delivery_status in {'entregue', 'desistencia'}:
+        ticket.status = 'concluido'
+        if not ticket.exit_date:
+            ticket.exit_date = service.delivered_at or datetime.utcnow()
+    elif _normalize_maintenance_status(ticket.status) == 'concluido':
+        ticket.status = 'pronto_retirada'
+
+
+def _is_service_fully_delivered(service: ServiceRecord, charges: list[Charge]) -> bool:
+    return _is_service_finalized_by_payment(service, charges) and service.delivery_status == 'entregue'
+
+
+
 
 @app.route('/cobrancas', methods=['GET', 'POST'])
 @_login_required
@@ -3325,9 +3454,7 @@ def cobrancas():
         _normalize_charge_status(charge)
 
         if charge.service_id and charge.status == 'confirmado':
-            ticket = MaintenanceTicket.query.filter_by(service_record_id=charge.service_id).first()
-            if ticket and _normalize_maintenance_status(ticket.status) == 'pronto_retirada':
-                ticket.status = 'concluido'
+            _sync_service_ticket_status(charge.service_id)
 
         db.session.add(charge)
         db.session.commit()
@@ -3424,9 +3551,7 @@ def editar_cobranca(charge_id: int):
     _normalize_charge_status(charge)
 
     if charge.service_id and charge.status == 'confirmado':
-        ticket = MaintenanceTicket.query.filter_by(service_record_id=charge.service_id).first()
-        if ticket and _normalize_maintenance_status(ticket.status) == 'pronto_retirada':
-            ticket.status = 'concluido'
+        _sync_service_ticket_status(charge.service_id)
 
     db.session.commit()
     flash('Cobrança atualizada com sucesso!', 'success')
@@ -3442,9 +3567,7 @@ def confirmar_cobranca(charge_id: int):
     charge.payment_confirmed_at = datetime.utcnow()
 
     if charge.service_id:
-        ticket = MaintenanceTicket.query.filter_by(service_record_id=charge.service_id).first()
-        if ticket and _normalize_maintenance_status(ticket.status) == 'pronto_retirada':
-            ticket.status = 'concluido'
+        _sync_service_ticket_status(charge.service_id)
 
     db.session.commit()
     flash('Pagamento confirmado!', 'success')
@@ -3644,6 +3767,12 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_socket VARCHAR(40)'))
     if 'motherboard_chipset' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_chipset VARCHAR(40)'))
+    db.session.execute(
+        db.text(
+            "UPDATE product SET stock = 0, active = 0, category = 'Serviço', price = 0, cost_price = 0 "
+            "WHERE name = 'Serviço avulso'"
+        )
+    )
     db.session.commit()
 
     db.session.execute(
@@ -3717,12 +3846,14 @@ with app.app_context():
             'line_type VARCHAR(20) NOT NULL DEFAULT "produto", '
             'description VARCHAR(180) NOT NULL, '
             'product_id INTEGER, '
+            'service_record_id INTEGER, '
             'quantity INTEGER NOT NULL DEFAULT 1, '
             'unit_price NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'line_total NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'FOREIGN KEY(sale_id) REFERENCES sale (id), '
-            'FOREIGN KEY(product_id) REFERENCES product (id)'
+            'FOREIGN KEY(product_id) REFERENCES product (id), '
+            'FOREIGN KEY(service_record_id) REFERENCES service_record (id)'
             ')'
         )
     )
@@ -3744,6 +3875,10 @@ with app.app_context():
             ')'
         )
     )
+    sale_item_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(sale_item)'))]
+    if 'service_record_id' not in sale_item_columns:
+        db.session.execute(db.text('ALTER TABLE sale_item ADD COLUMN service_record_id INTEGER'))
+
     maintenance_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(maintenance_ticket)'))]
     if 'client_phone' not in maintenance_columns:
         db.session.execute(db.text('ALTER TABLE maintenance_ticket ADD COLUMN client_phone VARCHAR(30)'))
@@ -3818,6 +3953,13 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE service_record ADD COLUMN discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0'))
     if 'performed_by_user_id' not in service_columns:
         db.session.execute(db.text('ALTER TABLE service_record ADD COLUMN performed_by_user_id INTEGER'))
+    if 'delivery_status' not in service_columns:
+        db.session.execute(db.text("ALTER TABLE service_record ADD COLUMN delivery_status VARCHAR(30) NOT NULL DEFAULT 'aguardando'"))
+    if 'delivered_at' not in service_columns:
+        db.session.execute(db.text('ALTER TABLE service_record ADD COLUMN delivered_at DATETIME'))
+    if 'canceled_at' not in service_columns:
+        db.session.execute(db.text('ALTER TABLE service_record ADD COLUMN canceled_at DATETIME'))
+    db.session.execute(db.text("UPDATE service_record SET delivery_status = 'aguardando' WHERE delivery_status IS NULL OR TRIM(delivery_status) = ''"))
     db.session.commit()
 
     client_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(client)'))]
