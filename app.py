@@ -2592,6 +2592,18 @@ def servicos():
 
     unified_service_history.sort(key=lambda item: item.get('date') or datetime.min, reverse=True)
 
+    ready_ticket_finance_map = {}
+    for ticket in ready_for_pickup_tickets:
+        linked_service = maintenance_service_map.get(ticket.id)
+        if not linked_service:
+            continue
+        linked_charges = charges_by_service_id.get(linked_service.id, [])
+        ready_ticket_finance_map[ticket.id] = {
+            'payment_ok': _is_service_finalized_by_payment(linked_service, linked_charges),
+            'delivery_status': linked_service.delivery_status,
+            'delivered_at': linked_service.delivered_at,
+        }
+
     clients = Client.query.order_by(Client.name.asc()).all()
     products = Product.query.filter(Product.active.is_(True), Product.category == 'Peça', Product.stock > 0).order_by(Product.name.asc()).all()
     return render_template(
