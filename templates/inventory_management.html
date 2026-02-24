@@ -21,10 +21,17 @@
   </div>
 
   <table class="stock-table" id="inventory-table">
-    <thead><tr><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Venda</th><th>Status</th><th>Ações</th></tr></thead>
+    <thead><tr><th>Foto</th><th>Produto</th><th>Categoria</th><th>Estoque</th><th>Venda</th><th>Status</th><th>Ações</th></tr></thead>
     <tbody>
       {% for p in products %}
       <tr data-name="{{ p.inventory_display_name|lower }}" data-category="{{ p.category|lower }}" data-status="{{ 'ativo' if p.active else 'inativo' }}">
+        <td>
+          {% if p.inventory_image_url %}
+          <img src="{{ p.inventory_image_url }}" alt="Foto de {{ p.name }}" class="stock-thumb" loading="lazy" />
+          {% else %}
+          <span>—</span>
+          {% endif %}
+        </td>
         <td>{{ p.inventory_display_name }}</td>
         <td>{{ p.category }}</td>
         <td>{{ p.stock }}</td>

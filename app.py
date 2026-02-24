@@ -112,6 +112,27 @@ class Product(db.Model):
         summary = self.inventory_spec_summary
         return f'{self.name} — {summary}' if summary else self.name
 
+    @property
+    def inventory_image_url(self):
+        image_url = self.photo_url
+        if not image_url and self.images:
+            image_url = self.images[0].image_url
+
+        if not image_url:
+            return None
+
+        if image_url.startswith('http://') or image_url.startswith('https://'):
+            return image_url
+        if image_url.startswith('/static/'):
+            return image_url
+        if image_url.startswith('static/'):
+            return f'/{image_url}'
+        if image_url.startswith('uploads/'):
+            return f'/static/{image_url}'
+        if image_url.startswith('/'):
+            return image_url
+        return f'/static/uploads/products/{image_url}'
+
 
 class ProductImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
