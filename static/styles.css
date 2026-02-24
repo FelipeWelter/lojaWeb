@@ -2537,3 +2537,23 @@ input[type="number"]::-webkit-inner-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
 }
+
+
+.payment-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.payment-tabs .js-payment-tab.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px rgba(52, 152, 219, .45);
+}
+
+.payment-tab-panel {
+  display: none;
+}
+
+.payment-tab-panel.is-active {
+  display: block;
+}
