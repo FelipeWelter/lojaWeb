@@ -147,3 +147,38 @@
     display: none !important;
   }
 }
+
+@media print {
+  .receipt-items-table th:nth-child(1),
+  .receipt-items-table td:nth-child(1) {
+    text-align: left !important;
+    width: 34%;
+  }
+
+  .receipt-items-table th:nth-child(2),
+  .receipt-items-table td:nth-child(2) {
+    text-align: left !important;
+    width: 28%;
+  }
+
+  .receipt-items-table th:nth-child(3),
+  .receipt-items-table td:nth-child(3),
+  .receipt-items-table th:nth-child(4),
+  .receipt-items-table td:nth-child(4),
+  .receipt-items-table th:nth-child(5),
+  .receipt-items-table td:nth-child(5),
+  .receipt-installments-table th,
+  .receipt-installments-table td {
+    text-align: right !important;
+  }
+
+  .payment-line {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dashed #222;
+  }
+
+  .receipt-installments-table {
+    margin-top: 4px;
+  }
+}
