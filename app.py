@@ -2259,12 +2259,15 @@ def excluir_produto(product_id: int):
 
 def _build_assembly_edit_data(latest_assemblies):
     slot_multiple = {slot_key: allow_multiple for slot_key, _, allow_multiple in COMPONENT_SLOTS}
-    slot_defaults = {slot_key: {'name': '', 'cost': '0'} for slot_key, _, allow_multiple in COMPONENT_SLOTS if not allow_multiple}
+    slot_defaults = {
+        slot_key: {'piece_id': '', 'custom_name': '', 'custom_cost': '0'}
+        for slot_key, _, allow_multiple in COMPONENT_SLOTS
+        if not allow_multiple
+    }
 
     data = {}
     for assembly in latest_assemblies:
-        single_selected = {}
-        single_custom = {k: {'name': v['name'], 'cost': v['cost']} for k, v in slot_defaults.items()}
+        single_slots = {k: {'piece_id': v['piece_id'], 'custom_name': v['custom_name'], 'custom_cost': v['custom_cost']} for k, v in slot_defaults.items()}
         multi_rows = {slot_key: [] for slot_key, _, allow_multiple in COMPONENT_SLOTS if allow_multiple}
 
         for item in assembly.composicao:
@@ -2281,7 +2284,11 @@ def _build_assembly_edit_data(latest_assemblies):
                     'custom_cost': '0',
                 })
             else:
-                single_selected[slot_key] = item.id_peca
+                single_slots[slot_key] = {
+                    'piece_id': item.id_peca,
+                    'custom_name': '',
+                    'custom_cost': '0',
+                }
 
         for custom in assembly.custom_parts:
             if slot_multiple.get(custom.slot_key):
@@ -2292,9 +2299,10 @@ def _build_assembly_edit_data(latest_assemblies):
                     'custom_cost': f'{Decimal(custom.unit_cost):.2f}',
                 })
             else:
-                single_custom[custom.slot_key] = {
-                    'name': custom.part_name,
-                    'cost': f'{Decimal(custom.unit_cost):.2f}',
+                single_slots[custom.slot_key] = {
+                    'piece_id': '',
+                    'custom_name': custom.part_name,
+                    'custom_cost': f'{Decimal(custom.unit_cost):.2f}',
                 }
 
         for slot_key in list(multi_rows.keys()):
@@ -2302,8 +2310,7 @@ def _build_assembly_edit_data(latest_assemblies):
                 multi_rows[slot_key].append({'piece_id': '', 'qty': 1, 'custom_name': '', 'custom_cost': '0'})
 
         data[assembly.id] = {
-            'single_selected': single_selected,
-            'single_custom': single_custom,
+            'single_slots': single_slots,
             'multi_rows': multi_rows,
         }
 
