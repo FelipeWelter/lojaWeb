@@ -11,12 +11,21 @@
     {% endif %}
 
     <label class="floating-field">
+      <span>Cliente cadastrado</span>
+      <select id="maintenance-client-select" name="maintenance_client_id">
+        <option value="">Selecionar cliente</option>
+        {% for c in clients %}
+        <option value="{{ c.id }}" data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" {% if edit_ticket and c.name == edit_ticket.client_name %}selected{% endif %}>{{ c.name }}{% if c.phone %} · {{ c.phone }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="floating-field">
       <span>Nome do cliente</span>
-      <input name="maintenance_client_name" placeholder="Opcional na abertura" value="{{ edit_ticket.client_name if edit_ticket else '' }}" />
+      <input id="maintenance-client-name" name="maintenance_client_name" placeholder="Opcional na abertura" value="{{ edit_ticket.client_name if edit_ticket else '' }}" />
     </label>
     <label class="floating-field">
       <span>Telefone</span>
-      <input name="maintenance_client_phone" value="{{ edit_ticket.client_phone if edit_ticket else '' }}" />
+      <input id="maintenance-client-phone" name="maintenance_client_phone" value="{{ edit_ticket.client_phone if edit_ticket else '' }}" />
     </label>
     <label class="floating-field">
       <span>Equipamento</span>
@@ -297,6 +306,17 @@
 
   updatePartButtons();
   bindPartDescriptionRows();
+
+  const maintenanceClientSelect = document.getElementById('maintenance-client-select');
+  const maintenanceClientName = document.getElementById('maintenance-client-name');
+  const maintenanceClientPhone = document.getElementById('maintenance-client-phone');
+
+  maintenanceClientSelect?.addEventListener('change', () => {
+    const opt = maintenanceClientSelect.options[maintenanceClientSelect.selectedIndex];
+    if (!opt || !opt.value) return;
+    if (maintenanceClientName) maintenanceClientName.value = opt.dataset.name || '';
+    if (maintenanceClientPhone) maintenanceClientPhone.value = opt.dataset.phone || '';
+  });
 
   document.querySelectorAll('.js-print-trigger').forEach((btn) => {
     btn.addEventListener('click', () => {

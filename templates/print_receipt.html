@@ -35,9 +35,13 @@
         </tbody>
       </table>
 
+      {% if record_code.startswith('MON-') %}
+      <p><strong>Total da montagem:</strong> R$ {{ '%.2f'|format(total) }}</p>
+      {% else %}
       <p><strong>Valor Bruto:</strong> R$ {{ '%.2f'|format(gross_total if gross_total is defined else subtotal) }}</p>
       <p><strong>Desconto:</strong> R$ {{ '%.2f'|format(discount_amount or 0) }}</p>
       <p><strong>Valor Líquido:</strong> R$ {{ '%.2f'|format(total) }}</p>
+      {% endif %}
       {% if payment_method_label is defined %}
       <p><strong>Forma de pagamento:</strong> {{ payment_method_label }}</p>
       {% endif %}
@@ -74,6 +78,16 @@
       {% endfor %}
       {% endif %}
 
+
+      {% if assembly_inline %}
+      <section class="assembly-label-print">
+        <h3>Recibo de montagem incorporado</h3>
+        <p><strong>Montagem:</strong> {{ assembly_inline.nome_referencia or (assembly_inline.computador.name if assembly_inline.computador else 'Computador') }}</p>
+        <p><strong>ID montagem:</strong> #{{ assembly_inline.id }}</p>
+        <p><strong>Total peças/serviços técnicos:</strong> R$ {{ '%.2f'|format(assembly_inline.custo_total or 0) }}</p>
+        <p><strong>Checklist:</strong> BIOS {{ 'Sim' if assembly_inline.bios_updated else 'Não' }}, Stress {{ 'Sim' if assembly_inline.stress_test_done else 'Não' }}, SO {{ 'Sim' if assembly_inline.os_installed else 'Não' }}</p>
+      </section>
+      {% endif %}
       <p><strong>Observações:</strong> {{ notes }}</p>
       <p><strong>Técnico responsável:</strong> {{ performed_by_name }}</p>
 
@@ -81,7 +95,6 @@
       <section class="assembly-label-print">
         <h3>Etiqueta de Identificação</h3>
         <p><strong>Montagem:</strong> {{ assembly_name }}</p>
-        <p><strong>Valor de Venda:</strong> R$ {{ '%.2f'|format(sale_price) }}</p>
         <p><strong>ID:</strong> {{ assembly_id }}</p>
         <img src="{{ assembly_qr_url }}" alt="QR Code da montagem {{ assembly_id }}" width="120" height="120" />
       </section>

@@ -5,19 +5,19 @@
   <div class="action-group" style="margin-bottom:10px;">
     <a href="{{ url_for('produtos') }}" class="btn-loja btn-loja--secondary">⬅ Voltar para Produtos</a>
   </div>
-  <h2>Montagem de Computadores</h2>
-  <p class="montage-subtitle">Monte uma configuração profissional em poucos cliques.</p>
-  <form method="post" class="grid form-grid" id="form-montagem" enctype="multipart/form-data">
+  <h2>{% if edit_assembly %}Editar Montagem #{{ edit_assembly.id }}{% else %}Montagem de Computadores{% endif %}</h2>
+  <p class="montage-subtitle">{% if edit_assembly %}Atualize a configuração usando a mesma tela de montagem de PC.{% else %}Monte uma configuração profissional em poucos cliques.{% endif %}</p>
+  <form method="post" action="{% if edit_assembly %}{{ url_for('editar_montagem', assembly_id=edit_assembly.id) }}{% endif %}" class="grid form-grid" id="form-montagem" enctype="multipart/form-data">
     <div class="pc-layout full-width">
       <section class="pc-builder-area">
         <div class="pc-header full-width">
           <label>
             Nome do computador (novo ou existente)
-            <input name="computer_name" placeholder="Ex: GAMER" required />
+            <input name="computer_name" placeholder="Ex: GAMER" value="{{ edit_assembly.nome_referencia if edit_assembly else "" }}" required {% if edit_assembly %}readonly{% endif %} />
           </label>
           <label>
             Preço base (opcional para existente)
-            <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" />
+            <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" value="{{ "%.2f"|format(edit_assembly.preco_original) if edit_assembly else "" }}" />
           </label>
           <div class="file-upload-field">
             <span class="field-label">Fotos do computador (opcional)</span>
@@ -64,13 +64,16 @@
               <div class="assembly-summary notes-panel full-width">
                 <label>
                   Observações técnicas
-                  <textarea name="technical_notes" rows="4" placeholder="Ex: curva de fan ajustada, XMP ativado..."></textarea>
+                  <textarea name="technical_notes" rows="4" placeholder="Ex: curva de fan ajustada, XMP ativado...">{{ edit_assembly.technical_notes if edit_assembly and edit_assembly.technical_notes else "" }}</textarea>
                 </label>
                 <div class="class-menu technical-checklist">
-                  <label><input type="checkbox" name="bios_updated" /> BIOS atualizada</label>
-                  <label><input type="checkbox" name="stress_test_done" /> Stress test realizado</label>
-                  <label><input type="checkbox" name="os_installed" /> Sistema operacional instalado</label>
-                  <label><input type="checkbox" name="create_stock_item" checked /> Criar item automaticamente em "Computador" no estoque</label>
+                  <label><input type="checkbox" name="bios_updated" {% if edit_assembly and edit_assembly.bios_updated %}checked{% endif %}/> BIOS atualizada</label>
+                  <label>Valor BIOS (R$)<input name="bios_service_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.bios_service_cost or 0) if edit_assembly else '0.00' }}" /></label>
+                  <label><input type="checkbox" name="stress_test_done" {% if edit_assembly and edit_assembly.stress_test_done %}checked{% endif %}/> Stress test realizado</label>
+                  <label>Valor Stress (R$)<input name="stress_test_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.stress_test_cost or 0) if edit_assembly else '0.00' }}" /></label>
+                  <label><input type="checkbox" name="os_installed" {% if edit_assembly and edit_assembly.os_installed %}checked{% endif %}/> Sistema operacional instalado</label>
+                  <label>Valor SO (R$)<input name="os_install_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.os_install_cost or 0) if edit_assembly else '0.00' }}" /></label>
+                  <label><input type="checkbox" name="create_stock_item" {% if not edit_assembly %}checked{% endif %}/> Criar item automaticamente em "Computador" no estoque</label>
                   <label><input type="checkbox" name="send_to_sales" /> Enviar montagem finalizada direto para o carrinho de vendas</label>
                 </div>
               </div>
@@ -79,10 +82,10 @@
                 <div>
                   <p class="summary-title">Resumo do Orçamento</p>
                   <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
-                  <p><strong>Preço Sugerido (+20%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
+                  <p><strong>Sugestão peças avulsas (+25%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
                 </div>
-                <button type="submit" class="summary-submit">Finalizar montagem</button>
-                <p class="summary-hint">Use o modo <strong>P</strong> para peças manuais e informe um custo numérico para atualizar o lucro em tempo real.</p>
+                <button type="submit" class="summary-submit">{% if edit_assembly %}Salvar montagem{% else %}Finalizar montagem{% endif %}</button>
+                <p class="summary-hint">A soma total considera peças + serviços técnicos manuais (BIOS/Stress/SO).</p>
               </div>
             </div>
           </div>
@@ -144,6 +147,7 @@
         </td>
         <td>
           <div class="action-group">
+            <a class="btn-secondary" href="{{ url_for('montar_pc', edit_assembly_id=montagem.id) }}">Editar</a>
             <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='montagem', record_id=montagem.id) }}">Imprimir</button>
             <form method="post" action="{{ url_for('excluir_montagem', assembly_id=montagem.id) }}" onsubmit="return confirm('Deseja excluir esta montagem? Esta ação não pode ser desfeita.');">
               <button type="submit" class="btn-danger">Excluir montagem</button>
@@ -236,11 +240,13 @@
       }
     });
 
+    const extraServices = toNumber(form.querySelector('input[name="bios_service_cost"]')?.value) + toNumber(form.querySelector('input[name="stress_test_cost"]')?.value) + toNumber(form.querySelector('input[name="os_install_cost"]')?.value);
+    total += extraServices;
     custoEl.textContent = formatBRL(total);
-    precoEl.textContent = formatBRL(total * 1.2);
+    precoEl.textContent = formatBRL(total * 1.25);
     if (custoMobileEl && precoMobileEl) {
       custoMobileEl.textContent = formatBRL(total);
-      precoMobileEl.textContent = formatBRL(total * 1.2);
+      precoMobileEl.textContent = formatBRL(total * 1.25);
     }
   }
 
@@ -311,6 +317,23 @@
     atualizarTotais();
   });
 
+
+  {% if edit_assembly %}
+  const editData = {{ assembly_edit_data.get(edit_assembly.id, {})|tojson }};
+  if (editData.single_selected) {
+    Object.entries(editData.single_selected).forEach(([slot, id]) => {
+      const input = form.querySelector(`.single-slot[data-slot="${slot}"] .stock-id-input`);
+      const entry = form.querySelector(`.single-slot[data-slot="${slot}"] .piece-entry`);
+      if (input) input.value = String(id);
+      if (entry) {
+        const list = document.getElementById(`datalist-${slot}`);
+        const match = Array.from(list?.options || []).find(o => String(o.dataset.id) === String(id));
+        if (match) entry.value = match.value;
+        syncPieceEntry(entry);
+      }
+    });
+  }
+  {% endif %}
   form.querySelectorAll('.piece-entry').forEach(syncPieceEntry);
   atualizarTotais();
 </script>
