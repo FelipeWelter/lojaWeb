@@ -1380,6 +1380,7 @@ def imprimir(tipo: str, record_id: int):
             }
             for custom in data.custom_parts
         )
+        assembly_total = sum((item['total'] for item in items), Decimal('0.00')).quantize(Decimal('0.01'))
         context = {
             'document_title': f'Recibo de Montagem #{data.id}',
             'store_name': 'LojaWeb',
@@ -1388,8 +1389,8 @@ def imprimir(tipo: str, record_id: int):
             'record_code': f'MON-{data.id}',
             'client_name': data.nome_referencia or data.computador.name,
             'items': items,
-            'subtotal': data.custo_total,
-            'total': data.custo_total,
+            'subtotal': assembly_total,
+            'total': assembly_total,
             'is_assembly_label': True,
             'assembly_name': data.nome_referencia or data.computador.name,
             'assembly_id': data.id,
