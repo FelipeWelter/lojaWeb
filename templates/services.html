@@ -11,17 +11,14 @@
     {% endif %}
 
     <label class="floating-field">
-      <span>Cliente cadastrado</span>
-      <select id="maintenance-client-select" name="maintenance_client_id">
-        <option value="">Selecionar cliente</option>
+      <span>Cliente (cadastrado ou manual)</span>
+      <input id="maintenance-client-entry" name="maintenance_client_entry" list="maintenance-clients" placeholder="Digite ou selecione o cliente" value="{{ edit_ticket.client_name if edit_ticket else '' }}" />
+      <input type="hidden" id="maintenance-client-id" name="maintenance_client_id" value="" />
+      <datalist id="maintenance-clients">
         {% for c in clients %}
-        <option value="{{ c.id }}" data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" {% if edit_ticket and c.name == edit_ticket.client_name %}selected{% endif %}>{{ c.name }}{% if c.phone %} · {{ c.phone }}{% endif %}</option>
+        <option value="{{ c.name }}" data-id="{{ c.id }}" data-phone="{{ c.phone or '' }}"></option>
         {% endfor %}
-      </select>
-    </label>
-    <label class="floating-field">
-      <span>Nome do cliente</span>
-      <input id="maintenance-client-name" name="maintenance_client_name" placeholder="Opcional na abertura" value="{{ edit_ticket.client_name if edit_ticket else '' }}" />
+      </datalist>
     </label>
     <label class="floating-field">
       <span>Telefone</span>
@@ -307,16 +304,28 @@
   updatePartButtons();
   bindPartDescriptionRows();
 
-  const maintenanceClientSelect = document.getElementById('maintenance-client-select');
-  const maintenanceClientName = document.getElementById('maintenance-client-name');
+  const maintenanceClientEntry = document.getElementById('maintenance-client-entry');
+  const maintenanceClientId = document.getElementById('maintenance-client-id');
   const maintenanceClientPhone = document.getElementById('maintenance-client-phone');
 
-  maintenanceClientSelect?.addEventListener('change', () => {
-    const opt = maintenanceClientSelect.options[maintenanceClientSelect.selectedIndex];
-    if (!opt || !opt.value) return;
-    if (maintenanceClientName) maintenanceClientName.value = opt.dataset.name || '';
-    if (maintenanceClientPhone) maintenanceClientPhone.value = opt.dataset.phone || '';
-  });
+  const syncMaintenanceClient = () => {
+    if (!maintenanceClientEntry) return;
+    const value = maintenanceClientEntry.value.trim().toLowerCase();
+    const list = document.getElementById('maintenance-clients');
+    const match = Array.from(list?.options || []).find((option) => (option.value || '').trim().toLowerCase() === value);
+    if (match) {
+      if (maintenanceClientId) maintenanceClientId.value = match.dataset.id || '';
+      if (maintenanceClientPhone && !maintenanceClientPhone.value.trim()) {
+        maintenanceClientPhone.value = match.dataset.phone || '';
+      }
+      return;
+    }
+    if (maintenanceClientId) maintenanceClientId.value = '';
+  };
+
+  maintenanceClientEntry?.addEventListener('change', syncMaintenanceClient);
+  maintenanceClientEntry?.addEventListener('input', syncMaintenanceClient);
+  syncMaintenanceClient();
 
   document.querySelectorAll('.js-print-trigger').forEach((btn) => {
     btn.addEventListener('click', () => {

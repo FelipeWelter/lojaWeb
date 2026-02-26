@@ -2601,3 +2601,46 @@ input[type="number"] {
 .payment-tab-panel.is-active {
   display: block;
 }
+
+/* Melhorias visuais para quantidade na montagem */
+.montaje-card .qty-control {
+  border-radius: 14px;
+  border: 1px solid rgba(79, 70, 229, 0.28);
+  background: linear-gradient(180deg, #f8faff 0%, #eef2ff 100%);
+  padding: 4px;
+  gap: 6px;
+}
+
+.montaje-card .qty-btn {
+  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(79, 70, 229, 0.35);
+  background: #fff;
+  color: #2f4cc9;
+  font-weight: 700;
+  transition: all .15s ease;
+}
+
+.montaje-card .qty-btn:hover {
+  background: #e0e7ff;
+  transform: translateY(-1px);
+}
+
+.montaje-card .qty-control input[type="number"] {
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: #fff;
+  min-height: 32px;
+  font-weight: 600;
+}
+
+.suggested-price-hint {
+  margin: -6px 0 4px;
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.suggested-price-hint strong {
+  color: #1d4ed8;
+}
