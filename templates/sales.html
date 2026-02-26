@@ -382,7 +382,7 @@
         const opt = productSel.options[productSel.selectedIndex];
         const optionPrice = Number(opt?.dataset?.price || 0);
         const assemblyTotal = Number(opt?.dataset?.assemblyTotal || 0);
-        if (!priceInput.value) priceInput.value = String(Math.max(optionPrice, assemblyTotal));
+        if (!priceInput.value) priceInput.value = String(assemblyTotal > 0 ? assemblyTotal : optionPrice);
         if (!costInput.value || Number(costInput.value) === 0) costInput.value = opt?.dataset?.cost || '0';
         if (!descInput.value) descInput.value = opt?.dataset?.description || opt?.textContent?.split(' (estoque')[0] || '';
       }

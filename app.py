@@ -82,6 +82,8 @@ class Product(db.Model):
     motherboard_model = db.Column(db.String(80), nullable=True)
     motherboard_socket = db.Column(db.String(40), nullable=True)
     motherboard_chipset = db.Column(db.String(40), nullable=True)
+    cabinet_brand = db.Column(db.String(60), nullable=True)
+    cabinet_description = db.Column(db.String(180), nullable=True)
     images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
     active = db.Column(db.Boolean, nullable=False, default=True)
 
@@ -106,6 +108,8 @@ class Product(db.Model):
         add_spec('Memória GPU', self.gpu_memory)
         add_spec('Armazenamento', self.storage_type)
         add_spec('Capacidade', self.storage_capacity)
+        add_spec('Gabinete', self.cabinet_brand)
+        add_spec('Descrição', self.cabinet_description)
         add_spec('Fonte', self.psu_watts)
         add_spec('S/N', self.serial_number)
 
@@ -897,6 +901,8 @@ def _generate_piece_name(component_class: str | None, form_data) -> str:
         specs = [clean('storage_brand'), clean('storage_type'), clean('storage_capacity')]
     elif component_class == 'fonte':
         specs = [clean('psu_brand'), clean('psu_watts')]
+    elif component_class == 'gabinete':
+        specs = [clean('cabinet_brand'), clean('cabinet_description')]
 
     specs = [item for item in specs if item]
     serial = clean('serial_number')
@@ -2189,6 +2195,8 @@ def produtos():
             motherboard_model=(request.form.get('motherboard_model') or '').strip() or None,
             motherboard_socket=(request.form.get('motherboard_socket') or '').strip() or None,
             motherboard_chipset=(request.form.get('motherboard_chipset') or '').strip() or None,
+            cabinet_brand=(request.form.get('cabinet_brand') or '').strip() or None,
+            cabinet_description=(request.form.get('cabinet_description') or '').strip() or None,
         )
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
@@ -2318,6 +2326,10 @@ def editar_produto(product_id: int):
         product.motherboard_socket = (request.form.get('motherboard_socket') or '').strip() or None
     if 'motherboard_chipset' in request.form:
         product.motherboard_chipset = (request.form.get('motherboard_chipset') or '').strip() or None
+    if 'cabinet_brand' in request.form:
+        product.cabinet_brand = (request.form.get('cabinet_brand') or '').strip() or None
+    if 'cabinet_description' in request.form:
+        product.cabinet_description = (request.form.get('cabinet_description') or '').strip() or None
 
     if old_price != new_price:
         _log_audit(
@@ -2669,11 +2681,18 @@ def excluir_montagem(assembly_id: int):
             if item.peca:
                 item.peca.stock += item.quantidade_utilizada
 
+    should_delete_computer = False
     if computer and computer.category == 'Computador' and computer.stock <= 0:
         computer.stock = 0
-        computer.active = False
+        related_assemblies = ComputerAssembly.query.filter(
+            ComputerAssembly.id_computador == computer.id,
+            ComputerAssembly.id != assembly.id,
+        ).count()
+        should_delete_computer = related_assemblies == 0
 
     db.session.delete(assembly)
+    if should_delete_computer and computer:
+        db.session.delete(computer)
     db.session.commit()
     flash('Montagem excluída com sucesso!', 'success')
     return redirect(url_for('montar_pc'))
@@ -3412,11 +3431,9 @@ def vendas():
         for comp in assembly.composicao:
             if not comp.peca:
                 continue
-            pieces_sale_total += Decimal(comp.quantidade_utilizada) * Decimal(comp.peca.price or 0)
+            pieces_sale_total += Decimal(comp.quantidade_utilizada or 0) * Decimal(comp.peca.price or 0)
 
-        for custom in assembly.custom_parts:
-            pieces_sale_total += Decimal(custom.quantity or 0) * Decimal(custom.unit_cost or 0)
-
+        # Valor da montagem para venda deve considerar apenas o valor de venda das peças cadastradas.
         assembly_total_by_product[assembly.id_computador] = pieces_sale_total.quantize(Decimal('0.01'))
 
     if request.method == 'POST':
@@ -4445,6 +4462,10 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_socket VARCHAR(40)'))
     if 'motherboard_chipset' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_chipset VARCHAR(40)'))
+    if 'cabinet_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN cabinet_brand VARCHAR(60)'))
+    if 'cabinet_description' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN cabinet_description VARCHAR(180)'))
     db.session.execute(
         db.text(
             "UPDATE product SET stock = 0, active = 0, category = 'Serviço', price = 0, cost_price = 0 "
