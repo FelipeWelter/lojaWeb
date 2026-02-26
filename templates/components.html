@@ -24,10 +24,10 @@
       </div>
       <div class="field-stack multi-qty-field">
         <label>Quantidade</label>
-        <div class="qty-control" title="Quantidade">
-          <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
+        <div class="qty-control qty-control--compact" title="Quantidade">
+          <button type="button" class="qty-btn qty-decrease" data-action="decrease" aria-label="Diminuir">−</button>
           <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
-          <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
+          <button type="button" class="qty-btn qty-increase" data-action="increase" aria-label="Aumentar">+</button>
         </div>
       </div>
       <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>

@@ -183,8 +183,11 @@ class ComputerAssembly(db.Model):
     canceled_at = db.Column(db.DateTime, nullable=True)
     technical_notes = db.Column(db.Text, nullable=True)
     bios_updated = db.Column(db.Boolean, nullable=False, default=False)
+    bios_service_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     stress_test_done = db.Column(db.Boolean, nullable=False, default=False)
+    stress_test_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     os_installed = db.Column(db.Boolean, nullable=False, default=False)
+    os_install_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     performed_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
     computador = db.relationship('Product')
@@ -592,6 +595,21 @@ def _collect_selected_piece_inputs(form_data, prefix=''):
     return selected_piece_ids, custom_items
 
 
+def _read_optional_service_costs(form_data):
+    def _to_cost(field_name):
+        raw = (form_data.get(field_name) or '0').strip()
+        value = Decimal(raw or '0')
+        if value < 0:
+            raise ValueError('Valores de serviços técnicos devem ser maiores ou iguais a zero.')
+        return value.quantize(Decimal('0.01'))
+
+    return {
+        'bios_service_cost': _to_cost('bios_service_cost'),
+        'stress_test_cost': _to_cost('stress_test_cost'),
+        'os_install_cost': _to_cost('os_install_cost'),
+    }
+
+
 def _build_computer_with_parts(
     computer_name,
     original_price_new,
@@ -603,6 +621,9 @@ def _build_computer_with_parts(
     bios_updated=False,
     stress_test_done=False,
     os_installed=False,
+    bios_service_cost=Decimal('0.00'),
+    stress_test_cost=Decimal('0.00'),
+    os_install_cost=Decimal('0.00'),
     current_user=None,
 ):
     custom_items = custom_items or []
@@ -639,7 +660,9 @@ def _build_computer_with_parts(
                 raise ValueError(f"Custo inválido para peça personalizada: {custom_item['name']}")
             custo_total += Decimal(custom_item['qty']) * custom_item['unit_cost']
 
-        preco_sugerido = calcular_preco_sugerido(custo_total)
+        technical_services_cost = (bios_service_cost + stress_test_cost + os_install_cost).quantize(Decimal('0.01'))
+        custo_total = (custo_total + technical_services_cost).quantize(Decimal('0.01'))
+        preco_sugerido = calcular_preco_sugerido(custo_total, markup=Decimal('0.25'))
 
         if not computer:
             computer = Product(
@@ -685,8 +708,11 @@ def _build_computer_with_parts(
             preco_sugerido=preco_sugerido,
             technical_notes=(technical_notes or '').strip() or None,
             bios_updated=bios_updated,
+            bios_service_cost=bios_service_cost,
             stress_test_done=stress_test_done,
+            stress_test_cost=stress_test_cost,
             os_installed=os_installed,
+            os_install_cost=os_install_cost,
             performed_by_user_id=current_user.id if current_user else None,
         )
         db.session.add(montagem)
@@ -1223,6 +1249,7 @@ def remover_usuario(user_id: int):
 @app.route('/imprimir/<string:tipo>/<int:record_id>')
 @_login_required
 def imprimir(tipo: str, record_id: int):
+    assembly_data = None
     if tipo == 'venda':
         data = Sale.query.get_or_404(record_id)
         sale_items = data.items or []
@@ -1283,6 +1310,15 @@ def imprimir(tipo: str, record_id: int):
                 'installments': installment_lines,
             })
 
+        assembly_data = None
+        if data.product and data.product.category == 'Computador':
+            assembly_data = (
+                ComputerAssembly.query
+                .filter_by(id_computador=data.product.id)
+                .order_by(ComputerAssembly.created_at.desc())
+                .first()
+            )
+
         context = {
             'document_title': f'Recibo de Venda #{data.id}',
             'store_name': 'LojaWeb',
@@ -1318,6 +1354,7 @@ def imprimir(tipo: str, record_id: int):
             },
             'notes': f'Venda: {data.sale_name}',
             'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
+            'assembly_inline': assembly_data,
         }
     elif tipo == 'montagem':
         data = ComputerAssembly.query.get_or_404(record_id)
@@ -1352,8 +1389,7 @@ def imprimir(tipo: str, record_id: int):
             'client_name': data.nome_referencia or data.computador.name,
             'items': items,
             'subtotal': data.custo_total,
-            'total': data.preco_original + data.custo_total,
-            'sale_price': data.preco_sugerido,
+            'total': data.custo_total,
             'is_assembly_label': True,
             'assembly_name': data.nome_referencia or data.computador.name,
             'assembly_id': data.id,
@@ -1365,6 +1401,7 @@ def imprimir(tipo: str, record_id: int):
             },
             'notes': data.technical_notes or 'Sem observações técnicas.',
             'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
+            'assembly_inline': assembly_data,
         }
     elif tipo == 'manutencao':
         data = MaintenanceTicket.query.get_or_404(record_id)
@@ -1436,6 +1473,7 @@ def imprimir(tipo: str, record_id: int):
             },
             'notes': data.notes or f'Equipamento atendido: {data.equipment}',
             'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
+            'assembly_inline': assembly_data,
         }
     elif tipo == 'cliente_relatorio':
         client = Client.query.get_or_404(record_id)
@@ -2004,7 +2042,7 @@ def produtos():
                 flash(
                     f'Computador montado cadastrado! Preço base R$ {result["preco_original"]:.2f} + '
                     f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
-                    f'Preço sugerido R$ {result["preco_sugerido"]:.2f}.',
+                    f'Preço sugerido das peças avulsas (+25%) R$ {result["preco_sugerido"]:.2f}.',
                     'success',
                 )
             except ValueError as exc:
@@ -2331,6 +2369,7 @@ def montar_pc():
         bios_updated = request.form.get('bios_updated') == 'on'
         stress_test_done = request.form.get('stress_test_done') == 'on'
         os_installed = request.form.get('os_installed') == 'on'
+        optional_costs = _read_optional_service_costs(request.form)
         send_to_sales = request.form.get('send_to_sales') == 'on'
 
         try:
@@ -2345,13 +2384,16 @@ def montar_pc():
                 bios_updated=bios_updated,
                 stress_test_done=stress_test_done,
                 os_installed=os_installed,
+                bios_service_cost=optional_costs['bios_service_cost'],
+                stress_test_cost=optional_costs['stress_test_cost'],
+                os_install_cost=optional_costs['os_install_cost'],
                 current_user=current,
             )
             db.session.commit()
             flash(
                 f'Montagem concluída! Preço base R$ {result["preco_original"]:.2f} + '
                 f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
-                f'Preço sugerido R$ {result["preco_sugerido"]:.2f}.',
+                f'Preço sugerido das peças avulsas (+25%) R$ {result["preco_sugerido"]:.2f}.',
                 'success',
             )
             if send_to_sales and result.get('computer_id'):
@@ -2364,6 +2406,12 @@ def montar_pc():
         return redirect(url_for('montar_pc'))
 
     latest_assemblies = ComputerAssembly.query.order_by(ComputerAssembly.created_at.desc()).limit(20).all()
+    edit_assembly = None
+    edit_assembly_id = request.args.get('edit_assembly_id', type=int)
+    if edit_assembly_id:
+        edit_assembly = ComputerAssembly.query.get(edit_assembly_id)
+        if not edit_assembly:
+            flash('Montagem para edição não encontrada.', 'danger')
 
     return render_template(
         'assemble_pc.html',
@@ -2371,6 +2419,7 @@ def montar_pc():
         component_slots=COMPONENT_SLOTS,
         latest_assemblies=latest_assemblies,
         assembly_edit_data=_build_assembly_edit_data(latest_assemblies),
+        edit_assembly=edit_assembly,
     )
 
 
@@ -2383,13 +2432,13 @@ def editar_montagem(assembly_id: int):
         flash('Não é possível editar uma montagem cancelada.', 'danger')
         return redirect(url_for('montar_pc'))
 
-    nome_referencia = (request.form.get('nome_referencia') or '').strip()
+    nome_referencia = (request.form.get('computer_name') or '').strip()
     if not nome_referencia:
         flash('Informe um nome de referência para a montagem.', 'danger')
         return redirect(url_for('montar_pc'))
 
     try:
-        preco_original = Decimal(request.form.get('preco_original') or '0')
+        preco_original = Decimal(request.form.get('computer_original_price') or '0')
     except Exception:
         flash('Preço original inválido.', 'danger')
         return redirect(url_for('montar_pc'))
@@ -2398,7 +2447,8 @@ def editar_montagem(assembly_id: int):
         flash('Preço original não pode ser negativo.', 'danger')
         return redirect(url_for('montar_pc'))
 
-    selected_piece_ids, custom_items = _collect_selected_piece_inputs(request.form, prefix='edit_')
+    selected_piece_ids, custom_items = _collect_selected_piece_inputs(request.form)
+    optional_costs = _read_optional_service_costs(request.form)
     piece_counter_new = Counter(selected_piece_ids)
 
     try:
@@ -2435,13 +2485,21 @@ def editar_montagem(assembly_id: int):
             custo_total += Decimal(custom_item['qty']) * custom_item['unit_cost']
 
         assembly.nome_referencia = nome_referencia
+        technical_services_cost = (
+            optional_costs['bios_service_cost']
+            + optional_costs['stress_test_cost']
+            + optional_costs['os_install_cost']
+        ).quantize(Decimal('0.01'))
         assembly.preco_original = preco_original
-        assembly.custo_total = custo_total.quantize(Decimal('0.01'))
-        assembly.preco_sugerido = (Decimal(assembly.custo_total) * Decimal('1.20')).quantize(Decimal('0.01'))
+        assembly.custo_total = (custo_total + technical_services_cost).quantize(Decimal('0.01'))
+        assembly.preco_sugerido = calcular_preco_sugerido(assembly.custo_total, markup=Decimal('0.25'))
         assembly.technical_notes = (request.form.get('technical_notes') or '').strip() or None
         assembly.bios_updated = request.form.get('bios_updated') == 'on'
+        assembly.bios_service_cost = optional_costs['bios_service_cost']
         assembly.stress_test_done = request.form.get('stress_test_done') == 'on'
+        assembly.stress_test_cost = optional_costs['stress_test_cost']
         assembly.os_installed = request.form.get('os_installed') == 'on'
+        assembly.os_install_cost = optional_costs['os_install_cost']
 
         computer = assembly.computador
         if computer and computer.stock > 0:
@@ -2516,14 +2574,19 @@ def cancelar_montagem(assembly_id: int):
 def excluir_montagem(assembly_id: int):
     assembly = ComputerAssembly.query.get_or_404(assembly_id)
 
+    computer = assembly.computador
+
     if not assembly.canceled:
-        computer = assembly.computador
         if computer and computer.stock > 0:
             computer.stock -= 1
 
         for item in assembly.composicao:
             if item.peca:
                 item.peca.stock += item.quantidade_utilizada
+
+    if computer and computer.category == 'Computador' and computer.stock <= 0:
+        computer.stock = 0
+        computer.active = False
 
     db.session.delete(assembly)
     db.session.commit()
@@ -2549,6 +2612,15 @@ def servicos():
         if form_type == 'maintenance_ticket':
             client_name = (request.form.get('maintenance_client_name') or '').strip()
             client_phone = (request.form.get('maintenance_client_phone') or '').strip() or None
+            maintenance_client_id = (request.form.get('maintenance_client_id') or '').strip()
+            if maintenance_client_id:
+                try:
+                    maintenance_client = Client.query.get(int(maintenance_client_id))
+                except ValueError:
+                    maintenance_client = None
+                if maintenance_client:
+                    client_name = maintenance_client.name
+                    client_phone = maintenance_client.phone or client_phone
             equipment = (request.form.get('maintenance_equipment') or '').strip()
             service_description = (request.form.get('maintenance_service_description') or '').strip()
             customer_report = (request.form.get('maintenance_customer_report') or '').strip() or None
@@ -4414,10 +4486,16 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN technical_notes TEXT'))
     if 'bios_updated' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN bios_updated BOOLEAN NOT NULL DEFAULT 0'))
+    if 'bios_service_cost' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN bios_service_cost NUMERIC(10,2) NOT NULL DEFAULT 0'))
     if 'stress_test_done' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN stress_test_done BOOLEAN NOT NULL DEFAULT 0'))
+    if 'stress_test_cost' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN stress_test_cost NUMERIC(10,2) NOT NULL DEFAULT 0'))
     if 'os_installed' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN os_installed BOOLEAN NOT NULL DEFAULT 0'))
+    if 'os_install_cost' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN os_install_cost NUMERIC(10,2) NOT NULL DEFAULT 0'))
     if 'performed_by_user_id' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN performed_by_user_id INTEGER'))
     db.session.execute(
