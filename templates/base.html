@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='variables.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo-lojaweb.svg') }}" />
   </head>
   <body class="{% if request.endpoint == 'login' %}auth-page{% else %}dashboard-page{% endif %}">
     {% from 'fragments.html' import sidebar, navbar, toast_messages, scripts %}

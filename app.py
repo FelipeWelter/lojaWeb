@@ -1889,6 +1889,7 @@ def dashboard():
     sales_query = Sale.query.filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
     service_query = ServiceRecord.query.filter(ServiceRecord.created_at >= start_date)
     fixed_cost_query = FixedCost.query.filter(FixedCost.created_at >= start_date)
+    fixed_costs = fixed_cost_query.order_by(FixedCost.created_at.desc()).all()
     maintenance_query = MaintenanceTicket.query.filter(MaintenanceTicket.entry_date >= start_date)
 
     product_count = Product.query.count()
@@ -2066,6 +2067,7 @@ def dashboard():
         total_services_amount=total_services_amount,
         total_profit=total_profit,
         total_fixed_costs=total_fixed_costs,
+        fixed_costs=fixed_costs,
         net_profit=net_profit,
         maintenance_in_progress=maintenance_in_progress,
         maintenance_waiting_parts=maintenance_waiting_parts,
@@ -3269,6 +3271,44 @@ def cadastrar_custo_fixo():
     db.session.add(FixedCost(description=description, amount=amount))
     db.session.commit()
     flash('Custo fixo adicionado ao financeiro!', 'success')
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/dashboard/custos-fixos/<int:fixed_cost_id>/editar', methods=['POST'])
+@_login_required
+def editar_custo_fixo(fixed_cost_id: int):
+    fixed_cost = FixedCost.query.get_or_404(fixed_cost_id)
+    description = (request.form.get('description') or '').strip()
+    amount_raw = (request.form.get('amount') or '0').strip().replace(',', '.')
+
+    if not description:
+        flash('Informe a descrição do custo fixo.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    try:
+        amount = Decimal(amount_raw)
+    except InvalidOperation:
+        flash('Valor inválido para custo fixo.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if amount < 0:
+        flash('O valor do custo fixo não pode ser negativo.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    fixed_cost.description = description
+    fixed_cost.amount = amount.quantize(Decimal('0.01'))
+    db.session.commit()
+    flash('Custo fixo atualizado com sucesso!', 'success')
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/dashboard/custos-fixos/<int:fixed_cost_id>/excluir', methods=['POST'])
+@_login_required
+def excluir_custo_fixo(fixed_cost_id: int):
+    fixed_cost = FixedCost.query.get_or_404(fixed_cost_id)
+    db.session.delete(fixed_cost)
+    db.session.commit()
+    flash('Custo fixo excluído com sucesso!', 'success')
     return redirect(url_for('dashboard'))
 
 

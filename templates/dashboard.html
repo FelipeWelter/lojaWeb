@@ -79,6 +79,42 @@
     <input name="amount" type="number" min="0" step="0.01" placeholder="Valor" required />
     <button type="submit">Cadastrar custo fixo</button>
   </form>
+
+  <div style="margin-top: 1rem; overflow-x: auto;">
+    <table class="printable-table">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Descrição</th>
+          <th>Valor</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fixed_cost in fixed_costs %}
+        <tr>
+          <td>{{ fixed_cost.created_at.strftime('%d/%m/%Y') }}</td>
+          <td>{{ fixed_cost.description }}</td>
+          <td>R$ {{ '%.2f'|format(fixed_cost.amount) }}</td>
+          <td>
+            <form method="post" action="{{ url_for('editar_custo_fixo', fixed_cost_id=fixed_cost.id) }}" class="inline-form" style="display:flex; gap:6px; align-items:center; flex-wrap: wrap; margin-bottom: 6px;">
+              <input name="description" value="{{ fixed_cost.description }}" required placeholder="Descrição" />
+              <input name="amount" type="number" min="0" step="0.01" value="{{ '%.2f'|format(fixed_cost.amount) }}" required style="max-width: 120px;" />
+              <button type="submit" class="btn-secondary">Salvar</button>
+            </form>
+            <form method="post" action="{{ url_for('excluir_custo_fixo', fixed_cost_id=fixed_cost.id) }}" class="inline-form" onsubmit="return confirm('Deseja excluir este custo fixo?');">
+              <button type="submit" class="btn-danger">Excluir</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4">Nenhum custo fixo cadastrado no período.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
 
 <section class="dashboard-charts">

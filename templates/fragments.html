@@ -1,6 +1,8 @@
 {% macro sidebar(endpoint) %}
 <aside class="app-sidebar">
-  <h2>LojaWeb</h2>
+  <a href="{{ url_for('dashboard') }}" class="sidebar-brand" aria-label="LojaWeb">
+    <img src="{{ url_for('static', filename='logo-lojaweb.svg') }}" alt="LojaWeb" class="sidebar-logo" />
+  </a>
   <nav>
     <a href="{{ url_for('dashboard') }}" class="{% if endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
     <a href="{{ url_for('produtos') }}" class="{% if endpoint == 'produtos' %}active{% endif %}">Produtos</a>
@@ -17,9 +19,12 @@
 
 {% macro navbar(user_name) %}
 <header class="app-navbar">
-  <div>
-    <h1>Painel de Gestão</h1>
-    <small>Fluxo unificado para estoque e cadastro</small>
+  <div class="navbar-brand">
+    <img src="{{ url_for('static', filename='logo-lojaweb.svg') }}" alt="LojaWeb" class="navbar-logo" />
+    <div>
+      <h1>Painel de Gestão</h1>
+      <small>Fluxo unificado para estoque e cadastro</small>
+    </div>
   </div>
   <strong>{{ user_name or 'Operador' }}</strong>
 </header>
@@ -51,7 +56,20 @@
         if (typeof value === 'number' && Number.isFinite(value)) {
           return Math.round(value * 100);
         }
-        const normalized = String(value ?? '0').trim().replace(/\./g, '').replace(',', '.');
+
+        const raw = String(value ?? '0').trim().replace(/\s/g, '');
+        let normalized = raw;
+
+        if (raw.includes(',') && raw.includes('.')) {
+          normalized = raw.lastIndexOf(',') > raw.lastIndexOf('.')
+            ? raw.replace(/\./g, '').replace(',', '.')
+            : raw.replace(/,/g, '');
+        } else if (raw.includes(',')) {
+          normalized = raw.replace(/\./g, '').replace(',', '.');
+        } else {
+          normalized = raw.replace(/,/g, '');
+        }
+
         const parsed = Number.parseFloat(normalized);
         return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
       },
