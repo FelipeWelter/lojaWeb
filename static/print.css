@@ -182,3 +182,66 @@
     margin-top: 4px;
   }
 }
+
+@media print {
+  .app-sidebar,
+  .app-navbar,
+  .print-loading-overlay,
+  .actions-modal,
+  .actions-menu-trigger,
+  .charges-filter-bar,
+  .crm-toolbar {
+    display: none !important;
+  }
+
+  .app-shell,
+  .app-content,
+  .container,
+  .card,
+  .table-wrap {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  table {
+    width: 100% !important;
+    table-layout: auto !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  img {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  th,
+  td {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: break-word;
+    color: #111 !important;
+    border: 1px solid #777 !important;
+  }
+
+  .client-history-row,
+  .client-history-row.is-open {
+    display: table-row !important;
+  }
+
+  .client-history-accordion {
+    max-height: none !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    padding: 6px !important;
+    gap: 8px !important;
+  }
+}

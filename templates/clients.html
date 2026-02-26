@@ -8,30 +8,32 @@
 </section>
 
 <section class="card">
-  <h2>Novo cliente</h2>
+  <h2>{{ "Editar cliente" if editing_client else "Novo cliente" }}</h2>
   <form method="post" action="{{ url_for('mesclar_clientes') }}" class="grid form-grid crm-form-grid" style="margin-bottom:1rem;">
     <label><span>Mesclar cliente origem (ID)</span><input name="source_client_id" type="number" min="1" required></label>
     <label><span>No cliente destino (ID)</span><input name="target_client_id" type="number" min="1" required></label>
     <button type="submit" class="btn-loja btn-loja--secondary">Mesclar históricos</button>
   </form>
   <form method="post" class="grid form-grid crm-form-grid">
+    <input type="hidden" name="client_id" value="{{ editing_client.id if editing_client else "" }}" />
     <label>
       <span>Nome</span>
-      <input name="name" placeholder="Nome completo" required />
+      <input name="name" placeholder="Nome completo" value="{{ editing_client.name if editing_client else "" }}" required />
     </label>
     <label>
       <span>CPF/CNPJ</span>
-      <input name="cpf" placeholder="000.000.000-00" />
+      <input name="cpf" placeholder="000.000.000-00" value="{{ editing_client.cpf if editing_client else "" }}" />
     </label>
     <label>
       <span>WhatsApp</span>
-      <input name="phone" placeholder="(11) 99999-9999" />
+      <input name="phone" placeholder="(11) 99999-9999" value="{{ editing_client.phone if editing_client else "" }}" />
     </label>
     <label>
       <span>E-mail</span>
-      <input name="email" type="email" placeholder="cliente@email.com" />
+      <input name="email" type="email" placeholder="cliente@email.com" value="{{ editing_client.email if editing_client else "" }}" />
     </label>
-    <button type="submit" class="btn-loja btn-loja--primary btn-primary"><span aria-hidden="true">＋</span> Novo Cliente</button>
+    <button type="submit" class="btn-loja btn-loja--primary btn-primary"><span aria-hidden="true">{{ "✎" if editing_client else "＋" }}</span> {{ "Salvar alterações" if editing_client else "Novo Cliente" }}</button>
+    {% if editing_client %}<a class="btn-loja btn-loja--secondary" href="{{ url_for('clientes') }}">Cancelar edição</a>{% endif %}
   </form>
 </section>
 
@@ -59,7 +61,7 @@
           <td>{{ c.email or '-' }}</td>
           <td>
             <div class="table-actions table-actions--client">
-              <a class="btn-loja btn-loja--secondary btn-premium btn-premium-icon btn-ghost" href="{{ url_for('editar_cliente', client_id=c.id) }}" title="Editar cliente" aria-label="Editar cliente">✏️</a>
+              <a class="btn-loja btn-loja--secondary btn-premium btn-premium-icon btn-ghost" href="{{ url_for('clientes', edit_client_id=c.id) }}" title="Editar cliente" aria-label="Editar cliente">✏️</a>
               <button type="button" class="btn-loja btn-loja--secondary btn-premium btn-premium-icon btn-ghost accordion-toggle" data-target="history-{{ c.id }}" aria-expanded="false" title="Ver histórico" aria-label="Ver histórico">👁️</button>
               <a class="btn-loja btn-loja--secondary btn-premium btn-premium-print js-print-trigger" href="{{ url_for('imprimir', tipo='cliente_relatorio', record_id=c.id, scope='inadimplentes', via='cliente') }}" target="_blank" title="Imprimir ficha do cliente" aria-label="Imprimir ficha do cliente">🖨️</a>
               <form method="post" action="{{ url_for('remover_cliente', client_id=c.id) }}" onsubmit="return confirm('Deseja remover este cliente?');">

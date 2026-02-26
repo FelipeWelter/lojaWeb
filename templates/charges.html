@@ -254,6 +254,15 @@
   const actionsToggleButtons = document.querySelectorAll('.js-actions-toggle');
   const actionsCloseButtons = document.querySelectorAll('.js-actions-close');
 
+
+  function toCents(value) {
+    return window.decimalMath?.toCents?.(value) || 0;
+  }
+
+  function fromCents(cents) {
+    return window.decimalMath?.fromCents?.(cents) || (Number(cents || 0) / 100);
+  }
+
   function closeActionMenus(exceptMenuId = null) {
     actionsToggleButtons.forEach((button) => {
       const menuId = button.dataset.menuId;
@@ -279,30 +288,30 @@
     });
   }
 
-  function selectedTotal(selectEl) {
+  function selectedTotalCents(selectEl) {
     const option = selectEl?.selectedOptions?.[0];
-    return Number((option?.dataset?.total || '0').replace(',', '.')) || 0;
+    return toCents(option?.dataset?.total || '0');
   }
 
   function syncChargeAmountFromSource() {
-    const total = Math.max(selectedTotal(saleSelect), selectedTotal(serviceSelect));
-    const discount = Number((discountInput?.value || '0').replace(',', '.')) || 0;
-    const finalValue = Math.max(0, total - discount);
-    if (sourceTotalInput) sourceTotalInput.value = total.toFixed(2);
-    if (amountInput) amountInput.value = finalValue.toFixed(2);
+    const totalCents = Math.max(selectedTotalCents(saleSelect), selectedTotalCents(serviceSelect));
+    const discountCents = toCents(discountInput?.value || '0');
+    const finalCents = Math.max(0, totalCents - discountCents);
+    if (sourceTotalInput) sourceTotalInput.value = fromCents(totalCents).toFixed(2);
+    if (amountInput) amountInput.value = fromCents(finalCents).toFixed(2);
     updateInstallmentPreview();
   }
 
   function updateInstallmentPreview() {
-    const amount = Number((amountInput?.value || '0').replace(',', '.')) || 0;
+    const amountCents = toCents(amountInput?.value || '0');
     const isInstallment = Boolean(installmentCheck?.checked);
     let count = Number(installmentCountInput?.value || 1);
     if (!Number.isFinite(count) || count < 1) count = 1;
     if (!isInstallment) count = 1;
     if (installmentCountInput) installmentCountInput.disabled = !isInstallment;
 
-    const part = count > 0 ? amount / count : amount;
-    installmentPreview.textContent = `Parcela: ${part.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+    const partCents = count > 0 ? Math.floor(amountCents / count) : amountCents;
+    installmentPreview.textContent = `Parcela: ${(window.decimalMath?.formatBRLFromCents?.(partCents)) || fromCents(partCents).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
   }
 
   [filterClient, filterMonth].forEach((el) => {
