@@ -158,8 +158,21 @@
             </td>
             <td>
               {% if charge_balance(c) > 0 and c.status != 'cancelado' %}
-              <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
-                <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento integral</button>
+              <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}" class="inline-form" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                {% set installments = finance_installments.get(c.id, []) %}
+                {% if installments %}
+                <select name="installment_number" required>
+                  <option value="">Parcela paga</option>
+                  {% for item in installments %}
+                  {% set parcel_balance = (item.amount or 0) - (item.amount_paid or 0) %}
+                  {% if parcel_balance > 0 %}
+                  <option value="{{ item.installment_number }}">{{ item.installment_number }}ª parcela (saldo R$ {{ '%.2f'|format(parcel_balance) }})</option>
+                  {% endif %}
+                  {% endfor %}
+                </select>
+                {% endif %}
+                <input type="number" name="amount_paid" min="0.01" step="0.01" value="{{ '%.2f'|format(charge_balance(c)) }}" required />
+                <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
               </form>
               {% else %}
               <span class="badge success">Sem pendências</span>

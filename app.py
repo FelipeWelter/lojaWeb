@@ -3752,6 +3752,52 @@ def confirmar_cobranca(charge_id: int):
     charge = Charge.query.get_or_404(charge_id)
     _ensure_charge_installments(charge)
     installments = _charge_installments(charge)
+    installment_number_raw = (request.form.get('installment_number') or '').strip()
+    amount_raw = (request.form.get('amount_paid') or '').strip().replace(',', '.')
+
+    if amount_raw:
+        try:
+            amount = Decimal(amount_raw).quantize(Decimal('0.01'))
+        except InvalidOperation:
+            flash('Valor inválido para confirmação de pagamento.', 'danger')
+            return redirect(request.referrer or url_for('cobrancas'))
+
+        if amount <= 0:
+            flash('Informe um valor maior que zero para confirmar o pagamento.', 'danger')
+            return redirect(request.referrer or url_for('cobrancas'))
+
+        if installments:
+            if not installment_number_raw:
+                flash('Selecione a parcela paga para vendas parceladas.', 'danger')
+                return redirect(request.referrer or url_for('cobrancas'))
+
+            try:
+                installment_number = int(installment_number_raw)
+            except ValueError:
+                flash('Parcela inválida para confirmação de pagamento.', 'danger')
+                return redirect(request.referrer or url_for('cobrancas'))
+
+            installment = ChargeInstallment.query.filter_by(
+                charge_id=charge.id,
+                installment_number=installment_number,
+            ).first()
+            if not installment:
+                flash('Parcela não encontrada para esta cobrança.', 'danger')
+                return redirect(request.referrer or url_for('cobrancas'))
+
+            max_amount = Decimal(installment.amount or 0).quantize(Decimal('0.01'))
+            installment.amount_paid = min(max_amount, (Decimal(installment.amount_paid or 0) + amount).quantize(Decimal('0.01')))
+        else:
+            charge_total = _charge_total_amount(charge)
+            charge.amount_paid = min(charge_total, (Decimal(charge.amount_paid or 0) + amount).quantize(Decimal('0.01')))
+
+        _normalize_charge_status(charge)
+        if charge.service_id and charge.status == 'confirmado':
+            _sync_service_ticket_status(charge.service_id)
+
+        db.session.commit()
+        flash('Pagamento registrado com sucesso!', 'success')
+        return redirect(request.referrer or url_for('cobrancas'))
 
     if installments:
         for item in installments:
