@@ -657,7 +657,7 @@ def _build_computer_with_parts(
         for piece_id, qty in piece_counter.items():
             piece = pieces_by_id[piece_id]
             piece.stock -= qty
-            custo_total += Decimal(qty) * (piece.cost_price or piece.price)
+            custo_total += Decimal(qty) * Decimal(piece.price or 0)
 
         for custom_item in custom_items:
             if custom_item['unit_cost'] < 0:
@@ -1889,6 +1889,7 @@ def dashboard():
     sales_query = Sale.query.filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
     service_query = ServiceRecord.query.filter(ServiceRecord.created_at >= start_date)
     fixed_cost_query = FixedCost.query.filter(FixedCost.created_at >= start_date)
+    fixed_costs = fixed_cost_query.order_by(FixedCost.created_at.desc()).all()
     maintenance_query = MaintenanceTicket.query.filter(MaintenanceTicket.entry_date >= start_date)
 
     product_count = Product.query.count()
@@ -2066,6 +2067,7 @@ def dashboard():
         total_services_amount=total_services_amount,
         total_profit=total_profit,
         total_fixed_costs=total_fixed_costs,
+        fixed_costs=fixed_costs,
         net_profit=net_profit,
         maintenance_in_progress=maintenance_in_progress,
         maintenance_waiting_parts=maintenance_waiting_parts,
@@ -2574,7 +2576,7 @@ def editar_montagem(assembly_id: int):
         for piece_id, qty in piece_counter_new.items():
             piece = pieces_by_id[piece_id]
             piece.stock -= qty
-            custo_total += Decimal(qty) * (piece.cost_price or piece.price)
+            custo_total += Decimal(qty) * Decimal(piece.price or 0)
 
         for custom_item in custom_items:
             if custom_item['unit_cost'] < 0:
@@ -3272,6 +3274,44 @@ def cadastrar_custo_fixo():
     return redirect(url_for('dashboard'))
 
 
+@app.route('/dashboard/custos-fixos/<int:fixed_cost_id>/editar', methods=['POST'])
+@_login_required
+def editar_custo_fixo(fixed_cost_id: int):
+    fixed_cost = FixedCost.query.get_or_404(fixed_cost_id)
+    description = (request.form.get('description') or '').strip()
+    amount_raw = (request.form.get('amount') or '0').strip().replace(',', '.')
+
+    if not description:
+        flash('Informe a descrição do custo fixo.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    try:
+        amount = Decimal(amount_raw)
+    except InvalidOperation:
+        flash('Valor inválido para custo fixo.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    if amount < 0:
+        flash('O valor do custo fixo não pode ser negativo.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    fixed_cost.description = description
+    fixed_cost.amount = amount.quantize(Decimal('0.01'))
+    db.session.commit()
+    flash('Custo fixo atualizado com sucesso!', 'success')
+    return redirect(url_for('dashboard'))
+
+
+@app.route('/dashboard/custos-fixos/<int:fixed_cost_id>/excluir', methods=['POST'])
+@_login_required
+def excluir_custo_fixo(fixed_cost_id: int):
+    fixed_cost = FixedCost.query.get_or_404(fixed_cost_id)
+    db.session.delete(fixed_cost)
+    db.session.commit()
+    flash('Custo fixo excluído com sucesso!', 'success')
+    return redirect(url_for('dashboard'))
+
+
 @app.route('/clientes', methods=['GET', 'POST'])
 @_login_required
 def clientes():
@@ -3597,6 +3637,8 @@ def vendas():
                 )
             )
 
+        _deactivate_sold_assembled_products(sale)
+
         charge_reference = (request.form.get('charge_reference') or '').strip() or f'VENDA-{sale.id}'
         installment_count_raw = (request.form.get('installment_count') or '1').strip()
         try:
@@ -3624,6 +3666,9 @@ def vendas():
         db.session.flush()
         _ensure_charge_installments(charge, due_dates=installment_due_dates)
         _normalize_charge_status(charge)
+
+        if sale and _is_sale_finalized_by_payment(sale, [charge]):
+            _delete_paid_sold_assembled_products(sale)
 
         db.session.commit()
         flash('Venda registrada com sucesso e enviada para o fluxo financeiro!', 'success')
@@ -3728,8 +3773,12 @@ def cancelar_venda(sale_id: int):
             for line in sale.items:
                 if line.line_type == 'produto' and line.product:
                     line.product.stock += line.quantity
+                    if line.product.category == 'Computador':
+                        line.product.active = True
         elif sale.product:
             sale.product.stock += sale.quantity
+            if sale.product.category == 'Computador':
+                sale.product.active = True
         sale.canceled = True
         sale.canceled_at = datetime.utcnow()
 
@@ -3956,6 +4005,44 @@ def _sync_service_ticket_status(service_id: int | None):
 
 def _is_service_fully_delivered(service: ServiceRecord, charges: list[Charge]) -> bool:
     return _is_service_finalized_by_payment(service, charges) and service.delivery_status == 'entregue'
+
+
+def _deactivate_sold_assembled_products(sale: Sale):
+    if not sale:
+        return
+
+    for line in sale.items or []:
+        if line.line_type != 'produto' or not line.product:
+            continue
+        if line.product.category != 'Computador':
+            continue
+        line.product.active = False
+
+
+def _delete_paid_sold_assembled_products(sale: Sale):
+    if not sale:
+        return
+
+    sale_items = sale.items or []
+    for line in sale_items:
+        if line.line_type != 'produto' or not line.product:
+            continue
+        if line.product.category != 'Computador':
+            continue
+
+        product = line.product
+        if (product.stock or 0) > 0:
+            continue
+
+        sale_line_refs = SaleItem.query.filter_by(product_id=product.id).all()
+        for sale_line in sale_line_refs:
+            sale_line.product_id = None
+
+        assembly_records = ComputerAssembly.query.filter_by(id_computador=product.id).all()
+        for assembly in assembly_records:
+            db.session.delete(assembly)
+
+        db.session.delete(product)
 
 
 
@@ -4192,6 +4279,8 @@ def confirmar_cobranca(charge_id: int):
         _normalize_charge_status(charge)
         if charge.service_id and charge.status == 'confirmado':
             _sync_service_ticket_status(charge.service_id)
+        if charge.sale_id and charge.status == 'confirmado':
+            _delete_paid_sold_assembled_products(charge.sale)
 
         db.session.commit()
         flash('Pagamento registrado com sucesso!', 'success')
@@ -4209,6 +4298,8 @@ def confirmar_cobranca(charge_id: int):
 
     if charge.service_id:
         _sync_service_ticket_status(charge.service_id)
+    if charge.sale_id and charge.status == 'confirmado':
+        _delete_paid_sold_assembled_products(charge.sale)
 
     db.session.commit()
     flash('Pagamento confirmado!', 'success')

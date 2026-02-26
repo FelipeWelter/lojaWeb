@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 180" role="img" aria-labelledby="title desc">
+  <title id="title">Logo LojaWeb</title>
+  <desc id="desc">Logotipo LojaWeb com ícone de carrinho e tipografia em azul e turquesa.</desc>
+  <defs>
+    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#123A80" />
+      <stop offset="100%" stop-color="#13C5BD" />
+    </linearGradient>
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#153A81" />
+      <stop offset="100%" stop-color="#14B7B5" />
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="544" height="164" rx="22" fill="#ffffff"/>
+  <path d="M70 42v62c0 22 18 40 40 40h2c17 0 31-13 32-30l2-27 17 43c4 8 12 14 21 14s17-5 21-14l18-44 17 44c3 8 12 14 21 14s17-6 21-14l11-26c4-9 0-20-9-24-9-4-20 0-24 9l-2 5-16-40c-4-9-12-15-22-15s-19 6-23 15l-16 39-14-35c-4-11-15-19-27-19h-7l-1 17c-1 9-8 17-18 17h-2c-5 0-9-4-9-9V42c0-10-8-18-18-18s-18 8-18 18z" fill="url(#brandGradient)"/>
+  <g fill="#153A81">
+    <path d="M211 42c-7 0-12 5-12 12s5 12 12 12h15l10 35h53c6 0 11-4 12-10l7-28c2-7-4-14-11-14h-56l-4-9c-2-5-6-8-11-8h-15z"/>
+    <circle cx="249" cy="115" r="10"/>
+    <circle cx="288" cy="115" r="10"/>
+  </g>
+
+  <text x="66" y="146" font-size="66" font-family="Arial, Helvetica, sans-serif" font-weight="800" fill="url(#textGradient)">LOJAWEB</text>
+</svg>

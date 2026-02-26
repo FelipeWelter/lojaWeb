@@ -2687,3 +2687,52 @@ input[type="number"] {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+/* Brand logo */
+.sidebar-brand {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.sidebar-logo {
+  width: 100%;
+  max-width: 190px;
+  height: auto;
+  display: block;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.navbar-logo {
+  width: 120px;
+  max-width: 35vw;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+  background: #fff;
+}
+
+.login-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: .4rem;
+}
+
+.login-logo {
+  width: min(280px, 80%);
+  height: auto;
+  border-radius: 16px;
+  background: #fff;
+  padding: .4rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 900px) {
+  .navbar-logo {
+    width: 88px;
+  }
+}
