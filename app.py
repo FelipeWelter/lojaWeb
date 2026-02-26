@@ -96,7 +96,7 @@ class Product(db.Model):
 
         add_spec('Classe', COMPONENT_CLASS_LABELS.get(self.component_class, self.component_class or ''))
         add_spec('Fabricante', self.motherboard_brand or self.cpu_manufacturer or self.gpu_manufacturer)
-        add_spec('Marca', self.cpu_brand or self.ram_brand or self.gpu_brand or self.storage_brand or self.psu_brand)
+        add_spec('Marca', self.ram_brand or self.gpu_brand or self.storage_brand or self.psu_brand)
         add_spec('Modelo', self.motherboard_model or self.cpu_model)
         add_spec('Socket', self.motherboard_socket)
         add_spec('Chipset', self.motherboard_chipset)
@@ -875,6 +875,41 @@ def _build_maintenance_parts_items(form_data, *, allow_single_fallback: bool = F
 
     return parts_items
 
+
+
+
+def _generate_piece_name(component_class: str | None, form_data) -> str:
+    class_label = COMPONENT_CLASS_LABELS.get(component_class, 'Peça')
+
+    def clean(field: str) -> str:
+        return (form_data.get(field) or '').strip()
+
+    specs: list[str] = []
+    if component_class == 'memoria_ram':
+        specs = [clean('ram_brand'), clean('ram_size'), clean('ram_ddr'), clean('ram_frequency')]
+    elif component_class == 'processador':
+        specs = [clean('cpu_manufacturer'), clean('cpu_model')]
+    elif component_class == 'placa_mae':
+        specs = [clean('motherboard_brand'), clean('motherboard_model'), clean('motherboard_socket'), clean('motherboard_chipset')]
+    elif component_class == 'placa_video':
+        specs = [clean('gpu_brand'), clean('gpu_memory'), clean('gpu_manufacturer')]
+    elif component_class == 'armazenamento':
+        specs = [clean('storage_brand'), clean('storage_type'), clean('storage_capacity')]
+    elif component_class == 'fonte':
+        specs = [clean('psu_brand'), clean('psu_watts')]
+
+    specs = [item for item in specs if item]
+    serial = clean('serial_number')
+
+    if specs:
+        generated = f"{class_label} {' '.join(specs)}"
+    else:
+        generated = class_label
+
+    if serial:
+        generated = f"{generated} SN:{serial}"
+
+    return generated[:120].strip()
 
 DEFAULT_MAINTENANCE_CHECKLIST = [
     'Limpeza interna',
@@ -2114,8 +2149,10 @@ def produtos():
                 flash(str(exc), 'danger')
                 return redirect(url_for('produtos'))
 
+        generated_piece_name = _generate_piece_name(component_class, request.form) if category == 'Peça' else (request.form.get('name') or '').strip()
+
         product_dto = ProductDTO(
-            name=request.form['name'],
+            name=generated_piece_name,
             category=category,
             stock=int(request.form['stock']),
             price=_to_money_decimal(request.form.get('price')),
@@ -2145,7 +2182,7 @@ def produtos():
             storage_type=(request.form.get('storage_type') or '').strip() or None,
             storage_capacity=(request.form.get('storage_capacity') or '').strip() or None,
             storage_brand=(request.form.get('storage_brand') or '').strip() or None,
-            cpu_brand=(request.form.get('cpu_brand') or '').strip() or None,
+            cpu_brand=None,
             cpu_manufacturer=(request.form.get('cpu_manufacturer') or '').strip() or None,
             cpu_model=(request.form.get('cpu_model') or '').strip() or None,
             motherboard_brand=(request.form.get('motherboard_brand') or '').strip() or None,
@@ -2225,11 +2262,6 @@ def editar_produto(product_id: int):
     fallback_edit_url = url_for('produtos', edit_product_id=product.id, return_to=return_to) if return_to else url_for('produtos', edit_product_id=product.id)
     success_redirect = return_to or url_for('produtos')
 
-    name = (request.form.get('name') or '').strip()
-    if not name:
-        flash('Informe o nome do produto.', 'danger')
-        return redirect(fallback_edit_url)
-
     category = request.form.get('category') or product.category
     component_class = request.form.get('component_class') or None
 
@@ -2242,7 +2274,7 @@ def editar_produto(product_id: int):
     old_price = Decimal(product.price)
     new_price = _to_money_decimal(request.form.get('price'))
 
-    product.name = name
+    product.name = _generate_piece_name(component_class, request.form) if category == 'Peça' else (request.form.get('name') or product.name).strip()
     product.category = category
     product.stock = int(request.form.get('stock') or 0)
     product.price = new_price
@@ -2273,8 +2305,7 @@ def editar_produto(product_id: int):
         product.storage_capacity = (request.form.get('storage_capacity') or '').strip() or None
     if 'storage_brand' in request.form:
         product.storage_brand = (request.form.get('storage_brand') or '').strip() or None
-    if 'cpu_brand' in request.form:
-        product.cpu_brand = (request.form.get('cpu_brand') or '').strip() or None
+    product.cpu_brand = None
     if 'cpu_manufacturer' in request.form:
         product.cpu_manufacturer = (request.form.get('cpu_manufacturer') or '').strip() or None
     if 'cpu_model' in request.form:
@@ -2360,12 +2391,16 @@ def _build_assembly_edit_data(latest_assemblies):
             if slot_multiple.get(slot_key):
                 multi_rows.setdefault(slot_key, []).append({
                     'piece_id': item.id_peca,
+                    'piece_name': item.peca.name,
                     'qty': item.quantidade_utilizada,
                     'custom_name': '',
                     'custom_cost': '0',
                 })
             else:
-                single_selected[slot_key] = item.id_peca
+                single_selected[slot_key] = {
+                    'piece_id': item.id_peca,
+                    'piece_name': item.peca.name,
+                }
 
         for custom in assembly.custom_parts:
             if slot_multiple.get(custom.slot_key):
@@ -2383,7 +2418,7 @@ def _build_assembly_edit_data(latest_assemblies):
 
         for slot_key in list(multi_rows.keys()):
             if not multi_rows[slot_key]:
-                multi_rows[slot_key].append({'piece_id': '', 'qty': 1, 'custom_name': '', 'custom_cost': '0'})
+                multi_rows[slot_key].append({'piece_id': '', 'piece_name': '', 'qty': 1, 'custom_name': '', 'custom_cost': '0'})
 
         data[assembly.id] = {
             'single_selected': single_selected,
@@ -2459,12 +2494,16 @@ def montar_pc():
         if not edit_assembly:
             flash('Montagem para edição não encontrada.', 'danger')
 
+    assemblies_for_edit_data = list(latest_assemblies)
+    if edit_assembly and all(item.id != edit_assembly.id for item in assemblies_for_edit_data):
+        assemblies_for_edit_data.append(edit_assembly)
+
     return render_template(
         'assemble_pc.html',
         parts_by_class=parts_by_class,
         component_slots=COMPONENT_SLOTS,
         latest_assemblies=latest_assemblies,
-        assembly_edit_data=_build_assembly_edit_data(latest_assemblies),
+        assembly_edit_data=_build_assembly_edit_data(assemblies_for_edit_data),
         edit_assembly=edit_assembly,
     )
 
@@ -3366,8 +3405,19 @@ def vendas():
     )
     assembly_total_by_product = {}
     for assembly in latest_assemblies:
-        if assembly.id_computador not in assembly_total_by_product:
-            assembly_total_by_product[assembly.id_computador] = Decimal(assembly.custo_total or 0).quantize(Decimal('0.01'))
+        if assembly.id_computador in assembly_total_by_product:
+            continue
+
+        pieces_sale_total = Decimal('0.00')
+        for comp in assembly.composicao:
+            if not comp.peca:
+                continue
+            pieces_sale_total += Decimal(comp.quantidade_utilizada) * Decimal(comp.peca.price or 0)
+
+        for custom in assembly.custom_parts:
+            pieces_sale_total += Decimal(custom.quantity or 0) * Decimal(custom.unit_cost or 0)
+
+        assembly_total_by_product[assembly.id_computador] = pieces_sale_total.quantize(Decimal('0.01'))
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()

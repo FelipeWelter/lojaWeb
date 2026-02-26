@@ -2634,3 +2634,13 @@ input[type="number"] {
   min-height: 32px;
   font-weight: 600;
 }
+
+.suggested-price-hint {
+  margin: -6px 0 4px;
+  color: #334155;
+  font-size: 0.92rem;
+}
+
+.suggested-price-hint strong {
+  color: #1d4ed8;
+}

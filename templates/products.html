@@ -41,8 +41,9 @@
     <div class="product-zone-grid full-width">
       <section class="form-zone zone-identity">
         <h3>3) Dados principais</h3>
-        <label>Nome da peça<input name="name" placeholder="Ex: Memória Kingston Fury 16GB" value="{{ edit_product.name if edit_product else "" }}" required /></label>
-        <label>Número de Série (S/N)<input name="serial_number" placeholder="Número de Série (S/N)" value="{{ edit_product.serial_number if edit_product else "" }}" /></label>
+        <input type="hidden" name="name" id="piece-name-hidden" value="{{ edit_product.name if edit_product else "" }}" />
+        <p class="suggested-price-hint">Nome automático da peça: <strong id="piece-name-preview">{{ edit_product.name if edit_product else "Será gerado automaticamente" }}</strong></p>
+        <label>Número de Série (S/N)<input name="serial_number" id="serial-number-input" placeholder="Número de Série (S/N)" value="{{ edit_product.serial_number if edit_product else "" }}" /></label>
       </section>
 
       <section class="form-zone zone-meta">
@@ -78,8 +79,7 @@
               <option value="AMD" {% if edit_product and edit_product.cpu_manufacturer == "AMD" %}selected{% endif %}>AMD</option>
             </select>
           </label>
-          <label>Marca<input name="cpu_brand" placeholder="Ex: Ryzen / Core" value="{{ edit_product.cpu_brand if edit_product else "" }}" /></label>
-          <label>Modelo<input name="cpu_model" placeholder="Ex: Ryzen 5 5600" value="{{ edit_product.cpu_model if edit_product else "" }}" /></label>
+                    <label>Modelo<input name="cpu_model" placeholder="Ex: Ryzen 5 5600" value="{{ edit_product.cpu_model if edit_product else "" }}" /></label>
         </div>
 
         <div id="motherboard-fields" class="component-extra-fields" hidden style="display:none;">
@@ -128,6 +128,7 @@
         <h3>5) Valores</h3>
         <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.cost_price) if edit_product else "0,00" }}" required /></div></label>
         <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.price) if edit_product else "0,00" }}" required /></div></label>
+        <p class="suggested-price-hint">Sugestão com margem de 25%: <strong id="suggested-price">R$ 0,00</strong></p>
         <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" /></div></label>
         <label>Margem de lucro (%)<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
       </section>
@@ -193,7 +194,7 @@
 
     const helpMap = {
       memoria_ram: 'RAM: tecnologia DDR, frequência, marca e capacidade. RAM não usa campos de armazenamento.',
-      processador: 'Processador: preencha fabricante, marca e modelo.',
+      processador: 'Processador: preencha fabricante e modelo.',
       placa_mae: 'Placa-mãe: preencha marca, modelo, socket e chipset.',
       fonte: 'Fonte: informe marca e potência real.',
       placa_video: 'GPU: informe memória, fabricante da GPU e marca parceira.',
@@ -242,9 +243,12 @@
     const freight = parseMoneyValue(document.getElementById('freight-input')?.value || 0);
     const price = parseMoneyValue(document.getElementById('price-input')?.value || 0);
     const margin = calculateProfitMargin({ cost, freight, price });
+    const suggestedPrice = (cost + freight) * 1.25;
     const marginInput = document.getElementById('margin-input');
     const pill = document.getElementById('margin-pill');
+    const suggestedPriceEl = document.getElementById('suggested-price');
     if (marginInput) marginInput.value = margin.toFixed(2).replace('.', ',');
+    if (suggestedPriceEl) suggestedPriceEl.textContent = `R$ ${suggestedPrice.toFixed(2).replace('.', ',')}`;
     if (!pill) return;
     pill.textContent = `${margin.toFixed(2).replace('.', ',')}%`;
     pill.classList.remove('ok', 'warn', 'bad');
@@ -253,8 +257,41 @@
     else pill.classList.add('ok');
   }
 
+  function updateGeneratedPieceName() {
+    const selectedClass = classSelect.value;
+    const classLabel = classLabels[selectedClass] || 'Peça';
+
+    const pick = (selector) => (pieceForm?.querySelector(selector)?.value || '').trim();
+    let parts = [];
+    if (selectedClass === 'memoria_ram') {
+      parts = [pick('input[name="ram_brand"]'), pick('input[name="ram_size"]'), pick('select[name="ram_ddr"]'), pick('input[name="ram_frequency"]')];
+    } else if (selectedClass === 'processador') {
+      parts = [pick('select[name="cpu_manufacturer"]'), pick('input[name="cpu_model"]')];
+    } else if (selectedClass === 'placa_mae') {
+      parts = [pick('input[name="motherboard_brand"]'), pick('input[name="motherboard_model"]'), pick('input[name="motherboard_socket"]'), pick('input[name="motherboard_chipset"]')];
+    } else if (selectedClass === 'placa_video') {
+      parts = [pick('input[name="gpu_brand"]'), pick('input[name="gpu_memory"]'), pick('input[name="gpu_manufacturer"]')];
+    } else if (selectedClass === 'armazenamento') {
+      parts = [pick('input[name="storage_brand"]'), pick('select[name="storage_type"]'), pick('input[name="storage_capacity"]')];
+    } else if (selectedClass === 'fonte') {
+      parts = [pick('input[name="psu_brand"]'), pick('input[name="psu_watts"]')];
+    }
+
+    parts = parts.filter(Boolean);
+    let generated = parts.length ? `${classLabel} ${parts.join(' ')}` : classLabel;
+    const serial = (document.getElementById('serial-number-input')?.value || '').trim();
+    if (serial) generated += ` SN:${serial}`;
+
+    generated = generated.slice(0, 120).trim();
+    const hidden = document.getElementById('piece-name-hidden');
+    const preview = document.getElementById('piece-name-preview');
+    if (hidden) hidden.value = generated;
+    if (preview) preview.textContent = generated || 'Será gerado automaticamente';
+  }
+
   function scheduleMarginUpdate() {
     window.requestAnimationFrame(updateMarginRealtime);
+    window.requestAnimationFrame(updateGeneratedPieceName);
   }
 
   choosePieceBtn.addEventListener('click', activatePieceFlow);
@@ -263,6 +300,12 @@
   document.getElementById('cost-input')?.addEventListener('input', scheduleMarginUpdate);
   document.getElementById('freight-input')?.addEventListener('input', scheduleMarginUpdate);
   document.getElementById('price-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('serial-number-input')?.addEventListener('input', scheduleMarginUpdate);
+  pieceForm?.querySelectorAll('input, select').forEach((field) => {
+    if (field.id === 'cost-input' || field.id === 'freight-input' || field.id === 'price-input') return;
+    field.addEventListener('input', scheduleMarginUpdate);
+    field.addEventListener('change', scheduleMarginUpdate);
+  });
 
   document.querySelectorAll('.js-clear-prefill').forEach((input) => {
     input.addEventListener('focus', () => {
@@ -280,5 +323,6 @@
   {% endif %}
 
   updateMarginRealtime();
+  updateGeneratedPieceName();
 </script>
 {% endblock %}

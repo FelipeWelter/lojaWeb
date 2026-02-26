@@ -316,14 +316,16 @@
   {% if edit_assembly %}
   const editData = {{ assembly_edit_data.get(edit_assembly.id, {})|tojson }};
   if (editData.single_selected) {
-    Object.entries(editData.single_selected).forEach(([slot, id]) => {
+    Object.entries(editData.single_selected).forEach(([slot, selectedData]) => {
+      const selectedId = selectedData?.piece_id ?? selectedData;
+      const selectedName = selectedData?.piece_name || '';
       const input = form.querySelector(`.single-slot[data-slot="${slot}"] .stock-id-input`);
       const entry = form.querySelector(`.single-slot[data-slot="${slot}"] .piece-entry`);
-      if (input) input.value = String(id);
+      if (input && selectedId) input.value = String(selectedId);
       if (entry) {
         const list = document.getElementById(`datalist-${slot}`);
-        const match = Array.from(list?.options || []).find(o => String(o.dataset.id) === String(id));
-        if (match) entry.value = match.value;
+        const match = Array.from(list?.options || []).find(o => String(o.dataset.id) === String(selectedId));
+        entry.value = match?.value || selectedName || '';
         syncPieceEntry(entry);
       }
     });
@@ -369,7 +371,7 @@
           if (stockId) stockId.value = String(rowData.piece_id);
           const datalist = document.getElementById(`datalist-${slot}`);
           const match = Array.from(datalist?.options || []).find((opt) => String(opt.dataset.id) === String(rowData.piece_id));
-          if (entry) entry.value = match?.value || '';
+          if (entry) entry.value = match?.value || rowData?.piece_name || '';
         } else {
           if (stockId) stockId.value = '';
           if (entry) entry.value = rowData?.custom_name || '';
