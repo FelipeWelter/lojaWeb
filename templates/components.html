@@ -1,5 +1,4 @@
-{% macro piece_slot(slot_key, slot_label, parts_by_class, icon='🧩', allow_multiple=False, prefix='', single_data=None, multi_data=None, datalist_suffix='') -%}
-{% set datalist_id = 'datalist-' ~ datalist_suffix ~ slot_key %}
+{% macro piece_slot(slot_key, slot_label, parts_by_class, icon='🧩', allow_multiple=False) -%}
 {% if allow_multiple %}
 <div class="slot-box slot-multiple" data-slot="{{ slot_key }}">
   <div class="slot-heading">
@@ -7,22 +6,12 @@
     <span class="slot-icon" aria-hidden="true">⚙️</span>
   </div>
   <div class="multi-list" data-slot="{{ slot_key }}">
-    {% set rows = multi_data if multi_data else [{'piece_id':'', 'qty':1, 'custom_name':'', 'custom_cost':''}] %}
-    {% for row in rows %}
-    {% set ns = namespace(selected_part=None) %}
-    {% if row.piece_id %}
-      {% for part in parts_by_class[slot_key] %}
-        {% if part.id == row.piece_id %}
-          {% set ns.selected_part = part %}
-        {% endif %}
-      {% endfor %}
-    {% endif %}
     <div class="multi-row">
       <div class="field-stack multi-item-field">
         <label>Item</label>
-        <input name="{{ prefix }}{{ slot_key }}_entries[]" list="{{ datalist_id }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione ou escreva" value="{{ ns.selected_part.name if ns.selected_part else row.custom_name }}" />
-        <input type="hidden" name="{{ prefix }}{{ slot_key }}_stock_ids[]" class="stock-id-input" value="{{ row.piece_id or '' }}" />
-        <datalist id="{{ datalist_id }}">
+        <input name="{{ slot_key }}_entries[]" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione ou escreva" />
+        <input type="hidden" name="{{ slot_key }}_stock_ids[]" class="stock-id-input" />
+        <datalist id="datalist-{{ slot_key }}">
           {% for part in parts_by_class[slot_key] if part.stock > 0 %}
           {% set stock_value = part.price if slot_key in ['fonte', 'placa_video'] else (part.cost_price if part.cost_price and part.cost_price > 0 else part.price) %}
           <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ stock_value }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(stock_value) }}, estoque: {{ part.stock }})"></option>
@@ -31,20 +20,18 @@
       </div>
       <div class="field-stack multi-cost-field">
         <label>Custo (R$)</label>
-        {% set selected_cost = ns.selected_part.price if ns.selected_part and slot_key in ['fonte', 'placa_video'] else ((ns.selected_part.cost_price if ns.selected_part.cost_price and ns.selected_part.cost_price > 0 else ns.selected_part.price) if ns.selected_part else row.custom_cost) %}
-        <input name="{{ prefix }}{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="0,00" value="{{ selected_cost }}" />
+        <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="0,00" />
       </div>
       <div class="field-stack multi-qty-field">
         <label>Quantidade</label>
         <div class="qty-control" title="Quantidade">
           <button type="button" class="qty-btn qty-decrease" aria-label="Diminuir">−</button>
-          <input type="number" name="{{ prefix }}{{ slot_key }}_qtys[]" min="1" value="{{ row.qty or 1 }}" />
+          <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
           <button type="button" class="qty-btn qty-increase" aria-label="Aumentar">+</button>
         </div>
       </div>
       <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
     </div>
-    {% endfor %}
   </div>
   <button type="button" class="add-item btn-secondary" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
 </div>
@@ -55,19 +42,11 @@
     <span class="slot-icon" aria-hidden="true">{{ icon }}</span>
   </div>
   <div class="field-grid single-item-grid">
-    {% set ns = namespace(selected_part=None) %}
-    {% if single_data and single_data.piece_id %}
-      {% for part in parts_by_class[slot_key] %}
-        {% if part.id == single_data.piece_id %}
-          {% set ns.selected_part = part %}
-        {% endif %}
-      {% endfor %}
-    {% endif %}
     <label>
       Item
-      <input name="{{ prefix }}slot_{{ slot_key }}_entry" list="{{ datalist_id }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione do estoque ou digite manualmente" value="{{ ns.selected_part.name if ns.selected_part else (single_data.custom_name if single_data else '') }}" />
-      <input type="hidden" name="{{ prefix }}slot_{{ slot_key }}_stock_id" class="stock-id-input" value="{{ single_data.piece_id if single_data else '' }}" />
-      <datalist id="{{ datalist_id }}">
+      <input name="slot_{{ slot_key }}_entry" list="datalist-{{ slot_key }}" class="piece-entry" data-slot="{{ slot_key }}" placeholder="Selecione do estoque ou digite manualmente" />
+      <input type="hidden" name="slot_{{ slot_key }}_stock_id" class="stock-id-input" />
+      <datalist id="datalist-{{ slot_key }}">
         {% for part in parts_by_class[slot_key] if part.stock > 0 %}
         {% set stock_value = part.price if slot_key in ['fonte', 'placa_video'] else (part.cost_price if part.cost_price and part.cost_price > 0 else part.price) %}
         <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ stock_value }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(stock_value) }}, estoque: {{ part.stock }})"></option>
@@ -76,8 +55,7 @@
     </label>
     <label>
       Custo (R$)
-      {% set single_cost = ns.selected_part.price if ns.selected_part and slot_key in ['fonte', 'placa_video'] else ((ns.selected_part.cost_price if ns.selected_part.cost_price and ns.selected_part.cost_price > 0 else ns.selected_part.price) if ns.selected_part else (single_data.custom_cost if single_data else '')) %}
-      <input name="{{ prefix }}slot_{{ slot_key }}_cost" type="number" min="0" step="0.01" placeholder="0,00" value="{{ single_cost }}" />
+      <input name="slot_{{ slot_key }}_cost" type="number" min="0" step="0.01" placeholder="0,00" />
     </label>
   </div>
 </div>

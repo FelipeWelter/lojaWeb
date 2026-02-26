@@ -144,9 +144,6 @@
         </td>
         <td>
           <div class="action-group">
-            {% if not montagem.canceled %}
-            <button type="button" class="btn-loja btn-loja--secondary js-toggle-edit" data-target="assembly-edit-{{ montagem.id }}">Editar</button>
-            {% endif %}
             <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='montagem', record_id=montagem.id) }}">Imprimir</button>
             <form method="post" action="{{ url_for('excluir_montagem', assembly_id=montagem.id) }}" onsubmit="return confirm('Deseja excluir esta montagem? Esta ação não pode ser desfeita.');">
               <button type="submit" class="btn-danger">Excluir montagem</button>
@@ -154,86 +151,6 @@
           </div>
         </td>
       </tr>
-      {% if not montagem.canceled %}
-      {% set edit_data = assembly_edit_data.get(montagem.id, {}) %}
-      {% set edit_single = edit_data.get('single_slots', {}) %}
-      {% set edit_multi = edit_data.get('multi_rows', {}) %}
-      <tr id="assembly-edit-{{ montagem.id }}" class="assembly-edit-row" hidden>
-        <td colspan="10">
-          <form method="post" action="{{ url_for('editar_montagem', assembly_id=montagem.id) }}" class="grid form-grid js-assembly-form">
-            <div class="pc-layout full-width">
-              <section class="pc-builder-area">
-                <div class="pc-header full-width">
-                  <label>
-                    Nome da referência
-                    <input name="nome_referencia" required value="{{ montagem.nome_referencia }}" />
-                  </label>
-                  <label>
-                    Preço base
-                    <input name="preco_original" type="number" min="0" step="0.01" value="{{ '%.2f'|format(montagem.preco_original) }}" required />
-                  </label>
-                </div>
-
-                <div class="components-scroll-area full-width assembly-lines">
-                  <div class="assembly-row two-columns">
-                    {{ piece_slot('gabinete', 'Gabinete', parts_by_class, prefix='edit_', single_data=edit_single.get('gabinete'), datalist_suffix='edit-' ~ montagem.id ~ '-') }}
-                    {{ piece_slot('fans', 'Fans', parts_by_class, '🌀', prefix='edit_', single_data=edit_single.get('fans'), datalist_suffix='edit-' ~ montagem.id ~ '-') }}
-                  </div>
-
-                  <div class="assembly-row two-columns">
-                    {{ piece_slot('placa_mae', 'Placa-mãe', parts_by_class, prefix='edit_', single_data=edit_single.get('placa_mae'), datalist_suffix='edit-' ~ montagem.id ~ '-') }}
-                    {{ piece_slot('processador', 'Processador', parts_by_class, prefix='edit_', single_data=edit_single.get('processador'), datalist_suffix='edit-' ~ montagem.id ~ '-') }}
-                  </div>
-
-                  <div class="assembly-row one-column">
-                    {{ piece_slot('fonte', 'Fonte', parts_by_class, prefix='edit_', single_data=edit_single.get('fonte'), datalist_suffix='edit-' ~ montagem.id ~ '-') }}
-                  </div>
-
-                  <div class="assembly-row one-column">
-                    {{ piece_slot('memoria_ram', 'Memória RAM', parts_by_class, allow_multiple=True, prefix='edit_', multi_data=edit_multi.get('memoria_ram'), datalist_suffix='edit-' ~ montagem.id ~ '-') }}
-                  </div>
-
-                  <div class="assembly-row one-column">
-                    {{ piece_slot('armazenamento', 'Armazenamento', parts_by_class, allow_multiple=True, prefix='edit_', multi_data=edit_multi.get('armazenamento'), datalist_suffix='edit-' ~ montagem.id ~ '-') }}
-                  </div>
-
-                  <div class="assembly-row one-column">
-                    <div class="slot-box optional-panel" data-slot="opcionais">
-                      <div class="slot-heading">
-                        <h3>Opcionais / Observações</h3>
-                        <span class="slot-icon" aria-hidden="true">📝</span>
-                      </div>
-                      {{ piece_slot('placa_video', 'Placa de Vídeo', parts_by_class, '🎮', prefix='edit_', single_data=edit_single.get('placa_video'), datalist_suffix='edit-' ~ montagem.id ~ '-') }}
-
-                      <div class="assembly-summary notes-panel full-width">
-                        <label>
-                          Observações técnicas
-                          <textarea name="technical_notes" rows="4" placeholder="Ex: curva de fan ajustada, XMP ativado...">{{ montagem.technical_notes or '' }}</textarea>
-                        </label>
-                        <div class="class-menu technical-checklist">
-                          <label><input type="checkbox" name="bios_updated" {% if montagem.bios_updated %}checked{% endif %} /> BIOS atualizada</label>
-                          <label><input type="checkbox" name="stress_test_done" {% if montagem.stress_test_done %}checked{% endif %} /> Stress test realizado</label>
-                          <label><input type="checkbox" name="os_installed" {% if montagem.os_installed %}checked{% endif %} /> Sistema operacional instalado</label>
-                        </div>
-                      </div>
-
-                      <div class="assembly-summary summary-highlight summary-inline">
-                        <div>
-                          <p class="summary-title">Resumo da Edição</p>
-                          <p><strong>Custo Total:</strong> <span class="js-total-custo">R$ 0,00</span></p>
-                          <p><strong>Preço Sugerido (+20%):</strong> <span class="js-preco-sugerido">R$ 0,00</span></p>
-                        </div>
-                        <button type="submit" class="summary-submit">Salvar edição</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </form>
-        </td>
-      </tr>
-      {% endif %}
       {% else %}
       <tr><td colspan="10">Nenhuma montagem registrada.</td></tr>
       {% endfor %}
@@ -248,7 +165,7 @@
 {% include 'includes/modal.html' %}
 
 <script>
-  const createForm = document.getElementById('form-montagem');
+  const form = document.getElementById('form-montagem');
   const custoEl = document.getElementById('total-custo');
   const precoEl = document.getElementById('preco-sugerido');
   const custoMobileEl = document.getElementById('total-custo-mobile');
@@ -290,8 +207,7 @@
     if (hiddenId) hiddenId.value = '';
   }
 
-  function atualizarTotais(form) {
-    if (!form) return;
+  function atualizarTotais() {
     let total = 0;
 
     form.querySelectorAll('.multi-row').forEach((row) => {
@@ -320,11 +236,9 @@
       }
     });
 
-    const localCustoEl = form === createForm ? custoEl : form.querySelector('.js-total-custo');
-    const localPrecoEl = form === createForm ? precoEl : form.querySelector('.js-preco-sugerido');
-    if (localCustoEl) localCustoEl.textContent = formatBRL(total);
-    if (localPrecoEl) localPrecoEl.textContent = formatBRL(total * 1.2);
-    if (form === createForm && custoMobileEl && precoMobileEl) {
+    custoEl.textContent = formatBRL(total);
+    precoEl.textContent = formatBRL(total * 1.2);
+    if (custoMobileEl && precoMobileEl) {
       custoMobileEl.textContent = formatBRL(total);
       precoMobileEl.textContent = formatBRL(total * 1.2);
     }
@@ -335,61 +249,10 @@
     return Number(String(value || '0').replace(',', '.')) || 0;
   }
 
-  document.querySelectorAll('.js-assembly-form').forEach((form) => {
-    form.addEventListener('click', (event) => {
-      const target = event.target;
-
-      if (target.classList.contains('qty-decrease') || target.classList.contains('qty-increase')) {
-        const input = target.parentElement.querySelector('input[type="number"]');
-        const current = Number(input.value || 1);
-        const delta = target.classList.contains('qty-increase') ? 1 : -1;
-        input.value = Math.max(1, current + delta);
-        atualizarTotais(form);
-      }
-
-      if (target.classList.contains('row-remove')) {
-        const list = target.closest('.multi-list');
-        const rows = list.querySelectorAll('.multi-row');
-        if (rows.length > 1) {
-          target.closest('.multi-row').remove();
-        } else {
-          const row = rows[0];
-          row.querySelector('input[name$="_entries[]"]').value = '';
-          row.querySelector('input[name$="_stock_ids[]"]').value = '';
-          row.querySelector('input[name$="_custom_costs[]"]').value = '';
-          row.querySelector('input[name$="_qtys[]"]').value = 1;
-        }
-        atualizarTotais(form);
-      }
-    });
-
-    form.addEventListener('change', (event) => {
-      if (event.target.classList.contains('piece-entry')) {
-        syncPieceEntry(event.target);
-      }
-      if (event.target.id === 'photo-files') {
-        const feedback = document.getElementById('upload-feedback');
-        const trigger = document.getElementById('upload-trigger');
-        const total = event.target.files?.length || 0;
-        feedback.textContent = total ? `${total} arquivo(s) selecionado(s).` : 'Nenhum arquivo selecionado.';
-        trigger.classList.toggle('has-file', total > 0);
-      }
-      atualizarTotais(form);
-    });
-
-    form.addEventListener('input', (event) => {
-      if (event.target.classList.contains('piece-entry')) {
-        syncPieceEntry(event.target);
-      }
-      atualizarTotais(form);
-    });
-  });
-
   document.querySelectorAll('.add-item').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const list = btn.closest('.slot-multiple')?.querySelector('.multi-list');
-      if (!list) return;
-      const parentForm = btn.closest('form');
+      const slot = btn.dataset.slot;
+      const list = document.querySelector(`.multi-list[data-slot="${slot}"]`);
       const firstRow = list.querySelector('.multi-row');
       const clone = firstRow.cloneNode(true);
       clone.querySelector('input[name$="_entries[]"]').value = '';
@@ -397,30 +260,58 @@
       clone.querySelector('input[name$="_custom_costs[]"]').value = '';
       clone.querySelector('input[name$="_qtys[]"]').value = 1;
       list.appendChild(clone);
-      atualizarTotais(parentForm);
+      atualizarTotais();
     });
   });
 
-  document.querySelectorAll('.js-toggle-edit').forEach((button) => {
-    button.addEventListener('click', () => {
-      const targetId = button.dataset.target;
-      const row = document.getElementById(targetId);
-      if (!row) return;
-      row.hidden = !row.hidden;
-      button.textContent = row.hidden ? 'Editar' : 'Fechar edição';
-      if (!row.hidden) {
-        const editForm = row.querySelector('form');
-        if (editForm) {
-          editForm.querySelectorAll('.piece-entry').forEach(syncPieceEntry);
-          atualizarTotais(editForm);
-        }
+  form.addEventListener('click', (event) => {
+    const target = event.target;
+
+    if (target.classList.contains('qty-decrease') || target.classList.contains('qty-increase')) {
+      const input = target.parentElement.querySelector('input[type="number"]');
+      const current = Number(input.value || 1);
+      const delta = target.classList.contains('qty-increase') ? 1 : -1;
+      input.value = Math.max(1, current + delta);
+      atualizarTotais();
+    }
+
+    if (target.classList.contains('row-remove')) {
+      const list = target.closest('.multi-list');
+      const rows = list.querySelectorAll('.multi-row');
+      if (rows.length > 1) {
+        target.closest('.multi-row').remove();
+      } else {
+        const row = rows[0];
+        row.querySelector('input[name$="_entries[]"]').value = '';
+        row.querySelector('input[name$="_stock_ids[]"]').value = '';
+        row.querySelector('input[name$="_custom_costs[]"]').value = '';
+        row.querySelector('input[name$="_qtys[]"]').value = 1;
       }
-    });
+      atualizarTotais();
+    }
   });
 
-  document.querySelectorAll('.js-assembly-form').forEach((form) => {
-    form.querySelectorAll('.piece-entry').forEach(syncPieceEntry);
-    atualizarTotais(form);
+  form.addEventListener('change', (event) => {
+    if (event.target.classList.contains('piece-entry')) {
+      syncPieceEntry(event.target);
+    }
+    if (event.target.id === 'photo-files') {
+      const feedback = document.getElementById('upload-feedback');
+      const trigger = document.getElementById('upload-trigger');
+      const total = event.target.files?.length || 0;
+      feedback.textContent = total ? `${total} arquivo(s) selecionado(s).` : 'Nenhum arquivo selecionado.';
+      trigger.classList.toggle('has-file', total > 0);
+    }
+    atualizarTotais();
   });
+  form.addEventListener('input', (event) => {
+    if (event.target.classList.contains('piece-entry')) {
+      syncPieceEntry(event.target);
+    }
+    atualizarTotais();
+  });
+
+  form.querySelectorAll('.piece-entry').forEach(syncPieceEntry);
+  atualizarTotais();
 </script>
 {% endblock %}
