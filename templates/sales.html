@@ -26,7 +26,7 @@
           <select name="item_product_id[]" class="line-product">
             <option value="">Selecione o produto</option>
             {% for product in products %}
-            <option value="{{ product.id }}" data-price="{{ product.price }}" data-cost="{{ product.cost_price }}" data-description="{{ product.inventory_display_name }}">{{ product.inventory_display_name }} (estoque: {{ product.stock }})</option>
+            <option value="{{ product.id }}" data-price="{{ product.price }}" data-assembly-total="{{ assembly_total_by_product.get(product.id, 0) }}" data-cost="{{ product.cost_price }}" data-description="{{ product.inventory_display_name }}">{{ product.inventory_display_name }} (estoque: {{ product.stock }})</option>
             {% endfor %}
           </select>
           <select name="item_service_id[]" class="line-service" hidden>
@@ -380,7 +380,9 @@
 
       if (!isService && productSel.value) {
         const opt = productSel.options[productSel.selectedIndex];
-        if (!priceInput.value) priceInput.value = opt?.dataset?.price || '';
+        const optionPrice = Number(opt?.dataset?.price || 0);
+        const assemblyTotal = Number(opt?.dataset?.assemblyTotal || 0);
+        if (!priceInput.value) priceInput.value = String(assemblyTotal > 0 ? assemblyTotal : optionPrice);
         if (!costInput.value || Number(costInput.value) === 0) costInput.value = opt?.dataset?.cost || '0';
         if (!descInput.value) descInput.value = opt?.dataset?.description || opt?.textContent?.split(' (estoque')[0] || '';
       }

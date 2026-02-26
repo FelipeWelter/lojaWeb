@@ -82,6 +82,8 @@ class Product(db.Model):
     motherboard_model = db.Column(db.String(80), nullable=True)
     motherboard_socket = db.Column(db.String(40), nullable=True)
     motherboard_chipset = db.Column(db.String(40), nullable=True)
+    cabinet_brand = db.Column(db.String(60), nullable=True)
+    cabinet_description = db.Column(db.String(180), nullable=True)
     images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
     active = db.Column(db.Boolean, nullable=False, default=True)
 
@@ -96,7 +98,7 @@ class Product(db.Model):
 
         add_spec('Classe', COMPONENT_CLASS_LABELS.get(self.component_class, self.component_class or ''))
         add_spec('Fabricante', self.motherboard_brand or self.cpu_manufacturer or self.gpu_manufacturer)
-        add_spec('Marca', self.cpu_brand or self.ram_brand or self.gpu_brand or self.storage_brand or self.psu_brand)
+        add_spec('Marca', self.ram_brand or self.gpu_brand or self.storage_brand or self.psu_brand)
         add_spec('Modelo', self.motherboard_model or self.cpu_model)
         add_spec('Socket', self.motherboard_socket)
         add_spec('Chipset', self.motherboard_chipset)
@@ -106,6 +108,8 @@ class Product(db.Model):
         add_spec('Memória GPU', self.gpu_memory)
         add_spec('Armazenamento', self.storage_type)
         add_spec('Capacidade', self.storage_capacity)
+        add_spec('Gabinete', self.cabinet_brand)
+        add_spec('Descrição', self.cabinet_description)
         add_spec('Fonte', self.psu_watts)
         add_spec('S/N', self.serial_number)
 
@@ -876,6 +880,43 @@ def _build_maintenance_parts_items(form_data, *, allow_single_fallback: bool = F
     return parts_items
 
 
+
+
+def _generate_piece_name(component_class: str | None, form_data) -> str:
+    class_label = COMPONENT_CLASS_LABELS.get(component_class, 'Peça')
+
+    def clean(field: str) -> str:
+        return (form_data.get(field) or '').strip()
+
+    specs: list[str] = []
+    if component_class == 'memoria_ram':
+        specs = [clean('ram_brand'), clean('ram_size'), clean('ram_ddr'), clean('ram_frequency')]
+    elif component_class == 'processador':
+        specs = [clean('cpu_manufacturer'), clean('cpu_model')]
+    elif component_class == 'placa_mae':
+        specs = [clean('motherboard_brand'), clean('motherboard_model'), clean('motherboard_socket'), clean('motherboard_chipset')]
+    elif component_class == 'placa_video':
+        specs = [clean('gpu_brand'), clean('gpu_memory'), clean('gpu_manufacturer')]
+    elif component_class == 'armazenamento':
+        specs = [clean('storage_brand'), clean('storage_type'), clean('storage_capacity')]
+    elif component_class == 'fonte':
+        specs = [clean('psu_brand'), clean('psu_watts')]
+    elif component_class == 'gabinete':
+        specs = [clean('cabinet_brand'), clean('cabinet_description')]
+
+    specs = [item for item in specs if item]
+    serial = clean('serial_number')
+
+    if specs:
+        generated = f"{class_label} {' '.join(specs)}"
+    else:
+        generated = class_label
+
+    if serial:
+        generated = f"{generated} SN:{serial}"
+
+    return generated[:120].strip()
+
 DEFAULT_MAINTENANCE_CHECKLIST = [
     'Limpeza interna',
     'Troca de pasta térmica',
@@ -1311,13 +1352,69 @@ def imprimir(tipo: str, record_id: int):
             })
 
         assembly_data = None
-        if data.product and data.product.category == 'Computador':
+        assembly_product_id = None
+        if sale_items:
+            for line in sale_items:
+                if line.line_type == 'produto' and line.product and line.product.category == 'Computador':
+                    assembly_product_id = line.product.id
+                    break
+        elif data.product and data.product.category == 'Computador':
+            assembly_product_id = data.product.id
+
+        if assembly_product_id:
             assembly_data = (
                 ComputerAssembly.query
-                .filter_by(id_computador=data.product.id)
+                .filter_by(id_computador=assembly_product_id)
                 .order_by(ComputerAssembly.created_at.desc())
                 .first()
             )
+
+        sale_line_items = []
+        service_receipt_lines = []
+        for line in sale_items:
+            sale_line_items.append({
+                'item': line.description,
+                'quantity': line.quantity,
+                'unit_price': line.unit_price,
+                'total': line.line_total,
+            })
+            if line.line_type == 'servico' and line.service_record:
+                service_receipt_lines.append({
+                    'service_name': line.service_record.service_name,
+                    'equipment': line.service_record.equipment,
+                    'notes': line.service_record.notes or 'Sem observações.',
+                    'total_price': Decimal(line.service_record.total_price or 0),
+                    'cost': Decimal(line.service_record.cost or 0),
+                })
+
+        if not sale_line_items:
+            sale_line_items = [{
+                'item': data.product.name,
+                'quantity': data.quantity,
+                'unit_price': data.product.price,
+                'total': data.total,
+            }]
+
+        assembly_receipt_items = []
+        if assembly_data:
+            for part in assembly_data.composicao:
+                if not part.peca:
+                    continue
+                assembly_receipt_items.append({
+                    'item': part.peca.name,
+                    'source_label': 'Estoque',
+                    'quantity': part.quantidade_utilizada,
+                    'unit_price': Decimal(part.peca.price or 0),
+                    'total': Decimal(part.quantidade_utilizada) * Decimal(part.peca.price or 0),
+                })
+            for custom in assembly_data.custom_parts:
+                assembly_receipt_items.append({
+                    'item': custom.part_name,
+                    'source_label': 'Item personalizado',
+                    'quantity': custom.quantity,
+                    'unit_price': Decimal(custom.unit_cost or 0),
+                    'total': Decimal(custom.quantity) * Decimal(custom.unit_cost or 0),
+                })
 
         context = {
             'document_title': f'Recibo de Venda #{data.id}',
@@ -1326,20 +1423,7 @@ def imprimir(tipo: str, record_id: int):
             'record_date': data.created_at,
             'record_code': f'VEN-{data.id}',
             'client_name': data.client.name,
-            'items': [
-                {
-                    'item': line.description,
-                    'quantity': line.quantity,
-                    'unit_price': line.unit_price,
-                    'total': line.line_total,
-                }
-                for line in sale_items
-            ] or [{
-                'item': data.product.name,
-                'quantity': data.quantity,
-                'unit_price': data.product.price,
-                'total': data.total,
-            }],
+            'items': sale_line_items,
             'subtotal': data.subtotal,
             'gross_total': data.subtotal,
             'discount_amount': data.discount_amount,
@@ -1355,6 +1439,8 @@ def imprimir(tipo: str, record_id: int):
             'notes': f'Venda: {data.sale_name}',
             'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
             'assembly_inline': assembly_data,
+            'assembly_receipt_items': assembly_receipt_items,
+            'service_receipt_lines': service_receipt_lines,
         }
     elif tipo == 'montagem':
         data = ComputerAssembly.query.get_or_404(record_id)
@@ -2069,8 +2155,10 @@ def produtos():
                 flash(str(exc), 'danger')
                 return redirect(url_for('produtos'))
 
+        generated_piece_name = _generate_piece_name(component_class, request.form) if category == 'Peça' else (request.form.get('name') or '').strip()
+
         product_dto = ProductDTO(
-            name=request.form['name'],
+            name=generated_piece_name,
             category=category,
             stock=int(request.form['stock']),
             price=_to_money_decimal(request.form.get('price')),
@@ -2100,13 +2188,15 @@ def produtos():
             storage_type=(request.form.get('storage_type') or '').strip() or None,
             storage_capacity=(request.form.get('storage_capacity') or '').strip() or None,
             storage_brand=(request.form.get('storage_brand') or '').strip() or None,
-            cpu_brand=(request.form.get('cpu_brand') or '').strip() or None,
+            cpu_brand=None,
             cpu_manufacturer=(request.form.get('cpu_manufacturer') or '').strip() or None,
             cpu_model=(request.form.get('cpu_model') or '').strip() or None,
             motherboard_brand=(request.form.get('motherboard_brand') or '').strip() or None,
             motherboard_model=(request.form.get('motherboard_model') or '').strip() or None,
             motherboard_socket=(request.form.get('motherboard_socket') or '').strip() or None,
             motherboard_chipset=(request.form.get('motherboard_chipset') or '').strip() or None,
+            cabinet_brand=(request.form.get('cabinet_brand') or '').strip() or None,
+            cabinet_description=(request.form.get('cabinet_description') or '').strip() or None,
         )
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
@@ -2180,11 +2270,6 @@ def editar_produto(product_id: int):
     fallback_edit_url = url_for('produtos', edit_product_id=product.id, return_to=return_to) if return_to else url_for('produtos', edit_product_id=product.id)
     success_redirect = return_to or url_for('produtos')
 
-    name = (request.form.get('name') or '').strip()
-    if not name:
-        flash('Informe o nome do produto.', 'danger')
-        return redirect(fallback_edit_url)
-
     category = request.form.get('category') or product.category
     component_class = request.form.get('component_class') or None
 
@@ -2197,7 +2282,7 @@ def editar_produto(product_id: int):
     old_price = Decimal(product.price)
     new_price = _to_money_decimal(request.form.get('price'))
 
-    product.name = name
+    product.name = _generate_piece_name(component_class, request.form) if category == 'Peça' else (request.form.get('name') or product.name).strip()
     product.category = category
     product.stock = int(request.form.get('stock') or 0)
     product.price = new_price
@@ -2228,8 +2313,7 @@ def editar_produto(product_id: int):
         product.storage_capacity = (request.form.get('storage_capacity') or '').strip() or None
     if 'storage_brand' in request.form:
         product.storage_brand = (request.form.get('storage_brand') or '').strip() or None
-    if 'cpu_brand' in request.form:
-        product.cpu_brand = (request.form.get('cpu_brand') or '').strip() or None
+    product.cpu_brand = None
     if 'cpu_manufacturer' in request.form:
         product.cpu_manufacturer = (request.form.get('cpu_manufacturer') or '').strip() or None
     if 'cpu_model' in request.form:
@@ -2242,6 +2326,10 @@ def editar_produto(product_id: int):
         product.motherboard_socket = (request.form.get('motherboard_socket') or '').strip() or None
     if 'motherboard_chipset' in request.form:
         product.motherboard_chipset = (request.form.get('motherboard_chipset') or '').strip() or None
+    if 'cabinet_brand' in request.form:
+        product.cabinet_brand = (request.form.get('cabinet_brand') or '').strip() or None
+    if 'cabinet_description' in request.form:
+        product.cabinet_description = (request.form.get('cabinet_description') or '').strip() or None
 
     if old_price != new_price:
         _log_audit(
@@ -2315,12 +2403,16 @@ def _build_assembly_edit_data(latest_assemblies):
             if slot_multiple.get(slot_key):
                 multi_rows.setdefault(slot_key, []).append({
                     'piece_id': item.id_peca,
+                    'piece_name': item.peca.name,
                     'qty': item.quantidade_utilizada,
                     'custom_name': '',
                     'custom_cost': '0',
                 })
             else:
-                single_selected[slot_key] = item.id_peca
+                single_selected[slot_key] = {
+                    'piece_id': item.id_peca,
+                    'piece_name': item.peca.name,
+                }
 
         for custom in assembly.custom_parts:
             if slot_multiple.get(custom.slot_key):
@@ -2338,7 +2430,7 @@ def _build_assembly_edit_data(latest_assemblies):
 
         for slot_key in list(multi_rows.keys()):
             if not multi_rows[slot_key]:
-                multi_rows[slot_key].append({'piece_id': '', 'qty': 1, 'custom_name': '', 'custom_cost': '0'})
+                multi_rows[slot_key].append({'piece_id': '', 'piece_name': '', 'qty': 1, 'custom_name': '', 'custom_cost': '0'})
 
         data[assembly.id] = {
             'single_selected': single_selected,
@@ -2414,12 +2506,16 @@ def montar_pc():
         if not edit_assembly:
             flash('Montagem para edição não encontrada.', 'danger')
 
+    assemblies_for_edit_data = list(latest_assemblies)
+    if edit_assembly and all(item.id != edit_assembly.id for item in assemblies_for_edit_data):
+        assemblies_for_edit_data.append(edit_assembly)
+
     return render_template(
         'assemble_pc.html',
         parts_by_class=parts_by_class,
         component_slots=COMPONENT_SLOTS,
         latest_assemblies=latest_assemblies,
-        assembly_edit_data=_build_assembly_edit_data(latest_assemblies),
+        assembly_edit_data=_build_assembly_edit_data(assemblies_for_edit_data),
         edit_assembly=edit_assembly,
     )
 
@@ -2585,11 +2681,18 @@ def excluir_montagem(assembly_id: int):
             if item.peca:
                 item.peca.stock += item.quantidade_utilizada
 
+    should_delete_computer = False
     if computer and computer.category == 'Computador' and computer.stock <= 0:
         computer.stock = 0
-        computer.active = False
+        related_assemblies = ComputerAssembly.query.filter(
+            ComputerAssembly.id_computador == computer.id,
+            ComputerAssembly.id != assembly.id,
+        ).count()
+        should_delete_computer = related_assemblies == 0
 
     db.session.delete(assembly)
+    if should_delete_computer and computer:
+        db.session.delete(computer)
     db.session.commit()
     flash('Montagem excluída com sucesso!', 'success')
     return redirect(url_for('montar_pc'))
@@ -2611,7 +2714,7 @@ def servicos():
         form_type = request.form.get('form_type', 'service_record')
 
         if form_type == 'maintenance_ticket':
-            client_name = (request.form.get('maintenance_client_name') or '').strip()
+            client_name = (request.form.get('maintenance_client_entry') or '').strip()
             client_phone = (request.form.get('maintenance_client_phone') or '').strip() or None
             maintenance_client_id = (request.form.get('maintenance_client_id') or '').strip()
             if maintenance_client_id:
@@ -2968,7 +3071,7 @@ def atualizar_manutencao(ticket_id: int):
     if action == 'editar':
         previous_parts_items = _load_json_list(ticket.parts_json)
 
-        ticket.client_name = (request.form.get('maintenance_client_name') or '').strip() or 'Não informado'
+        ticket.client_name = (request.form.get('maintenance_client_entry') or '').strip() or 'Não informado'
         ticket.client_phone = (request.form.get('maintenance_client_phone') or '').strip() or None
         ticket.equipment = (request.form.get('maintenance_equipment') or '').strip() or 'Não informado'
         ticket.service_description = (request.form.get('maintenance_service_description') or '').strip() or 'A definir'
@@ -3313,6 +3416,25 @@ def vendas():
     products = buscar_pecas_disponiveis(Product)
     clients = db.session.query(Client).filter(Client.active.is_(True)).group_by(Client.id).order_by(db.func.lower(Client.name)).all()
     services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).all()
+    latest_assemblies = (
+        ComputerAssembly.query
+        .filter(ComputerAssembly.canceled.is_(False))
+        .order_by(ComputerAssembly.created_at.desc())
+        .all()
+    )
+    assembly_total_by_product = {}
+    for assembly in latest_assemblies:
+        if assembly.id_computador in assembly_total_by_product:
+            continue
+
+        pieces_sale_total = Decimal('0.00')
+        for comp in assembly.composicao:
+            if not comp.peca:
+                continue
+            pieces_sale_total += Decimal(comp.quantidade_utilizada or 0) * Decimal(comp.peca.price or 0)
+
+        # Valor da montagem para venda deve considerar apenas o valor de venda das peças cadastradas.
+        assembly_total_by_product[assembly.id_computador] = pieces_sale_total.quantize(Decimal('0.01'))
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
@@ -3578,6 +3700,7 @@ def vendas():
         finance_installments=finance_installments,
         prefill_product=prefill_product,
         calcular_margem_lucro=calcular_margem_lucro,
+        assembly_total_by_product=assembly_total_by_product,
     )
 
 
@@ -4339,6 +4462,10 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_socket VARCHAR(40)'))
     if 'motherboard_chipset' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN motherboard_chipset VARCHAR(40)'))
+    if 'cabinet_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN cabinet_brand VARCHAR(60)'))
+    if 'cabinet_description' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN cabinet_description VARCHAR(180)'))
     db.session.execute(
         db.text(
             "UPDATE product SET stock = 0, active = 0, category = 'Serviço', price = 0, cost_price = 0 "

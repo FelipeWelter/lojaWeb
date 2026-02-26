@@ -79,13 +79,45 @@
       {% endif %}
 
 
+      {% if service_receipt_lines is defined and service_receipt_lines %}
+      <h3>Serviços realizados na venda</h3>
+      {% for service in service_receipt_lines %}
+      <section class="payment-line">
+        <p><strong>Serviço:</strong> {{ service.service_name }}</p>
+        <p><strong>Equipamento:</strong> {{ service.equipment }}</p>
+        <p><strong>Valor:</strong> R$ {{ '%.2f'|format(service.total_price) }} · <strong>Custo:</strong> R$ {{ '%.2f'|format(service.cost) }}</p>
+        <p><strong>Observações:</strong> {{ service.notes }}</p>
+      </section>
+      {% endfor %}
+      {% endif %}
+
       {% if assembly_inline %}
       <section class="assembly-label-print">
         <h3>Recibo de montagem incorporado</h3>
         <p><strong>Montagem:</strong> {{ assembly_inline.nome_referencia or (assembly_inline.computador.name if assembly_inline.computador else 'Computador') }}</p>
         <p><strong>ID montagem:</strong> #{{ assembly_inline.id }}</p>
-        <p><strong>Total peças/serviços técnicos:</strong> R$ {{ '%.2f'|format(assembly_inline.custo_total or 0) }}</p>
+        <p><strong>Preço base:</strong> R$ {{ '%.2f'|format(assembly_inline.preco_original or 0) }}</p>
+        <p><strong>Total peças + adicionais:</strong> R$ {{ '%.2f'|format(assembly_inline.custo_total or 0) }}</p>
         <p><strong>Checklist:</strong> BIOS {{ 'Sim' if assembly_inline.bios_updated else 'Não' }}, Stress {{ 'Sim' if assembly_inline.stress_test_done else 'Não' }}, SO {{ 'Sim' if assembly_inline.os_installed else 'Não' }}</p>
+        <p><strong>Adicionais:</strong> BIOS R$ {{ '%.2f'|format(assembly_inline.bios_service_cost or 0) }}, Stress R$ {{ '%.2f'|format(assembly_inline.stress_test_cost or 0) }}, SO R$ {{ '%.2f'|format(assembly_inline.os_install_cost or 0) }}</p>
+        {% if assembly_receipt_items is defined and assembly_receipt_items %}
+        <table class="receipt-items-table">
+          <thead>
+            <tr><th>Peça/Serviço</th><th>Origem</th><th>Qtd</th><th>Unitário</th><th>Subtotal</th></tr>
+          </thead>
+          <tbody>
+            {% for part in assembly_receipt_items %}
+            <tr>
+              <td>{{ part.item }}</td>
+              <td>{{ part.source_label }}</td>
+              <td>{{ part.quantity }}</td>
+              <td>R$ {{ '%.2f'|format(part.unit_price) }}</td>
+              <td>R$ {{ '%.2f'|format(part.total) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
       </section>
       {% endif %}
       <p><strong>Observações:</strong> {{ notes }}</p>

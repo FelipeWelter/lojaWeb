@@ -82,8 +82,7 @@
                 <div>
                   <p class="summary-title">Resumo do Orçamento</p>
                   <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
-                  <p><strong>Sugestão peças avulsas (+25%):</strong> <span id="preco-sugerido">R$ 0,00</span></p>
-                </div>
+                                  </div>
                 <button type="submit" class="summary-submit">{% if edit_assembly %}Salvar montagem{% else %}Finalizar montagem{% endif %}</button>
                 <p class="summary-hint">A soma total considera peças + serviços técnicos manuais (BIOS/Stress/SO).</p>
               </div>
@@ -171,9 +170,7 @@
 <script>
   const form = document.getElementById('form-montagem');
   const custoEl = document.getElementById('total-custo');
-  const precoEl = document.getElementById('preco-sugerido');
   const custoMobileEl = document.getElementById('total-custo-mobile');
-  const precoMobileEl = document.getElementById('preco-sugerido-mobile');
 
   function formatBRL(value) {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -243,10 +240,8 @@
     const extraServices = toNumber(form.querySelector('input[name="bios_service_cost"]')?.value) + toNumber(form.querySelector('input[name="stress_test_cost"]')?.value) + toNumber(form.querySelector('input[name="os_install_cost"]')?.value);
     total += extraServices;
     custoEl.textContent = formatBRL(total);
-    precoEl.textContent = formatBRL(total * 1.25);
-    if (custoMobileEl && precoMobileEl) {
+    if (custoMobileEl) {
       custoMobileEl.textContent = formatBRL(total);
-      precoMobileEl.textContent = formatBRL(total * 1.25);
     }
   }
 
@@ -321,16 +316,69 @@
   {% if edit_assembly %}
   const editData = {{ assembly_edit_data.get(edit_assembly.id, {})|tojson }};
   if (editData.single_selected) {
-    Object.entries(editData.single_selected).forEach(([slot, id]) => {
+    Object.entries(editData.single_selected).forEach(([slot, selectedData]) => {
+      const selectedId = selectedData?.piece_id ?? selectedData;
+      const selectedName = selectedData?.piece_name || '';
       const input = form.querySelector(`.single-slot[data-slot="${slot}"] .stock-id-input`);
       const entry = form.querySelector(`.single-slot[data-slot="${slot}"] .piece-entry`);
-      if (input) input.value = String(id);
+      if (input && selectedId) input.value = String(selectedId);
       if (entry) {
         const list = document.getElementById(`datalist-${slot}`);
-        const match = Array.from(list?.options || []).find(o => String(o.dataset.id) === String(id));
-        if (match) entry.value = match.value;
+        const match = Array.from(list?.options || []).find(o => String(o.dataset.id) === String(selectedId));
+        entry.value = match?.value || selectedName || '';
         syncPieceEntry(entry);
       }
+    });
+  }
+
+  if (editData.single_custom) {
+    Object.entries(editData.single_custom).forEach(([slot, custom]) => {
+      const slotBox = form.querySelector(`.single-slot[data-slot="${slot}"]`);
+      const entry = slotBox?.querySelector('.piece-entry');
+      const cost = slotBox?.querySelector('input[name^="slot_"][name$="_cost"]');
+      const stockId = slotBox?.querySelector('.stock-id-input');
+      if (!slotBox || !entry) return;
+      if (!entry.value && custom?.name) {
+        entry.value = custom.name;
+      }
+      if (cost && custom?.cost) {
+        cost.value = custom.cost;
+      }
+      if (stockId && !entry.value.trim()) {
+        stockId.value = '';
+      }
+      syncPieceEntry(entry);
+    });
+  }
+
+  if (editData.multi_rows) {
+    Object.entries(editData.multi_rows).forEach(([slot, rows]) => {
+      const list = form.querySelector(`.multi-list[data-slot="${slot}"]`);
+      const firstRow = list?.querySelector('.multi-row');
+      if (!list || !firstRow || !Array.isArray(rows) || !rows.length) return;
+      list.innerHTML = '';
+      rows.forEach((rowData) => {
+        const row = firstRow.cloneNode(true);
+        const entry = row.querySelector('input[name$="_entries[]"]');
+        const stockId = row.querySelector('input[name$="_stock_ids[]"]');
+        const qty = row.querySelector('input[name$="_qtys[]"]');
+        const cost = row.querySelector('input[name$="_custom_costs[]"]');
+
+        if (qty) qty.value = rowData?.qty || 1;
+        if (cost) cost.value = rowData?.custom_cost || '';
+
+        if (rowData?.piece_id) {
+          if (stockId) stockId.value = String(rowData.piece_id);
+          const datalist = document.getElementById(`datalist-${slot}`);
+          const match = Array.from(datalist?.options || []).find((opt) => String(opt.dataset.id) === String(rowData.piece_id));
+          if (entry) entry.value = match?.value || rowData?.piece_name || '';
+        } else {
+          if (stockId) stockId.value = '';
+          if (entry) entry.value = rowData?.custom_name || '';
+        }
+
+        list.appendChild(row);
+      });
     });
   }
   {% endif %}
