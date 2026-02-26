@@ -182,7 +182,19 @@
     const costInput = row?.querySelector('input[name$="_cost"], input[name$="_custom_costs[]"]');
     const listId = input.getAttribute('list');
     const list = listId ? document.getElementById(listId) : null;
-    const match = list ? Array.from(list.options).find((option) => option.value === input.value) : null;
+    const normalizedInput = String(input.value || '').trim().toLowerCase();
+    const match = list
+      ? Array.from(list.options).find((option) => {
+          const optionValue = String(option.value || '').trim().toLowerCase();
+          const optionLabel = String(option.getAttribute('label') || option.dataset.label || '').trim().toLowerCase();
+          const optionLabelPrefix = optionLabel.split(' (r$')[0];
+          return normalizedInput && (
+            optionValue === normalizedInput
+            || optionLabel === normalizedInput
+            || optionLabelPrefix === normalizedInput
+          );
+        })
+      : null;
 
     if (match && hiddenId) {
       hiddenId.value = match.dataset.id || '';
