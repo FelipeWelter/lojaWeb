@@ -97,7 +97,6 @@
         <p><strong>Montagem:</strong> {{ assembly_inline.nome_referencia or (assembly_inline.computador.name if assembly_inline.computador else 'Computador') }}</p>
         <p><strong>ID montagem:</strong> #{{ assembly_inline.id }}</p>
         <p><strong>Preço base:</strong> R$ {{ '%.2f'|format(assembly_inline.preco_original or 0) }}</p>
-        <p><strong>Total peças + adicionais:</strong> R$ {{ '%.2f'|format(assembly_inline.custo_total or 0) }}</p>
         <p><strong>Checklist:</strong> BIOS {{ 'Sim' if assembly_inline.bios_updated else 'Não' }}, Stress {{ 'Sim' if assembly_inline.stress_test_done else 'Não' }}, SO {{ 'Sim' if assembly_inline.os_installed else 'Não' }}</p>
         <p><strong>Adicionais:</strong> BIOS R$ {{ '%.2f'|format(assembly_inline.bios_service_cost or 0) }}, Stress R$ {{ '%.2f'|format(assembly_inline.stress_test_cost or 0) }}, SO R$ {{ '%.2f'|format(assembly_inline.os_install_cost or 0) }}</p>
         {% if assembly_receipt_items is defined and assembly_receipt_items %}
