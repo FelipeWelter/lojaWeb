@@ -13,7 +13,7 @@
         <input type="hidden" name="{{ slot_key }}_stock_ids[]" class="stock-id-input" />
         <datalist id="datalist-{{ slot_key }}">
           {% for part in parts_by_class[slot_key] if part.stock > 0 %}
-          {% set stock_value = part.price if slot_key == 'fonte' else (part.cost_price if part.cost_price and part.cost_price > 0 else part.price) %}
+          {% set stock_value = part.price if slot_key in ['fonte', 'placa_video'] else (part.cost_price if part.cost_price and part.cost_price > 0 else part.price) %}
           <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ stock_value }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(stock_value) }}, estoque: {{ part.stock }})"></option>
           {% endfor %}
         </datalist>
@@ -48,7 +48,7 @@
       <input type="hidden" name="slot_{{ slot_key }}_stock_id" class="stock-id-input" />
       <datalist id="datalist-{{ slot_key }}">
         {% for part in parts_by_class[slot_key] if part.stock > 0 %}
-        {% set stock_value = part.price if slot_key == 'fonte' else (part.cost_price if part.cost_price and part.cost_price > 0 else part.price) %}
+        {% set stock_value = part.price if slot_key in ['fonte', 'placa_video'] else (part.cost_price if part.cost_price and part.cost_price > 0 else part.price) %}
         <option value="{{ part.name }}" data-id="{{ part.id }}" data-cost="{{ stock_value }}" data-label="{{ part.name }} (R$ {{ '%.2f'|format(stock_value) }}, estoque: {{ part.stock }})"></option>
         {% endfor %}
       </datalist>
