@@ -60,12 +60,10 @@ class ProductDTO:
 @dataclass
 class ClientDTO:
     name: str
-    cpf: str
+    cpf: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
 
     def validate(self):
         if not self.name.strip():
             raise ValueError('Nome do cliente é obrigatório.')
-        if not self.cpf.strip():
-            raise ValueError('CPF do cliente é obrigatório.')

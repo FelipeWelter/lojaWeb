@@ -3101,18 +3101,15 @@ def cadastrar_custo_fixo():
 def clientes():
     if request.method == 'POST':
         name = (request.form.get('name') or '').strip()
-        cpf = (request.form.get('cpf') or '').strip()
+        cpf = (request.form.get('cpf') or '').strip() or None
         if not name:
             flash('Informe o nome do cliente.', 'danger')
             return redirect(url_for('clientes'))
-        if not cpf:
-            flash('Informe o CPF/CNPJ do cliente.', 'danger')
-            return redirect(url_for('clientes'))
-
-        existing_client = Client.query.filter_by(cpf=cpf).first()
-        if existing_client:
-            flash(f'Este CPF/CNPJ já existe para {existing_client.name}. Edite o cadastro existente.', 'danger')
-            return redirect(url_for('editar_cliente', client_id=existing_client.id))
+        if cpf:
+            existing_client = Client.query.filter_by(cpf=cpf).first()
+            if existing_client:
+                flash(f'Este CPF/CNPJ já existe para {existing_client.name}. Edite o cadastro existente.', 'danger')
+                return redirect(url_for('editar_cliente', client_id=existing_client.id))
 
         existing_name = Client.query.filter(db.func.lower(Client.name) == name.lower()).first()
         if existing_name:
@@ -3200,18 +3197,15 @@ def editar_cliente(client_id: int):
 
     if request.method == 'POST':
         name = (request.form.get('name') or '').strip()
-        cpf = (request.form.get('cpf') or '').strip()
+        cpf = (request.form.get('cpf') or '').strip() or None
         if not name:
             flash('Informe o nome do cliente.', 'danger')
             return redirect(url_for('editar_cliente', client_id=client.id))
-        if not cpf:
-            flash('Informe o CPF do cliente.', 'danger')
-            return redirect(url_for('editar_cliente', client_id=client.id))
-
-        duplicate = Client.query.filter(Client.cpf == cpf, Client.id != client.id).first()
-        if duplicate:
-            flash('Este CPF já está cadastrado para outro cliente.', 'danger')
-            return redirect(url_for('editar_cliente', client_id=client.id))
+        if cpf:
+            duplicate = Client.query.filter(Client.cpf == cpf, Client.id != client.id).first()
+            if duplicate:
+                flash('Este CPF já está cadastrado para outro cliente.', 'danger')
+                return redirect(url_for('editar_cliente', client_id=client.id))
 
         client.name = name
         client.cpf = cpf
