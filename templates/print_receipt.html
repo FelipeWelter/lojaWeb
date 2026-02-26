@@ -18,9 +18,9 @@
       </header>
 
       <h3>Itens</h3>
-      <table>
+      <table class="receipt-items-table">
         <thead>
-          <tr><th>Nome</th><th>Origem/SKU</th><th>Qtd</th><th>Subtotal</th></tr>
+          <tr><th>Produto</th><th>Origem/SKU</th><th>Qtd</th><th>Unitário</th><th>Subtotal</th></tr>
         </thead>
         <tbody>
           {% for row in items %}
@@ -28,6 +28,7 @@
             <td>{{ row.item }}</td>
             <td>{% if row.source_label is defined %}{{ row.source_label }}{% if row.sku %} · SKU: {{ row.sku }}{% endif %}{% else %}-{% endif %}</td>
             <td>{{ row.quantity }}</td>
+            <td>R$ {{ '%.2f'|format(row.unit_price if row.unit_price is defined else 0) }}</td>
             <td>R$ {{ '%.2f'|format(row.total) }}</td>
           </tr>
           {% endfor %}
@@ -39,6 +40,38 @@
       <p><strong>Valor Líquido:</strong> R$ {{ '%.2f'|format(total) }}</p>
       {% if payment_method_label is defined %}
       <p><strong>Forma de pagamento:</strong> {{ payment_method_label }}</p>
+      {% endif %}
+
+      {% if payment_status_label is defined %}
+      <p><strong>Status do pagamento:</strong> {{ payment_status_label }}</p>
+      {% endif %}
+
+      {% if payment_lines is defined and payment_lines %}
+      <h3>Detalhes do Pagamento</h3>
+      {% for payment in payment_lines %}
+      <section class="payment-line">
+        <p><strong>Método:</strong> {{ payment.method_label }} · <strong>Status:</strong> {{ payment.status_label }}</p>
+        <p><strong>Valor:</strong> R$ {{ '%.2f'|format(payment.amount) }} · <strong>Pago:</strong> R$ {{ '%.2f'|format(payment.amount_paid) }} · <strong>Saldo:</strong> R$ {{ '%.2f'|format(payment.balance) }}</p>
+        {% if payment.installments %}
+        <table class="receipt-installments-table">
+          <thead>
+            <tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Pago</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {% for installment in payment.installments %}
+            <tr>
+              <td>{{ installment.number }}ª</td>
+              <td>{{ installment.due_date.strftime('%d/%m/%Y') if installment.due_date else '-' }}</td>
+              <td>R$ {{ '%.2f'|format(installment.amount) }}</td>
+              <td>R$ {{ '%.2f'|format(installment.amount_paid) }}</td>
+              <td>{{ installment.status_label }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </section>
+      {% endfor %}
       {% endif %}
 
       <p><strong>Observações:</strong> {{ notes }}</p>

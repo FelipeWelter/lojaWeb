@@ -1226,6 +1226,63 @@ def imprimir(tipo: str, record_id: int):
     if tipo == 'venda':
         data = Sale.query.get_or_404(record_id)
         sale_items = data.items or []
+        sale_charges = Charge.query.filter_by(sale_id=data.id).order_by(Charge.id.asc()).all()
+        charge_status_labels = {
+            'confirmado': 'Pago',
+            'recebido': 'Pago',
+            'parcial': 'Parcial',
+            'atrasado': 'Pendente',
+            'vencido': 'Pendente',
+            'pendente': 'Pendente',
+            'cancelado': 'Cancelado',
+        }
+        payment_status_label = 'Pendente'
+        active_sale_charges = [charge for charge in sale_charges if charge.status != 'cancelado']
+        if active_sale_charges and all(_charge_balance(charge) <= 0 for charge in active_sale_charges):
+            payment_status_label = 'Pago'
+        elif any(Decimal(charge.amount_paid or 0) > 0 for charge in active_sale_charges):
+            payment_status_label = 'Parcial'
+
+        payment_lines = []
+        for charge in sale_charges:
+            charge_total = _charge_total_amount(charge)
+            charge_paid = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+            installments = _charge_installments(charge)
+            installment_lines = []
+            if installments:
+                for installment in installments:
+                    installment_amount = Decimal(installment.amount or 0).quantize(Decimal('0.01'))
+                    installment_paid = Decimal(installment.amount_paid or 0).quantize(Decimal('0.01'))
+                    installment_lines.append({
+                        'number': installment.installment_number,
+                        'due_date': installment.due_date,
+                        'amount': installment_amount,
+                        'amount_paid': installment_paid,
+                        'status_label': 'Pago' if installment_paid >= installment_amount else 'Pendente',
+                    })
+            elif charge.is_installment and (charge.installment_count or 1) > 1:
+                base_due = charge.due_date or data.created_at.date()
+                base_amount = Decimal(charge.installment_value or 0).quantize(Decimal('0.01'))
+                for number in range(1, (charge.installment_count or 1) + 1):
+                    installment_due = base_due + timedelta(days=(number - 1) * 30)
+                    installment_lines.append({
+                        'number': number,
+                        'due_date': installment_due,
+                        'amount': base_amount,
+                        'amount_paid': Decimal('0.00'),
+                        'status_label': 'Pendente',
+                    })
+
+            payment_lines.append({
+                'method_label': PAYMENT_METHOD_LABELS.get(charge.payment_method, charge.payment_method.title()),
+                'status_label': charge_status_labels.get(charge.status, 'Pendente'),
+                'due_date': charge.due_date,
+                'amount': charge_total,
+                'amount_paid': charge_paid,
+                'balance': (charge_total - charge_paid).quantize(Decimal('0.01')),
+                'installments': installment_lines,
+            })
+
         context = {
             'document_title': f'Recibo de Venda #{data.id}',
             'store_name': 'LojaWeb',
@@ -1252,6 +1309,8 @@ def imprimir(tipo: str, record_id: int):
             'discount_amount': data.discount_amount,
             'total': data.total,
             'payment_method_label': PAYMENT_METHOD_LABELS.get(data.payment_method, data.payment_method.title()),
+            'payment_status_label': payment_status_label,
+            'payment_lines': payment_lines,
             'technical': {
                 'bios': 'Não se aplica',
                 'stress': 'Não se aplica',
