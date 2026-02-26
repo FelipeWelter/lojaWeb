@@ -1657,8 +1657,6 @@ def dashboard():
     total_stock = db.session.query(db.func.coalesce(db.func.sum(Product.stock), 0)).scalar()
     sales_count = sales_query.count()
     services_count = service_query.count()
-    pending_charges = Charge.query.filter(Charge.status != 'confirmado', Charge.status != 'cancelado').count()
-
     period_charges = (
         db.session.query(Charge)
         .outerjoin(Sale, Sale.id == Charge.sale_id)
@@ -1673,12 +1671,21 @@ def dashboard():
         .all()
     )
 
+    pending_charges = 0
+    pending_receivable_total = Decimal('0.00')
+
     total_sales_amount = Decimal('0.00')
     total_services_amount = Decimal('0.00')
     payment_method_totals: dict[str, Decimal] = {}
     payment_method_counts: dict[str, int] = {}
     for charge in period_charges:
         paid = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        balance = _charge_balance(charge)
+
+        if charge.status != 'cancelado' and balance > 0:
+            pending_charges += 1
+            pending_receivable_total += balance
+
         if charge.sale_id:
             total_sales_amount += paid
         if charge.service_id:
@@ -1711,7 +1718,49 @@ def dashboard():
         FixedCost.created_at >= start_date
     ).scalar()
     total_profit = sales_profit + service_profit
-    net_profit = total_profit - total_fixed_costs
+
+    sale_cost_map = {
+        int(sale_id): Decimal(cost or 0).quantize(Decimal('0.01'))
+        for sale_id, cost in db.session.query(
+            SaleItem.sale_id,
+            db.func.coalesce(db.func.sum(SaleItem.unit_cost * SaleItem.quantity), 0),
+        )
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .filter(Sale.canceled.is_(False), Sale.created_at >= start_date)
+        .group_by(SaleItem.sale_id)
+        .all()
+    }
+    service_cost_map = {
+        int(service.id): Decimal(service.cost or 0).quantize(Decimal('0.01'))
+        for service in ServiceRecord.query.filter(ServiceRecord.created_at >= start_date).all()
+    }
+
+    realized_profit = Decimal('0.00')
+    for charge in period_charges:
+        if charge.status == 'cancelado':
+            continue
+
+        total_amount = _charge_total_amount(charge)
+        if total_amount <= 0:
+            continue
+
+        paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
+        if paid_amount <= 0:
+            continue
+
+        ratio = min(Decimal('1.00'), (paid_amount / total_amount))
+        if charge.sale_id and charge.sale:
+            sale_total = Decimal(charge.sale.total or 0).quantize(Decimal('0.01'))
+            sale_cost = sale_cost_map.get(charge.sale_id, Decimal('0.00'))
+            sale_margin = sale_total - sale_cost
+            realized_profit += sale_margin * ratio
+        elif charge.service_id and charge.service:
+            service_total = Decimal(charge.service.total_price or 0).quantize(Decimal('0.01'))
+            service_cost_value = service_cost_map.get(charge.service_id, Decimal(charge.service.cost or 0).quantize(Decimal('0.01')))
+            service_margin = service_total - service_cost_value
+            realized_profit += service_margin * ratio
+
+    net_profit = realized_profit - Decimal(total_fixed_costs or 0)
     maintenance_in_progress = maintenance_query.filter(MaintenanceTicket.status != 'concluido').count()
     maintenance_waiting_parts = maintenance_query.filter(MaintenanceTicket.waiting_parts.is_(True), MaintenanceTicket.status != 'concluido').count()
 
@@ -1774,6 +1823,7 @@ def dashboard():
         sales_count=sales_count,
         services_count=services_count,
         pending_charges=pending_charges,
+        pending_receivable_total=pending_receivable_total,
         total_sales_amount=total_sales_amount,
         total_services_amount=total_services_amount,
         total_profit=total_profit,

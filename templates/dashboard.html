@@ -46,12 +46,16 @@
     <strong>R$ {{ '%.2f'|format(total_fixed_costs) }}</strong>
   </article>
   <article class="card kpi-card">
-    <h3>Lucro líquido</h3>
+    <h3>Lucro realizado líquido</h3>
     <strong>R$ {{ '%.2f'|format(net_profit) }}</strong>
   </article>
   <article class="card kpi-card">
     <h3>Cobranças pendentes</h3>
     <strong>{{ pending_charges }}</strong>
+  </article>
+  <article class="card kpi-card">
+    <h3>Pendente para receber</h3>
+    <strong>R$ {{ '%.2f'|format(pending_receivable_total) }}</strong>
   </article>
   <article class="card kpi-card">
     <h3>Manutenções ativas</h3>
