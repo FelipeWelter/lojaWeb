@@ -5,6 +5,7 @@ body {
   font-family: "Inter", "Segoe UI", Arial, sans-serif;
   background: linear-gradient(180deg, #f8faff 0%, #f3f6fd 100%);
   color: var(--text);
+  overflow-x: hidden;
 }
 
 .container { max-width: 1200px; margin: 1.1rem auto; padding: 0 1rem 2.8rem; width: 100%; }
@@ -523,6 +524,36 @@ body.auth-page .alert.danger {
 @media (max-width: 640px) {
   .header { position: static; }
   .card { padding: .9rem; }
+
+  .container {
+    padding-inline: .75rem;
+  }
+
+  .grid.form-grid,
+  .crm-form-grid,
+  .pc-layout,
+  .assembly-row.two-columns,
+  .slots-top,
+  .slots-bottom,
+  .dashboard-kpis,
+  .dashboard-charts,
+  .stock-print-actions,
+  .checkout-grid,
+  .sale-line,
+  .charges-kpi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .multi-row,
+  .field-grid.single-item-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary-submit,
+  .btn-link,
+  button {
+    max-width: 100%;
+  }
 }
 
 
