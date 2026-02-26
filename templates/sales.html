@@ -319,38 +319,43 @@
     rebuildInstallmentDueDates();
   }
 
-  function formatBRL(v) {
-    return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  function formatBRLFromCents(cents) {
+    return (window.decimalMath?.formatBRLFromCents?.(cents))
+      || (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function toCents(value) {
+    return window.decimalMath?.toCents?.(value) || 0;
   }
 
   function recalcTotal() {
     const lines = saleLines.querySelectorAll('.sale-line');
-    let subtotal = 0;
+    let subtotalCents = 0;
     lines.forEach((line) => {
       const qty = Number(line.querySelector('.line-qty')?.value || 0);
-      const price = Number(line.querySelector('.line-price')?.value || 0);
-      subtotal += qty * price;
+      const priceCents = toCents(line.querySelector('.line-price')?.value || 0);
+      subtotalCents += Math.round(qty * priceCents);
     });
 
-    const discount = Math.max(0, Number(discountInput?.value || 0));
-    const total = Math.max(0, subtotal - discount);
+    const discountCents = Math.max(0, toCents(discountInput?.value || 0));
+    const totalCents = Math.max(0, subtotalCents - discountCents);
     const receivedRaw = (amountReceivedInput?.value || '').trim();
     const hasReceived = receivedRaw !== '';
-    const received = hasReceived ? Math.max(0, Number(receivedRaw || 0)) : 0;
-    const change = received - total;
-    subtotalEl.textContent = formatBRL(subtotal);
-    discountViewEl.textContent = formatBRL(discount);
-    totalEl.textContent = formatBRL(total);
+    const receivedCents = hasReceived ? Math.max(0, toCents(receivedRaw || 0)) : 0;
+    const changeCents = receivedCents - totalCents;
+    subtotalEl.textContent = formatBRLFromCents(subtotalCents);
+    discountViewEl.textContent = formatBRLFromCents(discountCents);
+    totalEl.textContent = formatBRLFromCents(totalCents);
     if (changeViewEl) {
       if (!hasReceived) {
         changeViewEl.textContent = 'Troco: —';
         changeViewEl.classList.remove('positive', 'negative');
         changeViewEl.classList.add('neutral');
       } else {
-        changeViewEl.textContent = `Troco: ${formatBRL(change)}`;
-        changeViewEl.classList.toggle('positive', change > 0);
-        changeViewEl.classList.toggle('negative', change < 0);
-        changeViewEl.classList.toggle('neutral', change === 0);
+        changeViewEl.textContent = `Troco: ${formatBRLFromCents(changeCents)}`;
+        changeViewEl.classList.toggle('positive', changeCents > 0);
+        changeViewEl.classList.toggle('negative', changeCents < 0);
+        changeViewEl.classList.toggle('neutral', changeCents === 0);
       }
     }
   }

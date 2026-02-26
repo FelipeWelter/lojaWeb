@@ -45,6 +45,25 @@
     const showOverlay = () => overlay?.classList.remove('hidden');
     const hideOverlay = () => overlay?.classList.add('hidden');
 
+
+    const decimalMath = {
+      toCents(value) {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+          return Math.round(value * 100);
+        }
+        const normalized = String(value ?? '0').trim().replace(/\./g, '').replace(',', '.');
+        const parsed = Number.parseFloat(normalized);
+        return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+      },
+      fromCents(cents) {
+        return (Number(cents || 0) / 100);
+      },
+      formatBRLFromCents(cents) {
+        return this.fromCents(cents).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      },
+    };
+    window.decimalMath = decimalMath;
+
     const moneyInputs = document.querySelectorAll('input[data-money="true"]');
 
     const formatDigitsToMoney = (digits) => {

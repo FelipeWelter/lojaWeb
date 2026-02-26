@@ -3276,27 +3276,10 @@ def cadastrar_custo_fixo():
 @_login_required
 def clientes():
     if request.method == 'POST':
-        name = (request.form.get('name') or '').strip()
-        cpf = (request.form.get('cpf') or '').strip() or None
-        if not name:
-            flash('Informe o nome do cliente.', 'danger')
-            return redirect(url_for('clientes'))
-        if cpf:
-            existing_client = Client.query.filter_by(cpf=cpf).first()
-            if existing_client:
-                flash(f'Este CPF/CNPJ já existe para {existing_client.name}. Edite o cadastro existente.', 'danger')
-                return redirect(url_for('editar_cliente', client_id=existing_client.id))
-
-        existing_name = Client.query.filter(db.func.lower(Client.name) == name.lower()).first()
-        if existing_name:
-            flash(f'O nome "{name}" já está cadastrado. Edite o cliente existente.', 'danger')
-            return redirect(url_for('editar_cliente', client_id=existing_name.id))
-
-        client_dto = ClientDTO(name=name, cpf=cpf, phone=request.form.get('phone'), email=request.form.get('email'))
-        client_dto.validate()
-        client = client_service.create(name=client_dto.name, cpf=client_dto.cpf, phone=client_dto.phone, email=client_dto.email)
-        db.session.commit()
-        flash('Cliente cadastrado com sucesso!', 'success')
+        saved, message, category = _persist_client_from_form(request.form)
+        flash(message, category)
+        if saved:
+            db.session.commit()
         return redirect(url_for('clientes'))
 
     service_counts = dict(
@@ -3343,7 +3326,46 @@ def clientes():
             'pending_charges': pending_charges,
         })
 
-    return render_template('clients.html', clients=clients_summary)
+    edit_client_id = request.args.get('edit_client_id', type=int)
+    editing_client = next((item for item in clients_summary if item['id'] == edit_client_id), None)
+
+    return render_template('clients.html', clients=clients_summary, editing_client=editing_client)
+
+
+def _persist_client_from_form(form_data):
+    raw_client_id = (form_data.get('client_id') or '').strip()
+    client_id = int(raw_client_id) if raw_client_id.isdigit() else None
+    client = Client.query.get_or_404(client_id) if client_id else None
+
+    name = (form_data.get('name') or '').strip()
+    cpf = (form_data.get('cpf') or '').strip() or None
+    if not name:
+        return False, 'Informe o nome do cliente.', 'danger'
+
+    duplicate_cpf_query = Client.query.filter(Client.cpf == cpf)
+    duplicate_name_query = Client.query.filter(db.func.lower(Client.name) == name.lower())
+    if client:
+        duplicate_cpf_query = duplicate_cpf_query.filter(Client.id != client.id)
+        duplicate_name_query = duplicate_name_query.filter(Client.id != client.id)
+
+    if cpf and duplicate_cpf_query.first():
+        return False, 'Este CPF/CNPJ já está cadastrado para outro cliente.', 'danger'
+
+    if duplicate_name_query.first():
+        return False, f'O nome "{name}" já está cadastrado. Atualize o cliente existente.', 'danger'
+
+    client_dto = ClientDTO(name=name, cpf=cpf, phone=form_data.get('phone'), email=form_data.get('email'))
+    client_dto.validate()
+
+    if client:
+        client.name = client_dto.name
+        client.cpf = client_dto.cpf
+        client.phone = client_dto.phone
+        client.email = client_dto.email
+        return True, 'Cliente atualizado com sucesso!', 'success'
+
+    client_service.create(name=client_dto.name, cpf=client_dto.cpf, phone=client_dto.phone, email=client_dto.email)
+    return True, 'Cliente cadastrado com sucesso!', 'success'
 
 
 @app.route('/clientes/mesclar', methods=['POST'])
@@ -3372,26 +3394,15 @@ def editar_cliente(client_id: int):
     client = Client.query.get_or_404(client_id)
 
     if request.method == 'POST':
-        name = (request.form.get('name') or '').strip()
-        cpf = (request.form.get('cpf') or '').strip() or None
-        if not name:
-            flash('Informe o nome do cliente.', 'danger')
-            return redirect(url_for('editar_cliente', client_id=client.id))
-        if cpf:
-            duplicate = Client.query.filter(Client.cpf == cpf, Client.id != client.id).first()
-            if duplicate:
-                flash('Este CPF já está cadastrado para outro cliente.', 'danger')
-                return redirect(url_for('editar_cliente', client_id=client.id))
-
-        client.name = name
-        client.cpf = cpf
-        client.phone = request.form.get('phone')
-        client.email = request.form.get('email')
-        db.session.commit()
-        flash('Cliente atualizado com sucesso!', 'success')
+        payload = request.form.to_dict(flat=True)
+        payload['client_id'] = str(client.id)
+        saved, message, category = _persist_client_from_form(payload)
+        flash(message, category)
+        if saved:
+            db.session.commit()
         return redirect(url_for('clientes'))
 
-    return render_template('edit_client.html', client=client)
+    return redirect(url_for('clientes', edit_client_id=client.id))
 
 
 @app.route('/clientes/<int:client_id>/remover', methods=['POST'])

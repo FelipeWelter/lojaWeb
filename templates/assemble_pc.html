@@ -172,9 +172,6 @@
   const custoEl = document.getElementById('total-custo');
   const custoMobileEl = document.getElementById('total-custo-mobile');
 
-  function formatBRL(value) {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
 
   function syncPieceEntry(input) {
     if (!input) return;
@@ -209,7 +206,7 @@
   }
 
   function atualizarTotais() {
-    let total = 0;
+    let totalCents = 0;
 
     form.querySelectorAll('.multi-row').forEach((row) => {
       const stockId = row.querySelector('input[name$="_stock_ids[]"]')?.value;
@@ -220,9 +217,9 @@
       const isStock = Boolean(stockId);
 
       if (isStock && qty > 0) {
-        total += toNumber(customCostInput.value) * qty;
+        totalCents += Math.round(toCents(customCostInput.value) * qty);
       } else if (entryInput && entryInput.value.trim() && qty > 0) {
-        total += toNumber(customCostInput.value) * qty;
+        totalCents += Math.round(toCents(customCostInput.value) * qty);
       }
     });
 
@@ -233,21 +230,24 @@
 
       if (!entryInput || !entryInput.value.trim()) return;
       if (stockId || entryInput.value.trim()) {
-        total += toNumber(cost?.value || 0);
+        totalCents += toCents(cost?.value || 0);
       }
     });
 
-    const extraServices = toNumber(form.querySelector('input[name="bios_service_cost"]')?.value) + toNumber(form.querySelector('input[name="stress_test_cost"]')?.value) + toNumber(form.querySelector('input[name="os_install_cost"]')?.value);
-    total += extraServices;
-    custoEl.textContent = formatBRL(total);
+    const extraServicesCents = toCents(form.querySelector('input[name="bios_service_cost"]')?.value) + toCents(form.querySelector('input[name="stress_test_cost"]')?.value) + toCents(form.querySelector('input[name="os_install_cost"]')?.value);
+    totalCents += extraServicesCents;
+    custoEl.textContent = formatBRLFromCents(totalCents);
     if (custoMobileEl) {
-      custoMobileEl.textContent = formatBRL(total);
+      custoMobileEl.textContent = formatBRLFromCents(totalCents);
     }
   }
 
-  function toNumber(value) {
-    if (typeof value === 'number') return value;
-    return Number(String(value || '0').replace(',', '.')) || 0;
+  function toCents(value) {
+    return window.decimalMath?.toCents?.(value) || 0;
+  }
+
+  function formatBRLFromCents(cents) {
+    return window.decimalMath?.formatBRLFromCents?.(cents) || (Number(cents || 0) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
   document.querySelectorAll('.add-item').forEach((btn) => {

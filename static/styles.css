@@ -2644,3 +2644,46 @@ input[type="number"] {
 .suggested-price-hint strong {
   color: #1d4ed8;
 }
+
+/* Refatoração crítica: contenção de legendas e tabelas responsivas */
+.charges-installments-box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 10px;
+}
+
+.charges-installments-box legend {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding-inline: 4px;
+}
+
+.crm-form-grid,
+.charges-form-row,
+.charges-form-actions,
+.table-actions,
+.table-actions--client {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.crm-form-grid > *,
+.charges-form-row > * {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.crm-table-wrap table,
+.charges-table-wrap table {
+  table-layout: fixed;
+}
+
+.crm-client-table td,
+#charges-table td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
