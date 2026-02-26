@@ -189,6 +189,7 @@
             <summary>⋯</summary>
             <div class="service-actions-list">
               {% if item.ticket %}
+              <a class="btn-secondary" href="{{ url_for('servicos', edit_ticket_id=item.ticket.id) }}">⚙️ Editar OS completa</a>
               <button type="button" class="btn-secondary js-print-trigger" data-print-url="{{ url_for('imprimir', tipo='manutencao', record_id=item.ticket.id) }}">🖨️ Imprimir OS</button>
               {% endif %}
               {% if service %}

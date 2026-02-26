@@ -256,6 +256,18 @@ class Charge(db.Model):
 
     sale = db.relationship('Sale')
     service = db.relationship('ServiceRecord')
+    installments = db.relationship('ChargeInstallment', backref='charge', cascade='all, delete-orphan', order_by='ChargeInstallment.installment_number')
+
+
+class ChargeInstallment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    charge_id = db.Column(db.Integer, db.ForeignKey('charge.id'), nullable=False)
+    installment_number = db.Column(db.Integer, nullable=False, default=1)
+    due_date = db.Column(db.Date, nullable=True)
+    amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    amount_paid = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    status = db.Column(db.String(30), nullable=False, default='pendente')
+    payment_confirmed_at = db.Column(db.DateTime, nullable=True)
 
 
 class ServiceRecord(db.Model):
@@ -890,6 +902,46 @@ def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user
     db.session.add(service)
     db.session.flush()
     ticket.service_record_id = service.id
+
+
+def _sync_service_record_from_ticket(ticket: 'MaintenanceTicket'):
+    if not ticket.service_record_id:
+        return
+
+    service = ServiceRecord.query.get(ticket.service_record_id)
+    if not service:
+        return
+
+    parts_items = _load_json_list(ticket.parts_json)
+    parts_total = Decimal('0.00')
+    parts_desc = []
+
+    for part in parts_items:
+        qty = max(1, int(_to_decimal(part.get('quantity') or 1, default='1')))
+        unit = _to_decimal(part.get('unit_price') or 0)
+        unit_value = unit if unit >= 0 else Decimal('0')
+        parts_total += Decimal(qty) * unit_value
+        parts_desc.append(f"{part.get('name', 'Peça')} x{qty}")
+
+    labor = Decimal(ticket.labor_cost or 0).quantize(Decimal('0.01'))
+    service.service_name = f"OS #{ticket.id} - {ticket.service_description}"
+    service.client_name = ticket.client_name
+    service.equipment = ticket.equipment
+    service.cost = parts_total.quantize(Decimal('0.01'))
+    service.total_price = (parts_total + labor).quantize(Decimal('0.01'))
+
+    notes_chunks = []
+    if ticket.customer_report:
+        notes_chunks.append(f"Relato: {ticket.customer_report}")
+    if ticket.technical_diagnosis:
+        notes_chunks.append(f"Diagnóstico: {ticket.technical_diagnosis}")
+    if ticket.observations:
+        notes_chunks.append(f"Observações: {ticket.observations}")
+    if parts_desc:
+        notes_chunks.append('Peças: ' + ', '.join(parts_desc))
+
+    if notes_chunks:
+        service.notes = ' | '.join(notes_chunks)
 
 
 def _apply_ticket_parts_stock(ticket: 'MaintenanceTicket'):
@@ -2739,6 +2791,8 @@ def atualizar_manutencao(ticket_id: int):
                 flash(str(exc), 'danger')
                 return redirect(url_for('servicos'))
             _ensure_service_record_from_ticket(ticket, current)
+
+        _sync_service_record_from_ticket(ticket)
         db.session.commit()
         flash('OS atualizada com sucesso!', 'success')
         return redirect(url_for('servicos'))
@@ -3176,8 +3230,10 @@ def vendas():
             installment_value=(total / Decimal(installment_count)).quantize(Decimal('0.01')) if installment_count > 0 else total,
             payment_confirmed_at=datetime.utcnow() if payment_flow == 'avista' else None,
         )
-        _normalize_charge_status(charge)
         db.session.add(charge)
+        db.session.flush()
+        _ensure_charge_installments(charge)
+        _normalize_charge_status(charge)
 
         db.session.commit()
         flash('Venda registrada com sucesso e enviada para o fluxo financeiro!', 'success')
@@ -3185,6 +3241,12 @@ def vendas():
 
     sales = Sale.query.order_by(Sale.created_at.desc()).all()
     finance_charges = Charge.query.order_by(Charge.id.desc()).all()
+
+    finance_installments: dict[int, list[ChargeInstallment]] = {}
+    for charge in finance_charges:
+        _ensure_charge_installments(charge)
+        finance_installments[charge.id] = _charge_installments(charge)
+    db.session.flush()
 
     today = datetime.utcnow().date()
     next_week = today + timedelta(days=7)
@@ -3256,6 +3318,7 @@ def vendas():
         charge_balance=_charge_balance,
         charge_total_amount=_charge_total_amount,
         payment_method_labels=PAYMENT_METHOD_LABELS,
+        finance_installments=finance_installments,
         prefill_product=prefill_product,
         calcular_margem_lucro=calcular_margem_lucro,
     )
@@ -3322,6 +3385,71 @@ def _charge_total_amount(charge: Charge) -> Decimal:
     return Decimal('0.00')
 
 
+def _charge_installments(charge: Charge) -> list[ChargeInstallment]:
+    installments = sorted(charge.installments or [], key=lambda item: item.installment_number)
+    return installments
+
+
+def _ensure_charge_installments(charge: Charge):
+    count = max(1, int(charge.installment_count or 1))
+    amount_total = _charge_total_amount(charge)
+    existing = _charge_installments(charge)
+
+    if count == 1:
+        for item in existing:
+            db.session.delete(item)
+        charge.installment_count = 1
+        charge.installment_value = amount_total.quantize(Decimal('0.01'))
+        return
+
+    if existing and len(existing) == count:
+        return
+
+    for item in existing:
+        db.session.delete(item)
+
+    base_due = charge.due_date or datetime.utcnow().date()
+    base_value = (amount_total / Decimal(count)).quantize(Decimal('0.01'))
+    remainder = (amount_total - (base_value * Decimal(count))).quantize(Decimal('0.01'))
+
+    for number in range(1, count + 1):
+        parcel_amount = base_value
+        if number == count:
+            parcel_amount = (parcel_amount + remainder).quantize(Decimal('0.01'))
+        due_date = base_due + timedelta(days=(number - 1) * 30)
+        db.session.add(ChargeInstallment(
+            charge_id=charge.id,
+            installment_number=number,
+            due_date=due_date,
+            amount=parcel_amount,
+            amount_paid=Decimal('0.00'),
+            status='pendente',
+        ))
+
+    charge.installment_value = base_value
+
+
+def _refresh_charge_from_installments(charge: Charge):
+    installments = _charge_installments(charge)
+    if not installments:
+        return
+
+    amount = Decimal('0.00')
+    paid = Decimal('0.00')
+    due_dates = []
+
+    for item in installments:
+        amount += Decimal(item.amount or 0)
+        paid += Decimal(item.amount_paid or 0)
+        if item.due_date:
+            due_dates.append(item.due_date)
+
+    charge.amount = amount.quantize(Decimal('0.01'))
+    charge.amount_paid = paid.quantize(Decimal('0.01'))
+    if due_dates:
+        charge.due_date = min(due_dates)
+
+
 def _charge_balance(charge: Charge) -> Decimal:
     total = _charge_total_amount(charge)
     paid = Decimal(charge.amount_paid or 0)
@@ -3329,18 +3457,43 @@ def _charge_balance(charge: Charge) -> Decimal:
 
 
 def _normalize_charge_status(charge: Charge):
-    balance = _charge_balance(charge)
+    installments = _charge_installments(charge)
     if charge.status == 'cancelado':
         charge.payment_confirmed_at = None
+        for item in installments:
+            item.status = 'cancelado'
+            item.payment_confirmed_at = None
         return
 
+    if installments:
+        for item in installments:
+            item_total = Decimal(item.amount or 0).quantize(Decimal('0.01'))
+            item_paid = Decimal(item.amount_paid or 0).quantize(Decimal('0.01'))
+            if item_paid >= item_total:
+                item.status = 'confirmado'
+                item.payment_confirmed_at = item.payment_confirmed_at or datetime.utcnow()
+            elif item_paid > 0:
+                item.status = 'parcial'
+                item.payment_confirmed_at = None
+            elif item.due_date and item.due_date < datetime.utcnow().date():
+                item.status = 'atrasado'
+                item.payment_confirmed_at = None
+            else:
+                item.status = 'pendente'
+                item.payment_confirmed_at = None
+        _refresh_charge_from_installments(charge)
+
+    balance = _charge_balance(charge)
     if balance <= 0:
         charge.status = 'confirmado'
         charge.payment_confirmed_at = charge.payment_confirmed_at or datetime.utcnow()
     elif Decimal(charge.amount_paid or 0) > 0:
         charge.status = 'parcial'
         charge.payment_confirmed_at = None
-    elif charge.status not in {'pendente', 'atrasado'}:
+    elif charge.due_date and charge.due_date < datetime.utcnow().date():
+        charge.status = 'atrasado'
+        charge.payment_confirmed_at = None
+    else:
         charge.status = 'pendente'
         charge.payment_confirmed_at = None
 
@@ -3355,9 +3508,6 @@ def _charge_ui_status(charge: Charge):
 
     if charge.due_date and charge.due_date < datetime.utcnow().date():
         return 'vencido'
-
-    if charge.due_date and charge.due_date <= (datetime.utcnow().date() + timedelta(days=7)):
-        return 'pendente'
 
     return 'pendente'
 
@@ -3486,12 +3636,14 @@ def cobrancas():
             installment_count=installment_count,
             installment_value=installment_value,
         )
+        db.session.add(charge)
+        db.session.flush()
+        _ensure_charge_installments(charge)
         _normalize_charge_status(charge)
 
         if charge.service_id and charge.status == 'confirmado':
             _sync_service_ticket_status(charge.service_id)
 
-        db.session.add(charge)
         db.session.commit()
         flash('Cobrança registrada com sucesso!', 'success')
         return redirect(url_for('cobrancas'))
@@ -3583,6 +3735,7 @@ def editar_cobranca(charge_id: int):
     installment_base = _charge_total_amount(charge)
     charge.installment_value = (Decimal(installment_base or 0) / Decimal(charge.installment_count or 1)).quantize(Decimal('0.01')) if Decimal(installment_base or 0) > 0 else Decimal('0.00')
 
+    _ensure_charge_installments(charge)
     _normalize_charge_status(charge)
 
     if charge.service_id and charge.status == 'confirmado':
@@ -3597,16 +3750,90 @@ def editar_cobranca(charge_id: int):
 @_login_required
 def confirmar_cobranca(charge_id: int):
     charge = Charge.query.get_or_404(charge_id)
-    charge.amount_paid = _charge_total_amount(charge)
-    charge.status = 'confirmado'
-    charge.payment_confirmed_at = datetime.utcnow()
+    _ensure_charge_installments(charge)
+    installments = _charge_installments(charge)
+
+    if installments:
+        for item in installments:
+            item.amount_paid = Decimal(item.amount or 0).quantize(Decimal('0.01'))
+            item.status = 'confirmado'
+            item.payment_confirmed_at = datetime.utcnow()
+    else:
+        charge.amount_paid = _charge_total_amount(charge)
+
+    _normalize_charge_status(charge)
 
     if charge.service_id:
         _sync_service_ticket_status(charge.service_id)
 
     db.session.commit()
     flash('Pagamento confirmado!', 'success')
-    return redirect(url_for('cobrancas'))
+    return redirect(request.referrer or url_for('cobrancas'))
+
+
+@app.route('/cobrancas/<int:charge_id>/parcelas/<int:installment_number>/pagar', methods=['POST'])
+@_login_required
+def pagar_parcela_cobranca(charge_id: int, installment_number: int):
+    charge = Charge.query.get_or_404(charge_id)
+    _ensure_charge_installments(charge)
+    installment = ChargeInstallment.query.filter_by(charge_id=charge.id, installment_number=installment_number).first_or_404()
+
+    amount_raw = (request.form.get('amount_paid') or str(Decimal(installment.amount or 0))).strip().replace(',', '.')
+    try:
+        amount = Decimal(amount_raw).quantize(Decimal('0.01'))
+    except InvalidOperation:
+        flash('Valor inválido para baixa da parcela.', 'danger')
+        return redirect(request.referrer or url_for('vendas'))
+
+    if amount <= 0:
+        flash('Informe um valor maior que zero para a parcela.', 'danger')
+        return redirect(request.referrer or url_for('vendas'))
+
+    max_amount = Decimal(installment.amount or 0).quantize(Decimal('0.01'))
+    installment.amount_paid = min(max_amount, (Decimal(installment.amount_paid or 0) + amount).quantize(Decimal('0.01')))
+
+    _normalize_charge_status(charge)
+    if charge.service_id and charge.status == 'confirmado':
+        _sync_service_ticket_status(charge.service_id)
+
+    db.session.commit()
+    flash(f'Parcela {installment_number} baixada com sucesso.', 'success')
+    return redirect(request.referrer or url_for('vendas'))
+
+
+@app.route('/cobrancas/<int:charge_id>/parcelas/<int:installment_number>/editar', methods=['POST'])
+@_login_required
+def editar_parcela_cobranca(charge_id: int, installment_number: int):
+    charge = Charge.query.get_or_404(charge_id)
+    _ensure_charge_installments(charge)
+    installment = ChargeInstallment.query.filter_by(charge_id=charge.id, installment_number=installment_number).first_or_404()
+
+    try:
+        installment.due_date = _parse_date_input(request.form.get('due_date'))
+    except ValueError as exc:
+        flash(str(exc), 'danger')
+        return redirect(request.referrer or url_for('vendas'))
+
+    amount_raw = (request.form.get('amount') or installment.amount or '0').__str__().strip().replace(',', '.')
+    try:
+        new_amount = Decimal(amount_raw).quantize(Decimal('0.01'))
+    except InvalidOperation:
+        flash('Valor inválido para a parcela.', 'danger')
+        return redirect(request.referrer or url_for('vendas'))
+
+    if new_amount < 0:
+        flash('Valor da parcela não pode ser negativo.', 'danger')
+        return redirect(request.referrer or url_for('vendas'))
+
+    installment.amount = new_amount
+    if Decimal(installment.amount_paid or 0) > new_amount:
+        installment.amount_paid = new_amount
+
+    _normalize_charge_status(charge)
+
+    db.session.commit()
+    flash(f'Parcela {installment_number} atualizada.', 'success')
+    return redirect(request.referrer or url_for('vendas'))
 
 
 @app.route('/cobrancas/<int:charge_id>/cancelar', methods=['POST'])
@@ -4057,6 +4284,22 @@ with app.app_context():
         )
         db.session.execute(db.text('DROP TABLE charge_old'))
 
+    db.session.execute(
+        db.text(
+            'CREATE TABLE IF NOT EXISTS charge_installment ('
+            'id INTEGER PRIMARY KEY, '
+            'charge_id INTEGER NOT NULL, '
+            'installment_number INTEGER NOT NULL DEFAULT 1, '
+            'due_date DATE, '
+            'amount NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'amount_paid NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            "status VARCHAR(30) NOT NULL DEFAULT 'pendente', "
+            'payment_confirmed_at DATETIME, '
+            'FOREIGN KEY(charge_id) REFERENCES charge (id)'
+            ')'
+        )
+    )
+    db.session.execute(db.text('CREATE UNIQUE INDEX IF NOT EXISTS ux_charge_installment_number ON charge_installment (charge_id, installment_number)'))
     db.session.commit()
 
 

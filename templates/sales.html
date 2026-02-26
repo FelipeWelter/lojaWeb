@@ -110,7 +110,7 @@
     <h3>Fluxo financeiro unificado (vendas e cobranças)</h3>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Ref.</th><th>Origem</th><th>Método</th><th>Status</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ações</th></tr></thead>
+        <thead><tr><th>Ref.</th><th>Origem</th><th>Método</th><th>Status</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Parcelas</th><th>Ações</th></tr></thead>
         <tbody>
           {% for c in finance_charges %}
           <tr>
@@ -124,9 +124,42 @@
             <td>R$ {{ '%.2f'|format(c.amount_paid or 0) }}</td>
             <td>R$ {{ '%.2f'|format(charge_balance(c)) }}</td>
             <td>
+              {% set installments = finance_installments.get(c.id, []) %}
+              {% if installments %}
+              <details>
+                <summary>{{ installments|length }}x</summary>
+                <div class="service-actions-list">
+                  {% for item in installments %}
+                  {% set parcel_balance = (item.amount or 0) - (item.amount_paid or 0) %}
+                  <div style="border:1px solid #ddd; padding:8px; border-radius:8px; margin-bottom:8px;">
+                    <strong>{{ item.installment_number }}ª parcela</strong><br>
+                    Venc.: {{ item.due_date.strftime('%d/%m/%Y') if item.due_date else '-' }}<br>
+                    Valor: R$ {{ '%.2f'|format(item.amount or 0) }} • Pago: R$ {{ '%.2f'|format(item.amount_paid or 0) }}
+                    <form method="post" action="{{ url_for('editar_parcela_cobranca', charge_id=c.id, installment_number=item.installment_number) }}" class="inline-form" style="margin-top:6px;">
+                      <input type="date" name="due_date" value="{{ item.due_date.strftime('%Y-%m-%d') if item.due_date else '' }}" />
+                      <input type="number" name="amount" min="0" step="0.01" value="{{ '%.2f'|format(item.amount or 0) }}" />
+                      <button type="submit" class="btn-secondary">Salvar</button>
+                    </form>
+                    {% if parcel_balance > 0 and c.status != 'cancelado' %}
+                    <form method="post" action="{{ url_for('pagar_parcela_cobranca', charge_id=c.id, installment_number=item.installment_number) }}" class="inline-form" style="margin-top:6px;">
+                      <input type="number" name="amount_paid" min="0.01" step="0.01" max="{{ '%.2f'|format(parcel_balance) }}" value="{{ '%.2f'|format(parcel_balance) }}" />
+                      <button type="submit" class="btn-loja btn-loja--primary">Baixar parcela</button>
+                    </form>
+                    {% else %}
+                    <span class="badge success">Parcela quitada</span>
+                    {% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+              </details>
+              {% else %}
+              <span>-</span>
+              {% endif %}
+            </td>
+            <td>
               {% if charge_balance(c) > 0 and c.status != 'cancelado' %}
               <form method="post" action="{{ url_for('confirmar_cobranca', charge_id=c.id) }}">
-                <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento</button>
+                <button type="submit" class="btn-loja btn-loja--primary">Confirmar pagamento integral</button>
               </form>
               {% else %}
               <span class="badge success">Sem pendências</span>
@@ -134,7 +167,7 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="8">Sem lançamentos financeiros.</td></tr>
+          <tr><td colspan="9">Sem lançamentos financeiros.</td></tr>
           {% endfor %}
         </tbody>
       </table>
