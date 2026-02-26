@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 import json
@@ -994,6 +994,60 @@ def _apply_ticket_parts_stock(ticket: 'MaintenanceTicket'):
         product.stock = int(product.stock or 0) - qty
 
     ticket.parts_stock_applied = True
+
+
+def _parts_quantity_map(parts_items: list[dict] | None) -> dict[int, int]:
+    quantity_map: dict[int, int] = {}
+    for part in parts_items or []:
+        if not isinstance(part, dict):
+            continue
+        product_id = part.get('product_id')
+        if product_id is None:
+            continue
+        try:
+            product_id_int = int(product_id)
+        except (TypeError, ValueError):
+            continue
+
+        try:
+            qty = int(part.get('quantity') or 1)
+        except (TypeError, ValueError):
+            qty = 1
+        qty = max(1, qty)
+        quantity_map[product_id_int] = quantity_map.get(product_id_int, 0) + qty
+    return quantity_map
+
+
+def _sync_ticket_parts_stock_delta(previous_parts_items: list[dict], current_parts_items: list[dict]):
+    previous_map = _parts_quantity_map(previous_parts_items)
+    current_map = _parts_quantity_map(current_parts_items)
+    all_product_ids = set(previous_map.keys()) | set(current_map.keys())
+    if not all_product_ids:
+        return
+
+    products = Product.query.filter(Product.id.in_(all_product_ids)).all()
+    products_by_id = {product.id: product for product in products}
+
+    missing_ids = sorted(all_product_ids - set(products_by_id.keys()))
+    if missing_ids:
+        raise ValueError('Uma ou mais peças da OS não existem mais no estoque.')
+
+    deltas: dict[int, int] = {}
+    for product_id in all_product_ids:
+        delta = current_map.get(product_id, 0) - previous_map.get(product_id, 0)
+        if delta:
+            deltas[product_id] = delta
+
+    for product_id, delta in deltas.items():
+        if delta <= 0:
+            continue
+        product = products_by_id[product_id]
+        if int(product.stock or 0) < delta:
+            raise ValueError(f'Estoque insuficiente para a peça "{product.name}". Necessário: {delta}, disponível: {product.stock}.')
+
+    for product_id, delta in deltas.items():
+        product = products_by_id[product_id]
+        product.stock = int(product.stock or 0) - delta
 
 
 
@@ -2780,6 +2834,8 @@ def atualizar_manutencao(ticket_id: int):
         return redirect(url_for('servicos'))
 
     if action == 'editar':
+        previous_parts_items = _load_json_list(ticket.parts_json)
+
         ticket.client_name = (request.form.get('maintenance_client_name') or '').strip() or 'Não informado'
         ticket.client_phone = (request.form.get('maintenance_client_phone') or '').strip() or None
         ticket.equipment = (request.form.get('maintenance_equipment') or '').strip() or 'Não informado'
@@ -2810,6 +2866,14 @@ def atualizar_manutencao(ticket_id: int):
         parts_items = _build_maintenance_parts_items(request.form)
 
         ticket.parts_json = json.dumps(parts_items, ensure_ascii=False) if parts_items else None
+
+        if ticket.parts_stock_applied:
+            try:
+                _sync_ticket_parts_stock_delta(previous_parts_items, parts_items)
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), 'danger')
+                return redirect(url_for('servicos'))
 
         entry_date_raw = request.form.get('maintenance_entry_date')
         if entry_date_raw:
@@ -2938,6 +3002,10 @@ def excluir_servico(service_id: int):
     linked_tickets = MaintenanceTicket.query.filter_by(service_record_id=service.id).all()
     for ticket in linked_tickets:
         ticket.service_record_id = None
+        normalized_status = _normalize_maintenance_status(ticket.status)
+        if normalized_status in {'pronto_retirada', 'concluido'}:
+            ticket.status = 'em_analise'
+            ticket.exit_date = None
 
     Charge.query.filter_by(service_id=service.id).update(
         {Charge.service_id: None},
@@ -3213,6 +3281,7 @@ def vendas():
         payment_flow = 'aprazo' if request.form.get('payment_flow_aprazo') == 'on' else 'avista'
 
         due_date = None
+        installment_due_dates: list[date] = []
         if payment_flow == 'aprazo':
             due_date_raw = (request.form.get('due_date') or '').strip()
             if due_date_raw:
@@ -3223,6 +3292,18 @@ def vendas():
                     return redirect(url_for('vendas'))
             else:
                 due_date = (datetime.utcnow() + timedelta(days=30)).date()
+
+            due_dates_raw = request.form.getlist('installment_due_date[]')
+            for idx, raw_due_date in enumerate(due_dates_raw, start=1):
+                due_raw = (raw_due_date or '').strip()
+                if not due_raw:
+                    continue
+                try:
+                    parsed_due = _parse_date_input(due_raw)
+                except ValueError:
+                    flash(f'Data de vencimento inválida na parcela {idx}.', 'danger')
+                    return redirect(url_for('vendas'))
+                installment_due_dates.append(parsed_due)
 
         sale = Sale(
             sale_name=sale_name,
@@ -3282,7 +3363,7 @@ def vendas():
         )
         db.session.add(charge)
         db.session.flush()
-        _ensure_charge_installments(charge)
+        _ensure_charge_installments(charge, due_dates=installment_due_dates)
         _normalize_charge_status(charge)
 
         db.session.commit()
@@ -3440,7 +3521,7 @@ def _charge_installments(charge: Charge) -> list[ChargeInstallment]:
     return installments
 
 
-def _ensure_charge_installments(charge: Charge):
+def _ensure_charge_installments(charge: Charge, due_dates: list[date] | None = None):
     count = max(1, int(charge.installment_count or 1))
     amount_total = _charge_total_amount(charge)
     existing = _charge_installments(charge)
@@ -3452,7 +3533,7 @@ def _ensure_charge_installments(charge: Charge):
         charge.installment_value = amount_total.quantize(Decimal('0.01'))
         return
 
-    if existing and len(existing) == count:
+    if existing and len(existing) == count and not due_dates:
         return
 
     for item in existing:
@@ -3466,7 +3547,10 @@ def _ensure_charge_installments(charge: Charge):
         parcel_amount = base_value
         if number == count:
             parcel_amount = (parcel_amount + remainder).quantize(Decimal('0.01'))
-        due_date = base_due + timedelta(days=(number - 1) * 30)
+        if due_dates and len(due_dates) >= number and due_dates[number - 1]:
+            due_date = due_dates[number - 1]
+        else:
+            due_date = base_due + timedelta(days=(number - 1) * 30)
         db.session.add(ChargeInstallment(
             charge_id=charge.id,
             installment_number=number,
@@ -3563,27 +3647,31 @@ def _charge_ui_status(charge: Charge):
 
 
 def _is_sale_finalized_by_payment(sale: Sale, charges: list[Charge]) -> bool:
+    has_active_charge = False
     for charge in charges:
         if charge.status == 'cancelado':
             continue
+        has_active_charge = True
 
         charge_total = _charge_total_amount(charge)
         paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
-        if charge.status == 'confirmado' or paid_amount >= charge_total:
-            return True
-    return False
+        if paid_amount < charge_total:
+            return False
+    return has_active_charge
 
 
 def _is_service_finalized_by_payment(service: ServiceRecord, charges: list[Charge]) -> bool:
+    has_active_charge = False
     for charge in charges:
         if charge.status == 'cancelado':
             continue
+        has_active_charge = True
 
         charge_total = _charge_total_amount(charge)
         paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
-        if charge.status == 'confirmado' or paid_amount >= charge_total:
-            return True
-    return False
+        if paid_amount < charge_total:
+            return False
+    return has_active_charge
 
 
 

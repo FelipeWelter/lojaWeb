@@ -90,6 +90,7 @@
           <input name="installment_count" id="installment-count" type="number" min="1" value="1" placeholder=" " />
           <label for="installment-count">Qtde. parcelas</label>
         </div>
+        <div id="installment-due-dates" class="sale-installment-due-dates"></div>
       </div>
 
       <button type="submit" class="btn-loja btn-loja--primary" id="finalize-sale-btn">Finalizar venda</button>
@@ -272,18 +273,50 @@
 
   const paymentFlowCheckbox = document.getElementById('payment-flow-aprazo');
   const creditFlowFields = document.getElementById('credit-flow-fields');
+  const installmentCountInput = document.getElementById('installment-count');
+  const dueDateInput = document.getElementById('due-date');
+  const installmentDueDatesEl = document.getElementById('installment-due-dates');
+
+  function rebuildInstallmentDueDates() {
+    if (!installmentDueDatesEl) return;
+    installmentDueDatesEl.innerHTML = '';
+
+    const isCredit = !!paymentFlowCheckbox?.checked;
+    const count = Math.max(1, Number(installmentCountInput?.value || 1));
+    if (!isCredit || count <= 1) return;
+
+    const baseDueDate = dueDateInput?.value || '';
+    for (let i = 1; i <= count; i += 1) {
+      const wrap = document.createElement('div');
+      wrap.className = 'floating-field';
+
+      const input = document.createElement('input');
+      input.type = 'date';
+      input.name = 'installment_due_date[]';
+      input.placeholder = ' ';
+      if (i === 1 && baseDueDate) {
+        input.value = baseDueDate;
+      }
+
+      const label = document.createElement('label');
+      label.textContent = `Vencimento da ${i}ª parcela`;
+
+      wrap.appendChild(input);
+      wrap.appendChild(label);
+      installmentDueDatesEl.appendChild(wrap);
+    }
+  }
 
   function togglePaymentFlowFields() {
     const isCredit = !!paymentFlowCheckbox?.checked;
     if (creditFlowFields) creditFlowFields.hidden = !isCredit;
     if (!isCredit) {
-      const due = document.getElementById('due-date');
       const ref = document.getElementById('charge-reference');
-      const inst = document.getElementById('installment-count');
-      if (due) due.value = '';
+      if (dueDateInput) dueDateInput.value = '';
       if (ref) ref.value = '';
-      if (inst) inst.value = '1';
+      if (installmentCountInput) installmentCountInput.value = '1';
     }
+    rebuildInstallmentDueDates();
   }
 
   function formatBRL(v) {
@@ -393,6 +426,8 @@
 
   discountInput?.addEventListener('input', recalcTotal);
   paymentFlowCheckbox?.addEventListener('change', togglePaymentFlowFields);
+  installmentCountInput?.addEventListener('input', rebuildInstallmentDueDates);
+  dueDateInput?.addEventListener('change', rebuildInstallmentDueDates);
   amountReceivedInput?.addEventListener('input', recalcTotal);
 
   [discountInput, amountReceivedInput].forEach((input) => {
