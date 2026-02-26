@@ -1311,13 +1311,69 @@ def imprimir(tipo: str, record_id: int):
             })
 
         assembly_data = None
-        if data.product and data.product.category == 'Computador':
+        assembly_product_id = None
+        if sale_items:
+            for line in sale_items:
+                if line.line_type == 'produto' and line.product and line.product.category == 'Computador':
+                    assembly_product_id = line.product.id
+                    break
+        elif data.product and data.product.category == 'Computador':
+            assembly_product_id = data.product.id
+
+        if assembly_product_id:
             assembly_data = (
                 ComputerAssembly.query
-                .filter_by(id_computador=data.product.id)
+                .filter_by(id_computador=assembly_product_id)
                 .order_by(ComputerAssembly.created_at.desc())
                 .first()
             )
+
+        sale_line_items = []
+        service_receipt_lines = []
+        for line in sale_items:
+            sale_line_items.append({
+                'item': line.description,
+                'quantity': line.quantity,
+                'unit_price': line.unit_price,
+                'total': line.line_total,
+            })
+            if line.line_type == 'servico' and line.service_record:
+                service_receipt_lines.append({
+                    'service_name': line.service_record.service_name,
+                    'equipment': line.service_record.equipment,
+                    'notes': line.service_record.notes or 'Sem observações.',
+                    'total_price': Decimal(line.service_record.total_price or 0),
+                    'cost': Decimal(line.service_record.cost or 0),
+                })
+
+        if not sale_line_items:
+            sale_line_items = [{
+                'item': data.product.name,
+                'quantity': data.quantity,
+                'unit_price': data.product.price,
+                'total': data.total,
+            }]
+
+        assembly_receipt_items = []
+        if assembly_data:
+            for part in assembly_data.composicao:
+                if not part.peca:
+                    continue
+                assembly_receipt_items.append({
+                    'item': part.peca.name,
+                    'source_label': 'Estoque',
+                    'quantity': part.quantidade_utilizada,
+                    'unit_price': Decimal(part.peca.price or 0),
+                    'total': Decimal(part.quantidade_utilizada) * Decimal(part.peca.price or 0),
+                })
+            for custom in assembly_data.custom_parts:
+                assembly_receipt_items.append({
+                    'item': custom.part_name,
+                    'source_label': 'Item personalizado',
+                    'quantity': custom.quantity,
+                    'unit_price': Decimal(custom.unit_cost or 0),
+                    'total': Decimal(custom.quantity) * Decimal(custom.unit_cost or 0),
+                })
 
         context = {
             'document_title': f'Recibo de Venda #{data.id}',
@@ -1326,20 +1382,7 @@ def imprimir(tipo: str, record_id: int):
             'record_date': data.created_at,
             'record_code': f'VEN-{data.id}',
             'client_name': data.client.name,
-            'items': [
-                {
-                    'item': line.description,
-                    'quantity': line.quantity,
-                    'unit_price': line.unit_price,
-                    'total': line.line_total,
-                }
-                for line in sale_items
-            ] or [{
-                'item': data.product.name,
-                'quantity': data.quantity,
-                'unit_price': data.product.price,
-                'total': data.total,
-            }],
+            'items': sale_line_items,
             'subtotal': data.subtotal,
             'gross_total': data.subtotal,
             'discount_amount': data.discount_amount,
@@ -1355,6 +1398,8 @@ def imprimir(tipo: str, record_id: int):
             'notes': f'Venda: {data.sale_name}',
             'performed_by_name': data.performed_by.name if data.performed_by else 'Não identificado',
             'assembly_inline': assembly_data,
+            'assembly_receipt_items': assembly_receipt_items,
+            'service_receipt_lines': service_receipt_lines,
         }
     elif tipo == 'montagem':
         data = ComputerAssembly.query.get_or_404(record_id)
@@ -2611,7 +2656,7 @@ def servicos():
         form_type = request.form.get('form_type', 'service_record')
 
         if form_type == 'maintenance_ticket':
-            client_name = (request.form.get('maintenance_client_name') or '').strip()
+            client_name = (request.form.get('maintenance_client_entry') or '').strip()
             client_phone = (request.form.get('maintenance_client_phone') or '').strip() or None
             maintenance_client_id = (request.form.get('maintenance_client_id') or '').strip()
             if maintenance_client_id:
@@ -2968,7 +3013,7 @@ def atualizar_manutencao(ticket_id: int):
     if action == 'editar':
         previous_parts_items = _load_json_list(ticket.parts_json)
 
-        ticket.client_name = (request.form.get('maintenance_client_name') or '').strip() or 'Não informado'
+        ticket.client_name = (request.form.get('maintenance_client_entry') or '').strip() or 'Não informado'
         ticket.client_phone = (request.form.get('maintenance_client_phone') or '').strip() or None
         ticket.equipment = (request.form.get('maintenance_equipment') or '').strip() or 'Não informado'
         ticket.service_description = (request.form.get('maintenance_service_description') or '').strip() or 'A definir'
@@ -3313,6 +3358,16 @@ def vendas():
     products = buscar_pecas_disponiveis(Product)
     clients = db.session.query(Client).filter(Client.active.is_(True)).group_by(Client.id).order_by(db.func.lower(Client.name)).all()
     services = ServiceRecord.query.order_by(ServiceRecord.created_at.desc()).all()
+    latest_assemblies = (
+        ComputerAssembly.query
+        .filter(ComputerAssembly.canceled.is_(False))
+        .order_by(ComputerAssembly.created_at.desc())
+        .all()
+    )
+    assembly_total_by_product = {}
+    for assembly in latest_assemblies:
+        if assembly.id_computador not in assembly_total_by_product:
+            assembly_total_by_product[assembly.id_computador] = Decimal(assembly.custo_total or 0).quantize(Decimal('0.01'))
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
@@ -3578,6 +3633,7 @@ def vendas():
         finance_installments=finance_installments,
         prefill_product=prefill_product,
         calcular_margem_lucro=calcular_margem_lucro,
+        assembly_total_by_product=assembly_total_by_product,
     )
 
 
