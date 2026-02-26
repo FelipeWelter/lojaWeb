@@ -657,7 +657,7 @@ def _build_computer_with_parts(
         for piece_id, qty in piece_counter.items():
             piece = pieces_by_id[piece_id]
             piece.stock -= qty
-            custo_total += Decimal(qty) * (piece.cost_price or piece.price)
+            custo_total += Decimal(qty) * Decimal(piece.price or 0)
 
         for custom_item in custom_items:
             if custom_item['unit_cost'] < 0:
@@ -2574,7 +2574,7 @@ def editar_montagem(assembly_id: int):
         for piece_id, qty in piece_counter_new.items():
             piece = pieces_by_id[piece_id]
             piece.stock -= qty
-            custo_total += Decimal(qty) * (piece.cost_price or piece.price)
+            custo_total += Decimal(qty) * Decimal(piece.price or 0)
 
         for custom_item in custom_items:
             if custom_item['unit_cost'] < 0:
@@ -3597,6 +3597,8 @@ def vendas():
                 )
             )
 
+        _deactivate_sold_assembled_products(sale)
+
         charge_reference = (request.form.get('charge_reference') or '').strip() or f'VENDA-{sale.id}'
         installment_count_raw = (request.form.get('installment_count') or '1').strip()
         try:
@@ -3624,6 +3626,9 @@ def vendas():
         db.session.flush()
         _ensure_charge_installments(charge, due_dates=installment_due_dates)
         _normalize_charge_status(charge)
+
+        if sale and _is_sale_finalized_by_payment(sale, [charge]):
+            _delete_paid_sold_assembled_products(sale)
 
         db.session.commit()
         flash('Venda registrada com sucesso e enviada para o fluxo financeiro!', 'success')
@@ -3728,8 +3733,12 @@ def cancelar_venda(sale_id: int):
             for line in sale.items:
                 if line.line_type == 'produto' and line.product:
                     line.product.stock += line.quantity
+                    if line.product.category == 'Computador':
+                        line.product.active = True
         elif sale.product:
             sale.product.stock += sale.quantity
+            if sale.product.category == 'Computador':
+                sale.product.active = True
         sale.canceled = True
         sale.canceled_at = datetime.utcnow()
 
@@ -3956,6 +3965,44 @@ def _sync_service_ticket_status(service_id: int | None):
 
 def _is_service_fully_delivered(service: ServiceRecord, charges: list[Charge]) -> bool:
     return _is_service_finalized_by_payment(service, charges) and service.delivery_status == 'entregue'
+
+
+def _deactivate_sold_assembled_products(sale: Sale):
+    if not sale:
+        return
+
+    for line in sale.items or []:
+        if line.line_type != 'produto' or not line.product:
+            continue
+        if line.product.category != 'Computador':
+            continue
+        line.product.active = False
+
+
+def _delete_paid_sold_assembled_products(sale: Sale):
+    if not sale:
+        return
+
+    sale_items = sale.items or []
+    for line in sale_items:
+        if line.line_type != 'produto' or not line.product:
+            continue
+        if line.product.category != 'Computador':
+            continue
+
+        product = line.product
+        if (product.stock or 0) > 0:
+            continue
+
+        sale_line_refs = SaleItem.query.filter_by(product_id=product.id).all()
+        for sale_line in sale_line_refs:
+            sale_line.product_id = None
+
+        assembly_records = ComputerAssembly.query.filter_by(id_computador=product.id).all()
+        for assembly in assembly_records:
+            db.session.delete(assembly)
+
+        db.session.delete(product)
 
 
 
@@ -4192,6 +4239,8 @@ def confirmar_cobranca(charge_id: int):
         _normalize_charge_status(charge)
         if charge.service_id and charge.status == 'confirmado':
             _sync_service_ticket_status(charge.service_id)
+        if charge.sale_id and charge.status == 'confirmado':
+            _delete_paid_sold_assembled_products(charge.sale)
 
         db.session.commit()
         flash('Pagamento registrado com sucesso!', 'success')
@@ -4209,6 +4258,8 @@ def confirmar_cobranca(charge_id: int):
 
     if charge.service_id:
         _sync_service_ticket_status(charge.service_id)
+    if charge.sale_id and charge.status == 'confirmado':
+        _delete_paid_sold_assembled_products(charge.sale)
 
     db.session.commit()
     flash('Pagamento confirmado!', 'success')
