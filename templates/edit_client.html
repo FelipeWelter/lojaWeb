@@ -4,7 +4,7 @@
   <h2>Editar cliente</h2>
   <form method="post" class="grid form-grid">
     <input name="name" placeholder="Nome" value="{{ client.name }}" required />
-    <input name="cpf" placeholder="CPF" value="{{ client.cpf or '' }}" required />
+    <input name="cpf" placeholder="CPF" value="{{ client.cpf or '' }}" />
     <input name="phone" placeholder="Telefone" value="{{ client.phone or '' }}" />
     <input name="email" type="email" placeholder="E-mail" value="{{ client.email or '' }}" />
     <button type="submit">Salvar alterações</button>
