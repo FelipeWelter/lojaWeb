@@ -4,17 +4,31 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{ document_title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
 </head>
 <body>
   <main class="container print-receipt thermal-receipt">
     <section class="card">
-      <header>
-        <h2>🖥️ LojaWeb</h2>
-        <p><strong>Data/Hora:</strong> {{ record_date.strftime('%d/%m/%Y %H:%M') }}</p>
-        <p><strong>Documento:</strong> {{ record_code }}</p>
-        <p><strong>Cliente/Referência:</strong> {{ client_name }}</p>
+      <header class="receipt-header">
+        <img class="receipt-logo" src="{{ url_for('static', filename='logo-lojaweb.svg') }}" alt="Logotipo LojaWeb" />
+        <section class="receipt-header-grid">
+          <article class="receipt-block">
+            <h4>LojaWeb Tecnologia</h4>
+            <p><strong>CNPJ:</strong> 00.000.000/0001-00</p>
+            <p><strong>Endereço:</strong> Rua Exemplo, 123 - Centro</p>
+            <p><strong>Contato:</strong> {{ store_contact }}</p>
+          </article>
+          <article class="receipt-block">
+            <h4>Dados do Documento</h4>
+            <p><strong>Data/Hora:</strong> {{ record_date.strftime('%d/%m/%Y %H:%M') }}</p>
+            <p><strong>Documento:</strong> {{ record_code }}</p>
+            <p><strong>Cliente/Referência:</strong> {{ client_name }}</p>
+          </article>
+        </section>
       </header>
 
       <h3>Itens</h3>
@@ -36,11 +50,17 @@
       </table>
 
       {% if record_code.startswith('MON-') %}
-      <p><strong>Total da montagem:</strong> R$ {{ '%.2f'|format(total) }}</p>
+      <div class="receipt-total-box">
+        <span>Total da montagem</span>
+        <strong>R$ {{ '%.2f'|format(total) }}</strong>
+      </div>
       {% else %}
       <p><strong>Valor Bruto:</strong> R$ {{ '%.2f'|format(gross_total if gross_total is defined else subtotal) }}</p>
       <p><strong>Desconto:</strong> R$ {{ '%.2f'|format(discount_amount or 0) }}</p>
-      <p><strong>Valor Líquido:</strong> R$ {{ '%.2f'|format(total) }}</p>
+      <div class="receipt-total-box">
+        <span>Valor Líquido</span>
+        <strong>R$ {{ '%.2f'|format(total) }}</strong>
+      </div>
       {% endif %}
       {% if payment_method_label is defined %}
       <p><strong>Forma de pagamento:</strong> {{ payment_method_label }}</p>
@@ -48,6 +68,19 @@
 
       {% if payment_status_label is defined %}
       <p><strong>Status do pagamento:</strong> {{ payment_status_label }}</p>
+      {% endif %}
+
+      {% if payment_status_label is defined and payment_status_label == 'Pendente' %}
+      <section class="pix-qrcode-block">
+        <h3>Pagamento via Pix</h3>
+        <p>Escaneie o QR Code para realizar o pagamento imediato.</p>
+        <img
+          src="https://quickchart.io/qr?size=180&text=PIX%20{{ record_code }}%20-%20R%24%20{{ '%.2f'|format(total) }}"
+          alt="QR Code Pix para pagamento do documento {{ record_code }}"
+          width="120"
+          height="120"
+        />
+      </section>
       {% endif %}
 
       {% if payment_lines is defined and payment_lines %}
@@ -121,6 +154,24 @@
       {% endif %}
       <p><strong>Observações:</strong> {{ notes }}</p>
       <p><strong>Técnico responsável:</strong> {{ performed_by_name }}</p>
+
+      {% if record_code.startswith('MON-') or record_code.startswith('OS-') %}
+      <section class="signature-grid">
+        <article class="signature-box">
+          <p>Assinatura do Técnico</p>
+        </article>
+        <article class="signature-box">
+          <p>Assinatura do Cliente</p>
+        </article>
+      </section>
+      {% endif %}
+
+      <footer class="receipt-legal-footer">
+        <p>
+          Garantia legal de 90 dias para serviços executados e peças com defeito de fabricação.
+          Trocas sujeitas à avaliação técnica e apresentação deste documento.
+        </p>
+      </footer>
 
       {% if is_assembly_label is defined and is_assembly_label %}
       <section class="assembly-label-print">
