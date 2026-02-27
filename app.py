@@ -209,6 +209,7 @@ class ComputerAssembly(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     custo_total = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     preco_sugerido = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    apply_price_suggestion = db.Column(db.Boolean, nullable=False, default=False)
     canceled = db.Column(db.Boolean, nullable=False, default=False)
     canceled_at = db.Column(db.DateTime, nullable=True)
     technical_notes = db.Column(db.Text, nullable=True)
@@ -742,6 +743,25 @@ def _read_optional_service_costs(form_data):
     }
 
 
+def _calculate_assembly_suggested_pieces_total(piece_counter, pieces_by_id, custom_items=None, markup=Decimal('0.25')):
+    """Função `_calculate_assembly_suggested_pieces_total`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    suggested_total = Decimal('0.00')
+    custom_items = custom_items or []
+
+    for piece_id, qty in piece_counter.items():
+        piece = pieces_by_id.get(piece_id)
+        if not piece:
+            continue
+        suggested_unit = calcular_preco_sugerido(Decimal(piece.price or 0), markup=markup)
+        suggested_total += Decimal(qty) * suggested_unit
+
+    for custom_item in custom_items:
+        suggested_unit = calcular_preco_sugerido(Decimal(custom_item['unit_cost'] or 0), markup=markup)
+        suggested_total += Decimal(custom_item['qty']) * suggested_unit
+
+    return suggested_total.quantize(Decimal('0.01'))
+
+
 def _build_computer_with_parts(
     computer_name,
     original_price_new,
@@ -797,7 +817,7 @@ def _build_computer_with_parts(
         custo_pecas = custo_total.quantize(Decimal('0.01'))
         technical_services_cost = (bios_service_cost + stress_test_cost + os_install_cost).quantize(Decimal('0.01'))
         custo_total = (custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
-        preco_sugerido = calcular_preco_sugerido(custo_pecas, markup=Decimal('0.25'))
+        preco_sugerido = _calculate_assembly_suggested_pieces_total(piece_counter, pieces_by_id, custom_items)
 
         if not computer:
             computer = Product(
@@ -842,6 +862,7 @@ def _build_computer_with_parts(
             preco_original=preco_original,
             custo_total=custo_total,
             preco_sugerido=preco_sugerido,
+            apply_price_suggestion=apply_price_suggestion,
             technical_notes=(technical_notes or '').strip() or None,
             bios_updated=bios_updated,
             bios_service_cost=bios_service_cost,
@@ -1784,28 +1805,31 @@ def imprimir(tipo: str, record_id: int):
         }
     elif tipo == 'montagem':
         data = ComputerAssembly.query.get_or_404(record_id)
-        items = [
-            {
+        apply_suggestion = bool(data.apply_price_suggestion)
+        items = []
+        for item in data.composicao:
+            base_unit_price = Decimal(item.peca.price or 0)
+            unit_price = calcular_preco_sugerido(base_unit_price, markup=Decimal('0.25')) if apply_suggestion else base_unit_price
+            items.append({
                 'item': item.peca.name,
                 'source_label': 'Estoque',
                 'sku': item.peca.serial_number,
                 'quantity': item.quantidade_utilizada,
-                'unit_price': item.peca.price,
-                'total': Decimal(item.quantidade_utilizada) * Decimal(item.peca.price),
-            }
-            for item in data.composicao
-        ]
-        items.extend(
-            {
+                'unit_price': unit_price,
+                'total': Decimal(item.quantidade_utilizada) * unit_price,
+            })
+
+        for custom in data.custom_parts:
+            base_unit_price = Decimal(custom.unit_cost or 0)
+            unit_price = calcular_preco_sugerido(base_unit_price, markup=Decimal('0.25')) if apply_suggestion else base_unit_price
+            items.append({
                 'item': custom.part_name,
                 'source_label': 'Item Personalizado',
                 'sku': None,
                 'quantity': custom.quantity,
-                'unit_price': custom.unit_cost,
-                'total': Decimal(custom.quantity) * Decimal(custom.unit_cost),
-            }
-            for custom in data.custom_parts
-        )
+                'unit_price': unit_price,
+                'total': Decimal(custom.quantity) * unit_price,
+            })
 
         service_items = []
         if Decimal(data.bios_service_cost or 0) > 0:
@@ -3022,7 +3046,8 @@ def editar_montagem(assembly_id: int):
         assembly.preco_original = preco_original
         custo_pecas = custo_total.quantize(Decimal('0.01'))
         assembly.custo_total = (custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
-        assembly.preco_sugerido = calcular_preco_sugerido(custo_pecas, markup=Decimal('0.25'))
+        assembly.preco_sugerido = _calculate_assembly_suggested_pieces_total(piece_counter_new, pieces_by_id, custom_items)
+        assembly.apply_price_suggestion = apply_price_suggestion
         assembly.technical_notes = (request.form.get('technical_notes') or '').strip() or None
         assembly.bios_updated = request.form.get('bios_updated') == 'on'
         assembly.bios_service_cost = optional_costs['bios_service_cost']
@@ -5228,6 +5253,8 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN os_installed BOOLEAN NOT NULL DEFAULT 0'))
     if 'os_install_cost' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN os_install_cost NUMERIC(10,2) NOT NULL DEFAULT 0'))
+    if 'apply_price_suggestion' not in montagem_columns:
+        db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN apply_price_suggestion BOOLEAN NOT NULL DEFAULT 0'))
     if 'performed_by_user_id' not in montagem_columns:
         db.session.execute(db.text('ALTER TABLE montagem_computador ADD COLUMN performed_by_user_id INTEGER'))
     db.session.execute(

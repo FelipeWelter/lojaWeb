@@ -209,8 +209,13 @@
     if (hiddenId) hiddenId.value = '';
   }
 
+  function calcularSugestaoUnitCents(unitCents) {
+    return Math.round(Number(unitCents || 0) * 1.25);
+  }
+
   function atualizarTotais() {
     let pecasCents = 0;
+    let suggestedPiecesOnlyCents = 0;
 
     form.querySelectorAll('.multi-row').forEach((row) => {
       const stockId = row.querySelector('input[name$="_stock_ids[]"]')?.value;
@@ -220,10 +225,10 @@
       const qty = Number(qtyInput?.value || 0);
       const isStock = Boolean(stockId);
 
-      if (isStock && qty > 0) {
-        pecasCents += Math.round(toCents(customCostInput.value) * qty);
-      } else if (entryInput && entryInput.value.trim() && qty > 0) {
-        pecasCents += Math.round(toCents(customCostInput.value) * qty);
+      if ((isStock || (entryInput && entryInput.value.trim())) && qty > 0) {
+        const unitCents = toCents(customCostInput.value);
+        pecasCents += Math.round(unitCents * qty);
+        suggestedPiecesOnlyCents += calcularSugestaoUnitCents(unitCents) * qty;
       }
     });
 
@@ -234,12 +239,13 @@
 
       if (!entryInput || !entryInput.value.trim()) return;
       if (stockId || entryInput.value.trim()) {
-        pecasCents += toCents(cost?.value || 0);
+        const unitCents = toCents(cost?.value || 0);
+        pecasCents += unitCents;
+        suggestedPiecesOnlyCents += calcularSugestaoUnitCents(unitCents);
       }
     });
 
     const extraServicesCents = toCents(form.querySelector('input[name="bios_service_cost"]')?.value) + toCents(form.querySelector('input[name="stress_test_cost"]')?.value) + toCents(form.querySelector('input[name="os_install_cost"]')?.value);
-    const suggestedPiecesOnlyCents = Math.round(pecasCents * 1.25);
     const finalPiecesCents = applySuggestionCheckbox?.checked ? suggestedPiecesOnlyCents : pecasCents;
     const finalCents = finalPiecesCents + extraServicesCents;
 
@@ -326,7 +332,7 @@
   {% if edit_assembly %}
   const editData = {{ assembly_edit_data.get(edit_assembly.id, {})|tojson }};
   {% if edit_assembly.computador %}
-  const shouldApplySuggestion = Number('{{ '%.2f'|format(edit_assembly.computador.price if edit_assembly.computador else 0) }}') === Number('{{ '%.2f'|format(edit_assembly.preco_original + edit_assembly.preco_sugerido + (edit_assembly.bios_service_cost or 0) + (edit_assembly.stress_test_cost or 0) + (edit_assembly.os_install_cost or 0)) }}');
+  const shouldApplySuggestion = {{ 'true' if edit_assembly.apply_price_suggestion else 'false' }};
   if (applySuggestionCheckbox) applySuggestionCheckbox.checked = shouldApplySuggestion;
   {% endif %}
   if (editData.single_selected) {
