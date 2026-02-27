@@ -1,4 +1,5 @@
 def buscar_pecas_disponiveis(product_model):
+    """Função `buscar_pecas_disponiveis`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     return (
         product_model.query
         .filter(
@@ -12,6 +13,7 @@ def buscar_pecas_disponiveis(product_model):
 
 
 def buscar_pecas_por_classe(product_model, slots):
+    """Função `buscar_pecas_por_classe`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     return {
         slot_key: (
             product_model.query
