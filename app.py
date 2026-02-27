@@ -1466,6 +1466,37 @@ def imprimir(tipo: str, record_id: int):
             }
             for custom in data.custom_parts
         )
+
+        service_items = []
+        if Decimal(data.bios_service_cost or 0) > 0:
+            service_items.append({
+                'item': 'Serviço técnico: atualização de BIOS',
+                'source_label': 'Serviço',
+                'sku': None,
+                'quantity': 1,
+                'unit_price': Decimal(data.bios_service_cost or 0),
+                'total': Decimal(data.bios_service_cost or 0),
+            })
+        if Decimal(data.stress_test_cost or 0) > 0:
+            service_items.append({
+                'item': 'Serviço técnico: teste de stress',
+                'source_label': 'Serviço',
+                'sku': None,
+                'quantity': 1,
+                'unit_price': Decimal(data.stress_test_cost or 0),
+                'total': Decimal(data.stress_test_cost or 0),
+            })
+        if Decimal(data.os_install_cost or 0) > 0:
+            service_items.append({
+                'item': 'Serviço técnico: instalação de sistema operacional',
+                'source_label': 'Serviço',
+                'sku': None,
+                'quantity': 1,
+                'unit_price': Decimal(data.os_install_cost or 0),
+                'total': Decimal(data.os_install_cost or 0),
+            })
+
+        items.extend(service_items)
         assembly_total = sum((item['total'] for item in items), Decimal('0.00')).quantize(Decimal('0.01'))
         context = {
             'document_title': f'Recibo de Montagem #{data.id}',
@@ -3484,8 +3515,14 @@ def vendas():
                 continue
             pieces_sale_total += Decimal(comp.quantidade_utilizada or 0) * Decimal(comp.peca.price or 0)
 
-        # Valor da montagem para venda deve considerar apenas o valor de venda das peças cadastradas.
-        assembly_total_by_product[assembly.id_computador] = pieces_sale_total.quantize(Decimal('0.01'))
+        technical_services_total = (
+            Decimal(assembly.bios_service_cost or 0)
+            + Decimal(assembly.stress_test_cost or 0)
+            + Decimal(assembly.os_install_cost or 0)
+        )
+
+        # Valor importado no PDV para montagem: peças + serviços técnicos adicionais.
+        assembly_total_by_product[assembly.id_computador] = (pieces_sale_total + technical_services_total).quantize(Decimal('0.01'))
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
