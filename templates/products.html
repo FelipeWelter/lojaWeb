@@ -129,6 +129,16 @@
           <label>Capacidade<input name="storage_capacity" placeholder="Ex: 1 TB" value="{{ edit_product.storage_capacity if edit_product else "" }}" /></label>
           <label>Marca<input name="storage_brand" placeholder="Ex: Western Digital" value="{{ edit_product.storage_brand if edit_product else "" }}" /></label>
         </div>
+
+
+        <div id="peripherals-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Periféricos</h4>
+          <label>Mouse<input name="peripheral_mouse" placeholder="Ex: Logitech G203" value="{{ edit_product.peripheral_mouse if edit_product else "" }}" /></label>
+          <label>Teclado<input name="peripheral_keyboard" placeholder="Ex: Redragon Kumara" value="{{ edit_product.peripheral_keyboard if edit_product else "" }}" /></label>
+          <label>Monitor<input name="peripheral_monitor" placeholder="Ex: LG 24 polegadas" value="{{ edit_product.peripheral_monitor if edit_product else "" }}" /></label>
+          <label>Cabo de força<input name="peripheral_power_cable" placeholder="Ex: Padrão NBR 14136" value="{{ edit_product.peripheral_power_cable if edit_product else "" }}" /></label>
+          <label>Cabo HDMI<input name="peripheral_hdmi_cable" placeholder="Ex: HDMI 2.1 2m" value="{{ edit_product.peripheral_hdmi_cable if edit_product else "" }}" /></label>
+        </div>
       </section>
 
       <section class="form-zone zone-finance">
@@ -136,6 +146,7 @@
         <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.cost_price) if edit_product else "0,00" }}" required /></div></label>
         <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.price) if edit_product else "0,00" }}" required /></div></label>
         <p class="suggested-price-hint">Sugestão com margem de 25%: <strong id="suggested-price">R$ 0,00</strong></p>
+        <label class="inline-checkbox"><input type="checkbox" id="apply-suggested-price" name="apply_suggested_price" /> Aplicar sugestão de preço (+25%)</label>
         <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" /></div></label>
         <label>Margem de lucro (%)<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
       </section>
@@ -198,6 +209,7 @@
       fonte: document.getElementById('psu-fields'),
       placa_video: document.getElementById('gpu-fields'),
       armazenamento: document.getElementById('storage-fields'),
+      perifericos: document.getElementById('peripherals-fields'),
     };
 
     const helpMap = {
@@ -208,9 +220,10 @@
       fonte: 'Fonte: informe marca e potência real.',
       placa_video: 'GPU: informe memória, fabricante da GPU e marca parceira.',
       armazenamento: 'Armazenamento: informe tipo, capacidade e marca.',
+      perifericos: 'Periféricos: informe mouse, teclado, monitor e cabos.',
     };
 
-    const noExtraClasses = ['fans', 'perifericos'];
+    const noExtraClasses = ['fans'];
     const noExtraFields = document.getElementById('no-extra-fields');
 
     Object.entries(fieldsMap).forEach(([key, fieldContainer]) => {
@@ -256,8 +269,13 @@
     const marginInput = document.getElementById('margin-input');
     const pill = document.getElementById('margin-pill');
     const suggestedPriceEl = document.getElementById('suggested-price');
+    const applySuggestedInput = document.getElementById('apply-suggested-price');
+    const priceInput = document.getElementById('price-input');
     if (marginInput) marginInput.value = margin.toFixed(2).replace('.', ',');
     if (suggestedPriceEl) suggestedPriceEl.textContent = `R$ ${suggestedPrice.toFixed(2).replace('.', ',')}`;
+    if (applySuggestedInput?.checked && priceInput) {
+      priceInput.value = suggestedPrice.toFixed(2).replace('.', ',');
+    }
     if (!pill) return;
     pill.textContent = `${margin.toFixed(2).replace('.', ',')}%`;
     pill.classList.remove('ok', 'warn', 'bad');
@@ -286,6 +304,14 @@
       parts = [pick('input[name="storage_brand"]'), pick('select[name="storage_type"]'), pick('input[name="storage_capacity"]')];
     } else if (selectedClass === 'fonte') {
       parts = [pick('input[name="psu_brand"]'), pick('input[name="psu_watts"]')];
+    } else if (selectedClass === 'perifericos') {
+      parts = [
+        pick('input[name="peripheral_mouse"]'),
+        pick('input[name="peripheral_keyboard"]'),
+        pick('input[name="peripheral_monitor"]'),
+        pick('input[name="peripheral_power_cable"]'),
+        pick('input[name="peripheral_hdmi_cable"]'),
+      ];
     }
 
     parts = parts.filter(Boolean);
@@ -312,6 +338,7 @@
   document.getElementById('freight-input')?.addEventListener('input', scheduleMarginUpdate);
   document.getElementById('price-input')?.addEventListener('input', scheduleMarginUpdate);
   document.getElementById('serial-number-input')?.addEventListener('input', scheduleMarginUpdate);
+  document.getElementById('apply-suggested-price')?.addEventListener('change', scheduleMarginUpdate);
   pieceForm?.querySelectorAll('input, select').forEach((field) => {
     if (field.id === 'cost-input' || field.id === 'freight-input' || field.id === 'price-input') return;
     field.addEventListener('input', scheduleMarginUpdate);

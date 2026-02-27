@@ -92,6 +92,11 @@ class Product(db.Model):
     motherboard_chipset = db.Column(db.String(40), nullable=True)
     cabinet_brand = db.Column(db.String(60), nullable=True)
     cabinet_description = db.Column(db.String(180), nullable=True)
+    peripheral_mouse = db.Column(db.String(120), nullable=True)
+    peripheral_keyboard = db.Column(db.String(120), nullable=True)
+    peripheral_monitor = db.Column(db.String(120), nullable=True)
+    peripheral_power_cable = db.Column(db.String(120), nullable=True)
+    peripheral_hdmi_cable = db.Column(db.String(120), nullable=True)
     images = db.relationship('ProductImage', backref='product', cascade='all, delete-orphan', order_by='ProductImage.position')
     active = db.Column(db.Boolean, nullable=False, default=True)
 
@@ -121,6 +126,11 @@ class Product(db.Model):
         add_spec('Gabinete', self.cabinet_brand)
         add_spec('Descrição', self.cabinet_description)
         add_spec('Fonte', self.psu_watts)
+        add_spec('Mouse', self.peripheral_mouse)
+        add_spec('Teclado', self.peripheral_keyboard)
+        add_spec('Monitor', self.peripheral_monitor)
+        add_spec('Cabo de força', self.peripheral_power_cable)
+        add_spec('Cabo HDMI', self.peripheral_hdmi_cable)
         add_spec('S/N', self.serial_number)
 
         return ' • '.join(specs)
@@ -746,6 +756,7 @@ def _build_computer_with_parts(
     bios_service_cost=Decimal('0.00'),
     stress_test_cost=Decimal('0.00'),
     os_install_cost=Decimal('0.00'),
+    apply_price_suggestion=False,
     current_user=None,
 ):
     """Função `_build_computer_with_parts`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
@@ -783,9 +794,10 @@ def _build_computer_with_parts(
                 raise ValueError(f"Custo inválido para peça personalizada: {custom_item['name']}")
             custo_total += Decimal(custom_item['qty']) * custom_item['unit_cost']
 
+        custo_pecas = custo_total.quantize(Decimal('0.01'))
         technical_services_cost = (bios_service_cost + stress_test_cost + os_install_cost).quantize(Decimal('0.01'))
-        custo_total = (custo_total + technical_services_cost).quantize(Decimal('0.01'))
-        preco_sugerido = calcular_preco_sugerido(custo_total, markup=Decimal('0.25'))
+        custo_total = (custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
+        preco_sugerido = calcular_preco_sugerido(custo_pecas, markup=Decimal('0.25'))
 
         if not computer:
             computer = Product(
@@ -819,7 +831,8 @@ def _build_computer_with_parts(
             preco_base_informado = Decimal(computer.price)
 
         preco_original = preco_base_informado
-        preco_final = (preco_original + custo_total).quantize(Decimal('0.01'))
+        subtotal_pecas = preco_sugerido if apply_price_suggestion else custo_pecas
+        preco_final = (preco_original + subtotal_pecas + technical_services_cost).quantize(Decimal('0.01'))
         if create_stock_item:
             computer.price = preco_final
 
@@ -867,6 +880,7 @@ def _build_computer_with_parts(
         'custo_total': custo_total,
         'preco_final': preco_final,
         'preco_sugerido': preco_sugerido,
+        'apply_price_suggestion': apply_price_suggestion,
         'new_photo_urls': uploaded_photo_urls,
         'previous_photo_urls': previous_photo_urls,
         'computer_id': computer.id,
@@ -1104,6 +1118,14 @@ def _generate_piece_name(component_class: str | None, form_data) -> str:
         specs = [clean('psu_brand'), clean('psu_watts')]
     elif component_class == 'gabinete':
         specs = [clean('cabinet_brand'), clean('cabinet_description')]
+    elif component_class == 'perifericos':
+        specs = [
+            clean('peripheral_mouse'),
+            clean('peripheral_keyboard'),
+            clean('peripheral_monitor'),
+            clean('peripheral_power_cable'),
+            clean('peripheral_hdmi_cable'),
+        ]
 
     specs = [item for item in specs if item]
     serial = clean('serial_number')
@@ -2529,13 +2551,19 @@ def produtos():
                 return redirect(url_for('produtos'))
 
         generated_piece_name = _generate_piece_name(component_class, request.form) if category == 'Peça' else (request.form.get('name') or '').strip()
+        apply_suggested_price = request.form.get('apply_suggested_price') == 'on'
+
+        base_cost = _to_money_decimal(request.form.get('cost_price'))
+        freight_fees = _to_money_decimal(request.form.get('freight_fees'))
+        suggested_price = calcular_preco_sugerido(base_cost + freight_fees, markup=Decimal('0.25'))
+        sale_price = suggested_price if apply_suggested_price else _to_money_decimal(request.form.get('price'))
 
         product_dto = ProductDTO(
             name=generated_piece_name,
             category=category,
             stock=int(request.form['stock']),
-            price=_to_money_decimal(request.form.get('price')),
-            cost_price=_to_money_decimal(request.form.get('cost_price')),
+            price=sale_price,
+            cost_price=base_cost,
             component_class=component_class,
             serial_number=(request.form.get('serial_number') or '').strip() or None,
         )
@@ -2570,6 +2598,11 @@ def produtos():
             motherboard_chipset=(request.form.get('motherboard_chipset') or '').strip() or None,
             cabinet_brand=(request.form.get('cabinet_brand') or '').strip() or None,
             cabinet_description=(request.form.get('cabinet_description') or '').strip() or None,
+            peripheral_mouse=(request.form.get('peripheral_mouse') or '').strip() or None,
+            peripheral_keyboard=(request.form.get('peripheral_keyboard') or '').strip() or None,
+            peripheral_monitor=(request.form.get('peripheral_monitor') or '').strip() or None,
+            peripheral_power_cable=(request.form.get('peripheral_power_cable') or '').strip() or None,
+            peripheral_hdmi_cable=(request.form.get('peripheral_hdmi_cable') or '').strip() or None,
         )
         db.session.commit()
         flash('Produto cadastrado com sucesso!', 'success')
@@ -2655,13 +2688,17 @@ def editar_produto(product_id: int):
         return redirect(fallback_edit_url)
 
     old_price = Decimal(product.price)
-    new_price = _to_money_decimal(request.form.get('price'))
+    apply_suggested_price = request.form.get('apply_suggested_price') == 'on'
+    base_cost = _to_money_decimal(request.form.get('cost_price'))
+    freight_fees = _to_money_decimal(request.form.get('freight_fees'))
+    suggested_price = calcular_preco_sugerido(base_cost + freight_fees, markup=Decimal('0.25'))
+    new_price = suggested_price if apply_suggested_price else _to_money_decimal(request.form.get('price'))
 
     product.name = _generate_piece_name(component_class, request.form) if category == 'Peça' else (request.form.get('name') or product.name).strip()
     product.category = category
     product.stock = int(request.form.get('stock') or 0)
     product.price = new_price
-    product.cost_price = _to_money_decimal(request.form.get('cost_price'))
+    product.cost_price = base_cost
     product.component_class = component_class
     product.serial_number = (request.form.get('serial_number') or '').strip() or None
     if 'ram_ddr' in request.form:
@@ -2705,6 +2742,16 @@ def editar_produto(product_id: int):
         product.cabinet_brand = (request.form.get('cabinet_brand') or '').strip() or None
     if 'cabinet_description' in request.form:
         product.cabinet_description = (request.form.get('cabinet_description') or '').strip() or None
+    if 'peripheral_mouse' in request.form:
+        product.peripheral_mouse = (request.form.get('peripheral_mouse') or '').strip() or None
+    if 'peripheral_keyboard' in request.form:
+        product.peripheral_keyboard = (request.form.get('peripheral_keyboard') or '').strip() or None
+    if 'peripheral_monitor' in request.form:
+        product.peripheral_monitor = (request.form.get('peripheral_monitor') or '').strip() or None
+    if 'peripheral_power_cable' in request.form:
+        product.peripheral_power_cable = (request.form.get('peripheral_power_cable') or '').strip() or None
+    if 'peripheral_hdmi_cable' in request.form:
+        product.peripheral_hdmi_cable = (request.form.get('peripheral_hdmi_cable') or '').strip() or None
 
     if old_price != new_price:
         _log_audit(
@@ -2844,6 +2891,7 @@ def montar_pc():
         os_installed = request.form.get('os_installed') == 'on'
         optional_costs = _read_optional_service_costs(request.form)
         send_to_sales = request.form.get('send_to_sales') == 'on'
+        apply_price_suggestion = request.form.get('apply_price_suggestion') == 'on'
 
         try:
             result = _build_computer_with_parts(
@@ -2860,13 +2908,15 @@ def montar_pc():
                 bios_service_cost=optional_costs['bios_service_cost'],
                 stress_test_cost=optional_costs['stress_test_cost'],
                 os_install_cost=optional_costs['os_install_cost'],
+                apply_price_suggestion=apply_price_suggestion,
                 current_user=current,
             )
             db.session.commit()
             flash(
                 f'Montagem concluída! Preço base R$ {result["preco_original"]:.2f} + '
                 f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
-                f'Preço sugerido das peças avulsas (+25%) R$ {result["preco_sugerido"]:.2f}.',
+                f'Sugestão de peças avulsas (+25%) R$ {result["preco_sugerido"]:.2f} '
+                f'({"aplicada" if result["apply_price_suggestion"] else "não aplicada"}).',
                 'success',
             )
             if send_to_sales and result.get('computer_id'):
@@ -2926,6 +2976,7 @@ def editar_montagem(assembly_id: int):
         return redirect(url_for('montar_pc'))
 
     selected_piece_ids, custom_items = _collect_selected_piece_inputs(request.form)
+    apply_price_suggestion = request.form.get('apply_price_suggestion') == 'on'
     optional_costs = _read_optional_service_costs(request.form)
     piece_counter_new = Counter(selected_piece_ids)
 
@@ -2969,8 +3020,9 @@ def editar_montagem(assembly_id: int):
             + optional_costs['os_install_cost']
         ).quantize(Decimal('0.01'))
         assembly.preco_original = preco_original
-        assembly.custo_total = (custo_total + technical_services_cost).quantize(Decimal('0.01'))
-        assembly.preco_sugerido = calcular_preco_sugerido(assembly.custo_total, markup=Decimal('0.25'))
+        custo_pecas = custo_total.quantize(Decimal('0.01'))
+        assembly.custo_total = (custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
+        assembly.preco_sugerido = calcular_preco_sugerido(custo_pecas, markup=Decimal('0.25'))
         assembly.technical_notes = (request.form.get('technical_notes') or '').strip() or None
         assembly.bios_updated = request.form.get('bios_updated') == 'on'
         assembly.bios_service_cost = optional_costs['bios_service_cost']
@@ -2981,7 +3033,8 @@ def editar_montagem(assembly_id: int):
 
         computer = assembly.computador
         if computer and computer.stock > 0:
-            computer.price = (preco_original + assembly.custo_total).quantize(Decimal('0.01'))
+            subtotal_pecas = assembly.preco_sugerido if apply_price_suggestion else custo_pecas
+            computer.price = (preco_original + subtotal_pecas + technical_services_cost).quantize(Decimal('0.01'))
 
         ProductComposition.query.filter_by(id_montagem=assembly.id).delete()
         AssemblyCustomPart.query.filter_by(assembly_id=assembly.id).delete()
@@ -5007,6 +5060,16 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN cabinet_brand VARCHAR(60)'))
     if 'cabinet_description' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN cabinet_description VARCHAR(180)'))
+    if 'peripheral_mouse' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN peripheral_mouse VARCHAR(120)'))
+    if 'peripheral_keyboard' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN peripheral_keyboard VARCHAR(120)'))
+    if 'peripheral_monitor' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN peripheral_monitor VARCHAR(120)'))
+    if 'peripheral_power_cable' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN peripheral_power_cable VARCHAR(120)'))
+    if 'peripheral_hdmi_cable' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN peripheral_hdmi_cable VARCHAR(120)'))
     db.session.execute(
         db.text(
             "UPDATE product SET stock = 0, active = 0, category = 'Serviço', price = 0, cost_price = 0 "

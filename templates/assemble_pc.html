@@ -82,9 +82,11 @@
                 <div>
                   <p class="summary-title">Resumo do Orçamento</p>
                   <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
-                                  </div>
+                  <p><strong>Sugestão (+25% peças):</strong> <span id="total-sugerido">R$ 0,00</span></p>
+                  <label class="inline-checkbox"><input type="checkbox" id="apply-price-suggestion" name="apply_price_suggestion" /> Aplicar sugestão no valor final</label>
+                </div>
                 <button type="submit" class="summary-submit">{% if edit_assembly %}Salvar montagem{% else %}Finalizar montagem{% endif %}</button>
-                <p class="summary-hint">A soma total considera peças + serviços técnicos manuais (BIOS/Stress/SO).</p>
+                <p class="summary-hint">Desmarcado: mantém somente preço das peças. Marcado: aplica +25% nas peças avulsas.</p>
               </div>
             </div>
           </div>
@@ -171,6 +173,8 @@
   const form = document.getElementById('form-montagem');
   const custoEl = document.getElementById('total-custo');
   const custoMobileEl = document.getElementById('total-custo-mobile');
+  const sugeridoEl = document.getElementById('total-sugerido');
+  const applySuggestionCheckbox = document.getElementById('apply-price-suggestion');
 
 
   function syncPieceEntry(input) {
@@ -206,7 +210,7 @@
   }
 
   function atualizarTotais() {
-    let totalCents = 0;
+    let pecasCents = 0;
 
     form.querySelectorAll('.multi-row').forEach((row) => {
       const stockId = row.querySelector('input[name$="_stock_ids[]"]')?.value;
@@ -217,9 +221,9 @@
       const isStock = Boolean(stockId);
 
       if (isStock && qty > 0) {
-        totalCents += Math.round(toCents(customCostInput.value) * qty);
+        pecasCents += Math.round(toCents(customCostInput.value) * qty);
       } else if (entryInput && entryInput.value.trim() && qty > 0) {
-        totalCents += Math.round(toCents(customCostInput.value) * qty);
+        pecasCents += Math.round(toCents(customCostInput.value) * qty);
       }
     });
 
@@ -230,15 +234,19 @@
 
       if (!entryInput || !entryInput.value.trim()) return;
       if (stockId || entryInput.value.trim()) {
-        totalCents += toCents(cost?.value || 0);
+        pecasCents += toCents(cost?.value || 0);
       }
     });
 
     const extraServicesCents = toCents(form.querySelector('input[name="bios_service_cost"]')?.value) + toCents(form.querySelector('input[name="stress_test_cost"]')?.value) + toCents(form.querySelector('input[name="os_install_cost"]')?.value);
-    totalCents += extraServicesCents;
-    custoEl.textContent = formatBRLFromCents(totalCents);
+    const suggestedPiecesOnlyCents = Math.round(pecasCents * 1.25);
+    const finalPiecesCents = applySuggestionCheckbox?.checked ? suggestedPiecesOnlyCents : pecasCents;
+    const finalCents = finalPiecesCents + extraServicesCents;
+
+    custoEl.textContent = formatBRLFromCents(finalCents);
+    if (sugeridoEl) sugeridoEl.textContent = formatBRLFromCents(suggestedPiecesOnlyCents);
     if (custoMobileEl) {
-      custoMobileEl.textContent = formatBRLFromCents(totalCents);
+      custoMobileEl.textContent = formatBRLFromCents(finalCents);
     }
   }
 
@@ -305,6 +313,8 @@
     }
     atualizarTotais();
   });
+  applySuggestionCheckbox?.addEventListener('change', atualizarTotais);
+
   form.addEventListener('input', (event) => {
     if (event.target.classList.contains('piece-entry')) {
       syncPieceEntry(event.target);
@@ -315,6 +325,10 @@
 
   {% if edit_assembly %}
   const editData = {{ assembly_edit_data.get(edit_assembly.id, {})|tojson }};
+  {% if edit_assembly.computador %}
+  const shouldApplySuggestion = Number('{{ '%.2f'|format(edit_assembly.computador.price if edit_assembly.computador else 0) }}') === Number('{{ '%.2f'|format(edit_assembly.preco_original + edit_assembly.preco_sugerido + (edit_assembly.bios_service_cost or 0) + (edit_assembly.stress_test_cost or 0) + (edit_assembly.os_install_cost or 0)) }}');
+  if (applySuggestionCheckbox) applySuggestionCheckbox.checked = shouldApplySuggestion;
+  {% endif %}
   if (editData.single_selected) {
     Object.entries(editData.single_selected).forEach(([slot, selectedData]) => {
       const selectedId = selectedData?.piece_id ?? selectedData;
