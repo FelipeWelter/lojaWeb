@@ -3534,6 +3534,11 @@ def vendas():
             flash('Selecione um cliente válido para finalizar a venda.', 'danger')
             return redirect(url_for('vendas'))
 
+        selected_client = Client.query.get(client_id)
+        if not selected_client or not selected_client.active:
+            flash('O cliente selecionado não está mais disponível. Atualize a página e tente novamente.', 'danger')
+            return redirect(url_for('vendas'))
+
         if not sale_name:
             flash('Informe um nome para identificar a venda.', 'danger')
             return redirect(url_for('vendas'))
@@ -3641,73 +3646,79 @@ def vendas():
                     return redirect(url_for('vendas'))
                 installment_due_dates.append(parsed_due)
 
-        sale = Sale(
-            sale_name=sale_name,
-            client_id=client_id,
-            product_id=anchor_product_id,
-            quantity=1,
-            subtotal=subtotal,
-            discount_amount=discount_amount,
-            total=total,
-            payment_method=payment_method,
-            performed_by_user_id=current.id if current else None,
-        )
-        db.session.add(sale)
-        db.session.flush()
-
-        for item in parsed_items:
-            if item['line_type'] == 'produto':
-                product = products_by_id[item['product_id']]
-                product.stock -= item['quantity']
-
-            db.session.add(
-                SaleItem(
-                    sale_id=sale.id,
-                    line_type=item['line_type'],
-                    description=item['description'],
-                    product_id=item['product_id'],
-                    service_record_id=item.get('service_record_id'),
-                    quantity=item['quantity'],
-                    unit_price=item['unit_price'],
-                    unit_cost=item['unit_cost'],
-                    line_total=item['line_total'],
-                )
-            )
-
-        _deactivate_sold_assembled_products(sale)
-
-        charge_reference = (request.form.get('charge_reference') or '').strip() or f'VENDA-{sale.id}'
-        installment_count_raw = (request.form.get('installment_count') or '1').strip()
         try:
-            installment_count = max(1, int(installment_count_raw or '1'))
-        except ValueError:
-            installment_count = 1
-        is_installment = payment_flow == 'aprazo' and installment_count > 1
-        if payment_flow != 'aprazo':
-            installment_count = 1
+            sale = Sale(
+                sale_name=sale_name,
+                client_id=client_id,
+                product_id=anchor_product_id,
+                quantity=1,
+                subtotal=subtotal,
+                discount_amount=discount_amount,
+                total=total,
+                payment_method=payment_method,
+                performed_by_user_id=current.id if current else None,
+            )
+            db.session.add(sale)
+            db.session.flush()
 
-        charge = Charge(
-            sale_id=sale.id,
-            mercado_pago_reference=charge_reference,
-            due_date=due_date,
-            amount=total,
-            amount_paid=total if payment_flow == 'avista' else Decimal('0.00'),
-            status='confirmado' if payment_flow == 'avista' else 'pendente',
-            payment_method=payment_method,
-            is_installment=is_installment,
-            installment_count=installment_count,
-            installment_value=(total / Decimal(installment_count)).quantize(Decimal('0.01')) if installment_count > 0 else total,
-            payment_confirmed_at=datetime.utcnow() if payment_flow == 'avista' else None,
-        )
-        db.session.add(charge)
-        db.session.flush()
-        _ensure_charge_installments(charge, due_dates=installment_due_dates)
-        _normalize_charge_status(charge)
+            for item in parsed_items:
+                if item['line_type'] == 'produto':
+                    product = products_by_id[item['product_id']]
+                    product.stock -= item['quantity']
 
-        if sale and _is_sale_finalized_by_payment(sale, [charge]):
-            _delete_paid_sold_assembled_products(sale)
+                db.session.add(
+                    SaleItem(
+                        sale_id=sale.id,
+                        line_type=item['line_type'],
+                        description=item['description'],
+                        product_id=item['product_id'],
+                        service_record_id=item.get('service_record_id'),
+                        quantity=item['quantity'],
+                        unit_price=item['unit_price'],
+                        unit_cost=item['unit_cost'],
+                        line_total=item['line_total'],
+                    )
+                )
 
-        db.session.commit()
+            _deactivate_sold_assembled_products(sale)
+
+            charge_reference = (request.form.get('charge_reference') or '').strip() or f'VENDA-{sale.id}'
+            installment_count_raw = (request.form.get('installment_count') or '1').strip()
+            try:
+                installment_count = max(1, int(installment_count_raw or '1'))
+            except ValueError:
+                installment_count = 1
+            is_installment = payment_flow == 'aprazo' and installment_count > 1
+            if payment_flow != 'aprazo':
+                installment_count = 1
+
+            charge = Charge(
+                sale_id=sale.id,
+                mercado_pago_reference=charge_reference,
+                due_date=due_date,
+                amount=total,
+                amount_paid=total if payment_flow == 'avista' else Decimal('0.00'),
+                status='confirmado' if payment_flow == 'avista' else 'pendente',
+                payment_method=payment_method,
+                is_installment=is_installment,
+                installment_count=installment_count,
+                installment_value=(total / Decimal(installment_count)).quantize(Decimal('0.01')) if installment_count > 0 else total,
+                payment_confirmed_at=datetime.utcnow() if payment_flow == 'avista' else None,
+            )
+            db.session.add(charge)
+            db.session.flush()
+            _ensure_charge_installments(charge, due_dates=installment_due_dates)
+            _normalize_charge_status(charge)
+
+            if sale and _is_sale_finalized_by_payment(sale, [charge]):
+                _delete_paid_sold_assembled_products(sale)
+
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            flash('Não foi possível finalizar a venda devido a uma inconsistência de dados. Confira os itens e tente novamente.', 'danger')
+            return redirect(url_for('vendas'))
+
         flash('Venda registrada com sucesso e enviada para o fluxo financeiro!', 'success')
         return redirect(url_for('vendas', print_sale_id=sale.id))
 
