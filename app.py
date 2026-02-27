@@ -1014,6 +1014,23 @@ def _build_pix_qr_url(payload: str | None) -> str | None:
     return f"https://quickchart.io/qr?size=220&text={quote(payload, safe='')}"
 
 
+def _pisa_link_callback(uri: str, _rel: str | None = None) -> str:
+    """Resolve arquivos locais (CSS/imagens) para o xhtml2pdf."""
+    if not uri:
+        return uri
+
+    if uri.startswith('http://') or uri.startswith('https://') or uri.startswith('data:'):
+        return uri
+
+    if uri.startswith('/static/'):
+        return str(Path(app.root_path) / uri.lstrip('/'))
+
+    if uri.startswith('static/'):
+        return str(Path(app.root_path) / uri)
+
+    return str((Path(app.root_path) / uri).resolve())
+
+
 def _load_json_list(raw_value: str | None) -> list[dict]:
     """Carrega JSON de lista e retorna apenas itens-objeto válidos."""
     if not raw_value:
@@ -2086,6 +2103,10 @@ def imprimir(tipo: str, record_id: int):
     context.setdefault('store_cnpj', settings.cnpj)
     context.setdefault('store_logo', settings.logo_path)
 
+    pdf_preview_mode = request.args.get('pdf_preview') == '1'
+    is_pdf_render = pisa is not None and (request.args.get('preview') != '1' or pdf_preview_mode)
+    context.setdefault('is_pdf_render', is_pdf_render)
+
     html = render_template('print_receipt.html', **context)
 
     # Permite pré-visualização HTML do recibo para validação de layout no navegador.
@@ -2096,7 +2117,7 @@ def imprimir(tipo: str, record_id: int):
         return html
 
     pdf_buffer = BytesIO()
-    status = pisa.CreatePDF(html, dest=pdf_buffer)
+    status = pisa.CreatePDF(html, dest=pdf_buffer, link_callback=_pisa_link_callback)
     if status.err:
         flash('Não foi possível gerar PDF. Exibindo versão HTML para impressão.', 'danger')
         return html
@@ -2128,7 +2149,7 @@ def imprimir_etiquetas_produtos():
         return html
 
     pdf_buffer = BytesIO()
-    status = pisa.CreatePDF(html, dest=pdf_buffer)
+    status = pisa.CreatePDF(html, dest=pdf_buffer, link_callback=_pisa_link_callback)
     if status.err:
         flash('Não foi possível gerar PDF das etiquetas. Exibindo versão HTML para impressão.', 'danger')
         return html
@@ -2160,7 +2181,7 @@ def imprimir_inventario_produtos():
         return html
 
     pdf_buffer = BytesIO()
-    status = pisa.CreatePDF(html, dest=pdf_buffer)
+    status = pisa.CreatePDF(html, dest=pdf_buffer, link_callback=_pisa_link_callback)
     if status.err:
         flash('Não foi possível gerar PDF do inventário. Exibindo versão HTML para impressão.', 'danger')
         return html
