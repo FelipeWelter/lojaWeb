@@ -38,7 +38,7 @@
       </header>
 
       <section class="receipt-section">
-        <h3>Produtos e Serviços da Venda</h3>
+        <h3>Produtos e Serviços</h3>
         <table class="receipt-items-table">
           <thead>
             <tr>
@@ -91,35 +91,6 @@
       </section>
       {% endif %}
 
-      <section class="receipt-section receipt-highlight-section">
-        <h3>Resumo Financeiro</h3>
-        <table class="receipt-summary-table">
-          <tbody>
-            <tr>
-              <th>Valor Bruto (R$)</th>
-              <td>{{ '%.2f'|format(gross_total if gross_total is defined else subtotal) }}</td>
-            </tr>
-            <tr>
-              <th>Desconto (R$)</th>
-              <td>{{ '%.2f'|format(discount_amount or 0) }}</td>
-            </tr>
-            <tr class="receipt-summary-total-row">
-              <th>Valor Líquido Final (R$)</th>
-              <td>{{ '%.2f'|format(total) }}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="receipt-finance-meta">
-          {% if payment_method_label is defined %}
-          <p><strong>Forma de pagamento:</strong> {{ payment_method_label }}</p>
-          {% endif %}
-          {% if payment_status_label is defined %}
-          <p><strong>Status do pagamento:</strong> {{ payment_status_label }}</p>
-          {% endif %}
-        </div>
-      </section>
-
       {% if assembly_inline %}
       <section class="receipt-section checklist-section">
         <h3>Checklist Técnico de Montagem</h3>
@@ -158,6 +129,35 @@
       </section>
       {% endif %}
 
+      <section class="receipt-section receipt-highlight-section">
+        <h3>Resumo Financeiro</h3>
+        <table class="receipt-summary-table">
+          <tbody>
+            <tr>
+              <th>Valor Bruto (R$)</th>
+              <td>{{ '%.2f'|format(gross_total if gross_total is defined else subtotal) }}</td>
+            </tr>
+            <tr>
+              <th>Desconto (R$)</th>
+              <td>{{ '%.2f'|format(discount_amount or 0) }}</td>
+            </tr>
+            <tr class="receipt-summary-total-row">
+              <th>Valor Líquido Final (R$)</th>
+              <td>{{ '%.2f'|format(total) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="receipt-finance-meta">
+          {% if payment_method_label is defined %}
+          <p><strong>Forma de pagamento:</strong> {{ payment_method_label }}</p>
+          {% endif %}
+          {% if payment_status_label is defined %}
+          <p><strong>Status do pagamento:</strong> {{ payment_status_label }}</p>
+          {% endif %}
+        </div>
+      </section>
+
       {% if payment_lines is defined and payment_lines %}
       <section class="receipt-section">
         <h3>Cronograma de Parcelamento</h3>
@@ -176,23 +176,25 @@
             {% for payment in payment_lines %}
               {% if payment.installments %}
                 {% for installment in payment.installments %}
+                {% set status_class = installment.status_label|lower|replace(' ', '-')|replace('ã', 'a')|replace('á', 'a')|replace('à', 'a')|replace('â', 'a')|replace('é', 'e')|replace('ê', 'e')|replace('í', 'i')|replace('ó', 'o')|replace('ô', 'o')|replace('õ', 'o')|replace('ú', 'u')|replace('ç', 'c') %}
                 <tr>
                   <td>{{ payment.method_label }}</td>
                   <td>{{ installment.number }}ª</td>
                   <td>{{ installment.due_date.strftime('%d/%m/%Y') if installment.due_date else '-' }}</td>
                   <td>{{ '%.2f'|format(installment.amount) }}</td>
                   <td>{{ '%.2f'|format(installment.amount_paid) }}</td>
-                  <td><span class="installment-status status-{{ installment.status_label|lower|replace(' ', '-') }}">{{ installment.status_label }}</span></td>
+                  <td><span class="installment-status status-{{ status_class }}">{{ installment.status_label }}</span></td>
                 </tr>
                 {% endfor %}
               {% else %}
+                {% set status_class = payment.status_label|lower|replace(' ', '-')|replace('ã', 'a')|replace('á', 'a')|replace('à', 'a')|replace('â', 'a')|replace('é', 'e')|replace('ê', 'e')|replace('í', 'i')|replace('ó', 'o')|replace('ô', 'o')|replace('õ', 'o')|replace('ú', 'u')|replace('ç', 'c') %}
                 <tr>
                   <td>{{ payment.method_label }}</td>
                   <td>-</td>
                   <td>-</td>
                   <td>{{ '%.2f'|format(payment.amount) }}</td>
                   <td>{{ '%.2f'|format(payment.amount_paid) }}</td>
-                  <td><span class="installment-status status-{{ payment.status_label|lower|replace(' ', '-') }}">{{ payment.status_label }}</span></td>
+                  <td><span class="installment-status status-{{ status_class }}">{{ payment.status_label }}</span></td>
                 </tr>
               {% endif %}
             {% endfor %}
