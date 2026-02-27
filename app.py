@@ -1833,7 +1833,8 @@ def imprimir(tipo: str, record_id: int):
         return redirect(url_for('dashboard'))
 
     html = render_template('print_receipt.html', **context)
-    if pisa is None:
+    preview_mode = request.args.get('preview') == '1'
+    if pisa is None or preview_mode:
         return html
 
     pdf_buffer = BytesIO()
