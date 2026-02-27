@@ -61,6 +61,7 @@ client_service = GenericCrudService(model=None, db=db)
 
 
 class Product(db.Model):
+    """Classe `Product`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     category = db.Column(db.String(50), nullable=False, default='Peça')
@@ -96,9 +97,11 @@ class Product(db.Model):
 
     @property
     def inventory_spec_summary(self):
+        """Função `inventory_spec_summary`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
         specs = []
 
         def add_spec(label, value):
+            """Função `add_spec`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
             cleaned = (value or '').strip()
             if cleaned:
                 specs.append(f'{label}: {cleaned}')
@@ -124,11 +127,13 @@ class Product(db.Model):
 
     @property
     def inventory_display_name(self):
+        """Função `inventory_display_name`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
         summary = self.inventory_spec_summary
         return f'{self.name} — {summary}' if summary else self.name
 
     @property
     def inventory_image_url(self):
+        """Função `inventory_image_url`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
         image_url = self.photo_url
         if not image_url and self.images:
             image_url = self.images[0].image_url
@@ -150,6 +155,7 @@ class Product(db.Model):
 
 
 class ProductImage(db.Model):
+    """Classe `ProductImage`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
     image_url = db.Column(db.String(255), nullable=False)
@@ -157,6 +163,7 @@ class ProductImage(db.Model):
 
 
 class ProductComposition(db.Model):
+    """Classe `ProductComposition`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     __tablename__ = 'composicao_produto'
     __table_args__ = {'extend_existing': True}
 
@@ -171,6 +178,7 @@ class ProductComposition(db.Model):
 
 
 class AssemblyCustomPart(db.Model):
+    """Classe `AssemblyCustomPart`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     assembly_id = db.Column(db.Integer, db.ForeignKey('montagem_computador.id'), nullable=False)
     slot_key = db.Column(db.String(50), nullable=False)
@@ -180,6 +188,7 @@ class AssemblyCustomPart(db.Model):
 
 
 class ComputerAssembly(db.Model):
+    """Classe `ComputerAssembly`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     __tablename__ = 'montagem_computador'
     __table_args__ = {'extend_existing': True}
 
@@ -208,6 +217,7 @@ class ComputerAssembly(db.Model):
 
 
 class Client(db.Model):
+    """Classe `Client`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     cpf = db.Column(db.String(14), nullable=True, unique=True)
@@ -217,6 +227,7 @@ class Client(db.Model):
 
 
 class Sale(db.Model):
+    """Classe `Sale`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     sale_name = db.Column(db.String(120), nullable=False, default='Venda sem nome')
     client_id = db.Column(db.Integer, db.ForeignKey('client.id'), nullable=False)
@@ -238,6 +249,7 @@ class Sale(db.Model):
 
 
 class SaleItem(db.Model):
+    """Classe `SaleItem`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(db.Integer, db.ForeignKey('sale.id'), nullable=False)
     line_type = db.Column(db.String(20), nullable=False, default='produto')
@@ -254,6 +266,7 @@ class SaleItem(db.Model):
 
 
 class Charge(db.Model):
+    """Classe `Charge`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     sale_id = db.Column(db.Integer, db.ForeignKey('sale.id'), nullable=True)
     service_id = db.Column(db.Integer, db.ForeignKey('service_record.id'), nullable=True)
@@ -274,6 +287,7 @@ class Charge(db.Model):
 
 
 class ChargeInstallment(db.Model):
+    """Classe `ChargeInstallment`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     charge_id = db.Column(db.Integer, db.ForeignKey('charge.id'), nullable=False)
     installment_number = db.Column(db.Integer, nullable=False, default=1)
@@ -285,6 +299,7 @@ class ChargeInstallment(db.Model):
 
 
 class ServiceRecord(db.Model):
+    """Classe `ServiceRecord`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     service_name = db.Column(db.String(120), nullable=False)
     client_name = db.Column(db.String(120), nullable=False)
@@ -303,6 +318,7 @@ class ServiceRecord(db.Model):
 
 
 class FixedCost(db.Model):
+    """Classe `FixedCost`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(120), nullable=False)
     amount = db.Column(db.Numeric(10, 2), nullable=False, default=0)
@@ -310,6 +326,7 @@ class FixedCost(db.Model):
 
 
 class MaintenanceTicket(db.Model):
+    """Classe `MaintenanceTicket`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     client_name = db.Column(db.String(120), nullable=False)
     equipment = db.Column(db.String(120), nullable=False)
@@ -333,6 +350,7 @@ class MaintenanceTicket(db.Model):
 
 
 class User(db.Model):
+    """Classe `User`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(120), nullable=False, unique=True)
@@ -357,6 +375,7 @@ class StoreSettings(db.Model):
 
 
 class AuditLog(db.Model):
+    """Classe `AuditLog`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     user_name = db.Column(db.String(120), nullable=False)
     action = db.Column(db.String(180), nullable=False)
@@ -365,6 +384,7 @@ class AuditLog(db.Model):
 
 
 class LoginThrottle(db.Model):
+    """Classe `LoginThrottle`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), nullable=False)
     ip_address = db.Column(db.String(45), nullable=False)
@@ -378,18 +398,21 @@ client_service.model = Client
 
 @app.errorhandler(ValueError)
 def handle_value_error(exc):
+    """Função `handle_value_error`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     flash(str(exc), 'danger')
     return redirect(request.referrer or url_for('dashboard'))
 
 
 @app.errorhandler(Exception)
 def handle_generic_error(exc):
+    """Função `handle_generic_error`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     app.logger.exception('Erro inesperado: %s', exc)
     flash('Ocorreu um erro inesperado. Tente novamente.', 'danger')
     return redirect(request.referrer or url_for('dashboard'))
 
 
 def _client_ip():
+    """Função `_client_ip`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     forwarded = request.headers.get('X-Forwarded-For')
     if forwarded:
         return forwarded.split(',')[0].strip()
@@ -397,6 +420,7 @@ def _client_ip():
 
 
 def _get_or_create_throttle(email: str, ip_address: str):
+    """Função `_get_or_create_throttle`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     throttle = LoginThrottle.query.filter_by(email=email, ip_address=ip_address).first()
     if throttle:
         return throttle
@@ -407,6 +431,7 @@ def _get_or_create_throttle(email: str, ip_address: str):
 
 
 def _recent_failed_attempts(email: str, ip_address: str, window_minutes: int):
+    """Função `_recent_failed_attempts`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     window_start = datetime.utcnow() - timedelta(minutes=window_minutes)
     email_attempts = db.session.query(db.func.sum(LoginThrottle.failed_attempts)).filter(
         LoginThrottle.email == email,
@@ -420,8 +445,10 @@ def _recent_failed_attempts(email: str, ip_address: str, window_minutes: int):
 
 
 def _login_required(view):
+    """Função `_login_required`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     @wraps(view)
     def wrapped(*args, **kwargs):
+        """Função `wrapped`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
         if not session.get('user_id'):
             flash('Faça login para continuar.', 'danger')
             return redirect(url_for('login'))
@@ -430,6 +457,7 @@ def _login_required(view):
 
 
 def _current_user():
+    """Função `_current_user`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     uid = session.get('user_id')
     if not uid:
         return None
@@ -495,21 +523,25 @@ def _base_template_context() -> dict:
 
 
 def _build_reset_token(email: str):
+    """Função `_build_reset_token`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
     return serializer.dumps(email, salt=app.config['SECURITY_PASSWORD_SALT'])
 
 
 def _read_reset_token(token: str, max_age_seconds: int = 3600):
+    """Função `_read_reset_token`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
     return serializer.loads(token, salt=app.config['SECURITY_PASSWORD_SALT'], max_age=max_age_seconds)
 
 
 def _log_audit(action: str, details: str):
+    """Função `_log_audit`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     user = _current_user()
     db.session.add(AuditLog(user_name=user.name if user else 'Sistema', action=action, details=details))
 
 
 def _parse_sale_items(form):
+    """Função `_parse_sale_items`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     raw_types = form.getlist('item_type[]')
     raw_product_ids = form.getlist('item_product_id[]')
     raw_service_ids = form.getlist('item_service_id[]')
@@ -598,6 +630,7 @@ def _parse_sale_items(form):
 
 
 def _save_product_photo(file_storage):
+    """Função `_save_product_photo`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if not file_storage or not file_storage.filename:
         return None
 
@@ -619,6 +652,7 @@ def _save_product_photo(file_storage):
 
 
 def _remove_product_photo_files(photo_url: str | None):
+    """Função `_remove_product_photo_files`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if not photo_url or not photo_url.startswith('/static/uploads/products/'):
         return
 
@@ -629,10 +663,12 @@ def _remove_product_photo_files(photo_url: str | None):
 
 
 def _collect_selected_piece_inputs(form_data, prefix=''):
+    """Função `_collect_selected_piece_inputs`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     selected_piece_ids = []
     custom_items = []
 
     def _safe_qty(raw_value):
+        """Função `_safe_qty`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
         try:
             qty = int(raw_value)
         except (TypeError, ValueError):
@@ -680,7 +716,9 @@ def _collect_selected_piece_inputs(form_data, prefix=''):
 
 
 def _read_optional_service_costs(form_data):
+    """Função `_read_optional_service_costs`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     def _to_cost(field_name):
+        """Função `_to_cost`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
         raw = (form_data.get(field_name) or '0').strip()
         value = Decimal(raw or '0')
         if value < 0:
@@ -710,6 +748,7 @@ def _build_computer_with_parts(
     os_install_cost=Decimal('0.00'),
     current_user=None,
 ):
+    """Função `_build_computer_with_parts`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     custom_items = custom_items or []
     photo_files = photo_files or []
     piece_counter = Counter(selected_piece_ids)
@@ -883,6 +922,7 @@ MAINTENANCE_STATUS_OPTIONS = [
 
 
 def _normalize_maintenance_status(status: str) -> str:
+    """Função `_normalize_maintenance_status`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     value = (status or '').strip()
     if value == 'em_andamento':
         return 'em_analise'
@@ -1025,9 +1065,11 @@ def _build_maintenance_parts_items(form_data, *, allow_single_fallback: bool = F
 
 
 def _generate_piece_name(component_class: str | None, form_data) -> str:
+    """Função `_generate_piece_name`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     class_label = COMPONENT_CLASS_LABELS.get(component_class, 'Peça')
 
     def clean(field: str) -> str:
+        """Função `clean`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
         return (form_data.get(field) or '').strip()
 
     specs: list[str] = []
@@ -1068,6 +1110,7 @@ DEFAULT_MAINTENANCE_CHECKLIST = [
 
 
 def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user: 'User | None'):
+    """Função `_ensure_service_record_from_ticket`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if ticket.service_record_id:
         return
 
@@ -1114,6 +1157,7 @@ def _ensure_service_record_from_ticket(ticket: 'MaintenanceTicket', current_user
 
 
 def _sync_service_record_from_ticket(ticket: 'MaintenanceTicket'):
+    """Função `_sync_service_record_from_ticket`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if not ticket.service_record_id:
         return
 
@@ -1154,6 +1198,7 @@ def _sync_service_record_from_ticket(ticket: 'MaintenanceTicket'):
 
 
 def _apply_ticket_parts_stock(ticket: 'MaintenanceTicket'):
+    """Função `_apply_ticket_parts_stock`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if ticket.parts_stock_applied:
         return
 
@@ -1206,6 +1251,7 @@ def _apply_ticket_parts_stock(ticket: 'MaintenanceTicket'):
 
 
 def _parts_quantity_map(parts_items: list[dict] | None) -> dict[int, int]:
+    """Função `_parts_quantity_map`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     quantity_map: dict[int, int] = {}
     for part in parts_items or []:
         if not isinstance(part, dict):
@@ -1228,6 +1274,7 @@ def _parts_quantity_map(parts_items: list[dict] | None) -> dict[int, int]:
 
 
 def _sync_ticket_parts_stock_delta(previous_parts_items: list[dict], current_parts_items: list[dict]):
+    """Função `_sync_ticket_parts_stock_delta`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     previous_map = _parts_quantity_map(previous_parts_items)
     current_map = _parts_quantity_map(current_parts_items)
     all_product_ids = set(previous_map.keys()) | set(current_map.keys())
@@ -1268,6 +1315,7 @@ def inject_base_context():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Função `login`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip().lower()
         password = request.form.get('password') or ''
@@ -1340,6 +1388,7 @@ def login():
 
 @app.route('/logout')
 def logout():
+    """Função `logout`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     session.clear()
     flash('Sessão encerrada.', 'success')
     return redirect(url_for('login'))
@@ -1349,6 +1398,7 @@ def logout():
 @_login_required
 @_admin_required
 def usuarios():
+    """Função `usuarios`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
 
     if request.method == 'POST':
@@ -1377,6 +1427,7 @@ def usuarios():
 @_login_required
 @_admin_required
 def editar_usuario(user_id: int):
+    """Função `editar_usuario`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
 
     user = User.query.get_or_404(user_id)
@@ -1413,6 +1464,7 @@ def editar_usuario(user_id: int):
 @_login_required
 @_admin_required
 def remover_usuario(user_id: int):
+    """Função `remover_usuario`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
 
     user = User.query.get_or_404(user_id)
@@ -2060,6 +2112,7 @@ def imprimir(tipo: str, record_id: int):
 @app.route('/produtos/imprimir-etiquetas', methods=['POST'])
 @_login_required
 def imprimir_etiquetas_produtos():
+    """Função `imprimir_etiquetas_produtos`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     product_ids = [int(pid) for pid in request.form.getlist('product_ids') if str(pid).isdigit()]
     if not product_ids:
         flash('Selecione ao menos um item para imprimir etiquetas.', 'danger')
@@ -2089,6 +2142,7 @@ def imprimir_etiquetas_produtos():
 @app.route('/produtos/imprimir-inventario', methods=['POST'])
 @_login_required
 def imprimir_inventario_produtos():
+    """Função `imprimir_inventario_produtos`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     products = buscar_pecas_disponiveis(Product)
 
     total_stock = sum(int(p.stock or 0) for p in products)
@@ -2119,6 +2173,7 @@ def imprimir_inventario_produtos():
 
 @app.route('/recuperar-senha', methods=['GET', 'POST'])
 def recuperar_senha():
+    """Função `recuperar_senha`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if request.method == 'POST':
         email = (request.form.get('email') or '').strip().lower()
         user = User.query.filter_by(email=email).first()
@@ -2141,6 +2196,7 @@ def recuperar_senha():
 
 @app.route('/redefinir-senha/<token>', methods=['GET', 'POST'])
 def redefinir_senha(token: str):
+    """Função `redefinir_senha`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     try:
         email = _read_reset_token(token)
     except (SignatureExpired, BadSignature):
@@ -2164,6 +2220,7 @@ def redefinir_senha(token: str):
 @app.route('/')
 @_login_required
 def dashboard():
+    """Função `dashboard`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     period = request.args.get('period', 'month')
     now = datetime.utcnow()
     start_date = None
@@ -2379,6 +2436,7 @@ def dashboard():
 @app.route('/gestao-inventario')
 @_login_required
 def gestao_inventario():
+    """Função `gestao_inventario`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     products = Product.query.order_by(Product.category, Product.name).all()
     categories = sorted({p.category for p in products})
     return render_template('inventory_management.html', products=products, categories=categories, component_slots=COMPONENT_SLOTS)
@@ -2387,6 +2445,7 @@ def gestao_inventario():
 @app.route('/produtos', methods=['GET', 'POST'])
 @_login_required
 def produtos():
+    """Função `produtos`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if request.method == 'POST':
         form_mode = request.form.get('form_mode')
         if form_mode == 'assembled_computer':
@@ -2521,6 +2580,7 @@ def produtos():
 @app.route('/produtos/<int:product_id>/atualizar_foto', methods=['POST'])
 @_login_required
 def atualizar_foto_produto(product_id: int):
+    """Função `atualizar_foto_produto`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     product = Product.query.get_or_404(product_id)
     photo_files = request.files.getlist('photo_files')
 
@@ -2557,6 +2617,7 @@ def atualizar_foto_produto(product_id: int):
 @app.route('/produtos/<int:product_id>/editar', methods=['POST'])
 @_login_required
 def editar_produto(product_id: int):
+    """Função `editar_produto`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     product = Product.query.get_or_404(product_id)
 
     return_to = (request.form.get('return_to') or '').strip()
@@ -2638,6 +2699,7 @@ def editar_produto(product_id: int):
 @app.route('/produtos/<int:product_id>/remover', methods=['POST'])
 @_login_required
 def remover_produto(product_id: int):
+    """Função `remover_produto`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     product = Product.query.get_or_404(product_id)
 
     if not product.active:
@@ -2653,6 +2715,7 @@ def remover_produto(product_id: int):
 @app.route('/produtos/<int:product_id>/ativar', methods=['POST'])
 @_login_required
 def ativar_produto(product_id: int):
+    """Função `ativar_produto`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     product = Product.query.get_or_404(product_id)
 
     if product.active:
@@ -2670,6 +2733,7 @@ def ativar_produto(product_id: int):
 @app.route('/produtos/<int:product_id>/excluir', methods=['POST'])
 @_login_required
 def excluir_produto(product_id: int):
+    """Função `excluir_produto`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     product = Product.query.get_or_404(product_id)
     db.session.delete(product)
     db.session.commit()
@@ -2678,6 +2742,7 @@ def excluir_produto(product_id: int):
 
 
 def _build_assembly_edit_data(latest_assemblies):
+    """Função `_build_assembly_edit_data`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     slot_multiple = {slot_key: allow_multiple for slot_key, _, allow_multiple in COMPONENT_SLOTS}
     slot_defaults = {slot_key: {'name': '', 'cost': '0'} for slot_key, _, allow_multiple in COMPONENT_SLOTS if not allow_multiple}
 
@@ -2737,6 +2802,7 @@ def _build_assembly_edit_data(latest_assemblies):
 @app.route('/montar-pc', methods=['GET', 'POST'])
 @_login_required
 def montar_pc():
+    """Função `montar_pc`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
     parts_by_class = buscar_pecas_por_classe(Product, COMPONENT_SLOTS)
 
@@ -2816,6 +2882,7 @@ def montar_pc():
 @app.route('/montagens/<int:assembly_id>/editar', methods=['POST'])
 @_login_required
 def editar_montagem(assembly_id: int):
+    """Função `editar_montagem`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     assembly = ComputerAssembly.query.get_or_404(assembly_id)
 
     if assembly.canceled:
@@ -2931,6 +2998,7 @@ def editar_montagem(assembly_id: int):
 @app.route('/montagens/<int:assembly_id>/cancelar', methods=['POST'])
 @_login_required
 def cancelar_montagem(assembly_id: int):
+    """Função `cancelar_montagem`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     assembly = ComputerAssembly.query.get_or_404(assembly_id)
 
     if assembly.canceled:
@@ -2962,6 +3030,7 @@ def cancelar_montagem(assembly_id: int):
 @app.route('/montagens/<int:assembly_id>/excluir', methods=['POST'])
 @_login_required
 def excluir_montagem(assembly_id: int):
+    """Função `excluir_montagem`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     assembly = ComputerAssembly.query.get_or_404(assembly_id)
 
     computer = assembly.computador
@@ -2996,6 +3065,7 @@ def excluir_montagem(assembly_id: int):
 @app.route('/servicos', methods=['GET', 'POST'])
 @_login_required
 def servicos():
+    """Função `servicos`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
     service_catalog = [
         {'name': 'Montagem Premium', 'price': Decimal('199.90'), 'description': 'Montagem completa, organização de cabos e validação final.'},
@@ -3338,6 +3408,7 @@ def servicos():
 @app.route('/manutencoes/<int:ticket_id>/atualizar', methods=['POST'])
 @_login_required
 def atualizar_manutencao(ticket_id: int):
+    """Função `atualizar_manutencao`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     ticket = MaintenanceTicket.query.get_or_404(ticket_id)
     action = (request.form.get('action') or '').strip()
     current = _current_user()
@@ -3464,6 +3535,7 @@ def atualizar_manutencao(ticket_id: int):
 @app.route('/servicos/<int:service_id>/confirmar-retirada', methods=['POST'])
 @_login_required
 def confirmar_retirada_servico(service_id: int):
+    """Função `confirmar_retirada_servico`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     service = ServiceRecord.query.get_or_404(service_id)
     action = (request.form.get('action') or 'entregue').strip()
 
@@ -3488,6 +3560,7 @@ def confirmar_retirada_servico(service_id: int):
 @app.route('/servicos/<int:service_id>/editar', methods=['POST'])
 @_login_required
 def editar_servico(service_id: int):
+    """Função `editar_servico`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     service = ServiceRecord.query.get_or_404(service_id)
 
     service_name = (request.form.get('service_name') or '').strip()
@@ -3525,6 +3598,7 @@ def editar_servico(service_id: int):
 @app.route('/servicos/<int:service_id>/excluir', methods=['POST'])
 @_login_required
 def excluir_servico(service_id: int):
+    """Função `excluir_servico`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     service = ServiceRecord.query.get_or_404(service_id)
 
     linked_tickets = MaintenanceTicket.query.filter_by(service_record_id=service.id).all()
@@ -3549,6 +3623,7 @@ def excluir_servico(service_id: int):
 @app.route('/dashboard/custos-fixos', methods=['POST'])
 @_login_required
 def cadastrar_custo_fixo():
+    """Função `cadastrar_custo_fixo`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     description = (request.form.get('description') or '').strip()
     amount = Decimal(request.form.get('amount') or '0')
 
@@ -3568,6 +3643,7 @@ def cadastrar_custo_fixo():
 @app.route('/dashboard/custos-fixos/<int:fixed_cost_id>/editar', methods=['POST'])
 @_login_required
 def editar_custo_fixo(fixed_cost_id: int):
+    """Função `editar_custo_fixo`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     fixed_cost = FixedCost.query.get_or_404(fixed_cost_id)
     description = (request.form.get('description') or '').strip()
     amount_raw = (request.form.get('amount') or '0').strip().replace(',', '.')
@@ -3596,6 +3672,7 @@ def editar_custo_fixo(fixed_cost_id: int):
 @app.route('/dashboard/custos-fixos/<int:fixed_cost_id>/excluir', methods=['POST'])
 @_login_required
 def excluir_custo_fixo(fixed_cost_id: int):
+    """Função `excluir_custo_fixo`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     fixed_cost = FixedCost.query.get_or_404(fixed_cost_id)
     db.session.delete(fixed_cost)
     db.session.commit()
@@ -3606,6 +3683,7 @@ def excluir_custo_fixo(fixed_cost_id: int):
 @app.route('/clientes', methods=['GET', 'POST'])
 @_login_required
 def clientes():
+    """Função `clientes`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if request.method == 'POST':
         saved, message, category = _persist_client_from_form(request.form)
         flash(message, category)
@@ -3664,6 +3742,7 @@ def clientes():
 
 
 def _persist_client_from_form(form_data):
+    """Função `_persist_client_from_form`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     raw_client_id = (form_data.get('client_id') or '').strip()
     client_id = int(raw_client_id) if raw_client_id.isdigit() else None
     client = Client.query.get_or_404(client_id) if client_id else None
@@ -3702,6 +3781,7 @@ def _persist_client_from_form(form_data):
 @app.route('/clientes/mesclar', methods=['POST'])
 @_login_required
 def mesclar_clientes():
+    """Função `mesclar_clientes`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     source_id = request.form.get('source_client_id', type=int)
     target_id = request.form.get('target_client_id', type=int)
     if not source_id or not target_id or source_id == target_id:
@@ -3722,6 +3802,7 @@ def mesclar_clientes():
 @app.route('/clientes/<int:client_id>/editar', methods=['GET', 'POST'])
 @_login_required
 def editar_cliente(client_id: int):
+    """Função `editar_cliente`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     client = Client.query.get_or_404(client_id)
 
     if request.method == 'POST':
@@ -3739,6 +3820,7 @@ def editar_cliente(client_id: int):
 @app.route('/clientes/<int:client_id>/remover', methods=['POST'])
 @_login_required
 def remover_cliente(client_id: int):
+    """Função `remover_cliente`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     client = Client.query.get_or_404(client_id)
     active_sales = Sale.query.filter_by(client_id=client.id, canceled=False).first()
     if active_sales:
@@ -3754,6 +3836,7 @@ def remover_cliente(client_id: int):
 @app.route('/vendas', methods=['GET', 'POST'])
 @_login_required
 def vendas():
+    """Função `vendas`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
     products = buscar_pecas_disponiveis(Product)
     clients = db.session.query(Client).filter(Client.active.is_(True)).group_by(Client.id).order_by(db.func.lower(Client.name)).all()
@@ -4071,6 +4154,7 @@ def vendas():
 @app.route('/vendas/<int:sale_id>/cancelar', methods=['POST'])
 @_login_required
 def cancelar_venda(sale_id: int):
+    """Função `cancelar_venda`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     sale = Sale.query.get_or_404(sale_id)
     if sale.canceled:
         flash('Esta venda já está cancelada.', 'danger')
@@ -4098,6 +4182,7 @@ def cancelar_venda(sale_id: int):
 @app.route('/vendas/<int:sale_id>/excluir', methods=['POST'])
 @_login_required
 def excluir_venda(sale_id: int):
+    """Função `excluir_venda`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     sale = Sale.query.get_or_404(sale_id)
     if not sale.canceled:
         flash('Só é possível excluir vendas canceladas.', 'danger')
@@ -4111,6 +4196,7 @@ def excluir_venda(sale_id: int):
 
 
 def _parse_date_input(value: str | None):
+    """Função `_parse_date_input`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     raw = (value or '').strip()
     if not raw:
         return None
@@ -4123,6 +4209,7 @@ def _parse_date_input(value: str | None):
 
 
 def _charge_total_amount(charge: Charge) -> Decimal:
+    """Função `_charge_total_amount`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     amount = Decimal(charge.amount or 0).quantize(Decimal('0.01'))
     if amount > 0:
         return amount
@@ -4134,11 +4221,13 @@ def _charge_total_amount(charge: Charge) -> Decimal:
 
 
 def _charge_installments(charge: Charge) -> list[ChargeInstallment]:
+    """Função `_charge_installments`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     installments = sorted(charge.installments or [], key=lambda item: item.installment_number)
     return installments
 
 
 def _ensure_charge_installments(charge: Charge, due_dates: list[date] | None = None):
+    """Função `_ensure_charge_installments`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     count = max(1, int(charge.installment_count or 1))
     amount_total = _charge_total_amount(charge)
     existing = _charge_installments(charge)
@@ -4181,6 +4270,7 @@ def _ensure_charge_installments(charge: Charge, due_dates: list[date] | None = N
 
 
 def _refresh_charge_from_installments(charge: Charge):
+    """Função `_refresh_charge_from_installments`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     installments = _charge_installments(charge)
     if not installments:
         return
@@ -4202,12 +4292,14 @@ def _refresh_charge_from_installments(charge: Charge):
 
 
 def _charge_balance(charge: Charge) -> Decimal:
+    """Função `_charge_balance`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     total = _charge_total_amount(charge)
     paid = Decimal(charge.amount_paid or 0)
     return (total - paid).quantize(Decimal('0.01'))
 
 
 def _normalize_charge_status(charge: Charge):
+    """Função `_normalize_charge_status`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     installments = _charge_installments(charge)
     if charge.status == 'cancelado':
         charge.payment_confirmed_at = None
@@ -4250,6 +4342,7 @@ def _normalize_charge_status(charge: Charge):
 
 
 def _charge_ui_status(charge: Charge):
+    """Função `_charge_ui_status`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if charge.status == 'cancelado':
         return 'cancelado'
 
@@ -4264,6 +4357,7 @@ def _charge_ui_status(charge: Charge):
 
 
 def _is_sale_finalized_by_payment(sale: Sale, charges: list[Charge]) -> bool:
+    """Função `_is_sale_finalized_by_payment`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     has_active_charge = False
     for charge in charges:
         if charge.status == 'cancelado':
@@ -4278,6 +4372,7 @@ def _is_sale_finalized_by_payment(sale: Sale, charges: list[Charge]) -> bool:
 
 
 def _is_service_finalized_by_payment(service: ServiceRecord, charges: list[Charge]) -> bool:
+    """Função `_is_service_finalized_by_payment`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     has_active_charge = False
     for charge in charges:
         if charge.status == 'cancelado':
@@ -4293,6 +4388,7 @@ def _is_service_finalized_by_payment(service: ServiceRecord, charges: list[Charg
 
 
 def _sync_service_ticket_status(service_id: int | None):
+    """Função `_sync_service_ticket_status`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if not service_id:
         return
     service = ServiceRecord.query.get(service_id)
@@ -4312,10 +4408,12 @@ def _sync_service_ticket_status(service_id: int | None):
 
 
 def _is_service_fully_delivered(service: ServiceRecord, charges: list[Charge]) -> bool:
+    """Função `_is_service_fully_delivered`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     return _is_service_finalized_by_payment(service, charges) and service.delivery_status == 'entregue'
 
 
 def _deactivate_sold_assembled_products(sale: Sale):
+    """Função `_deactivate_sold_assembled_products`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if not sale:
         return
 
@@ -4328,6 +4426,7 @@ def _deactivate_sold_assembled_products(sale: Sale):
 
 
 def _delete_paid_sold_assembled_products(sale: Sale):
+    """Função `_delete_paid_sold_assembled_products`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if not sale:
         return
 
@@ -4358,6 +4457,7 @@ def _delete_paid_sold_assembled_products(sale: Sale):
 @app.route('/cobrancas', methods=['GET', 'POST'])
 @_login_required
 def cobrancas():
+    """Função `cobrancas`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     if request.method == 'POST':
         sale_id_raw = (request.form.get('sale_id') or '').strip()
         service_id_raw = (request.form.get('service_id') or '').strip()
@@ -4494,6 +4594,7 @@ def cobrancas():
 @app.route('/cobrancas/<int:charge_id>/editar', methods=['POST'])
 @_login_required
 def editar_cobranca(charge_id: int):
+    """Função `editar_cobranca`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     charge = Charge.query.get_or_404(charge_id)
     charge.payment_method = request.form['payment_method']
     charge.status = request.form['status']
@@ -4542,6 +4643,7 @@ def editar_cobranca(charge_id: int):
 @app.route('/cobrancas/<int:charge_id>/confirmar', methods=['POST'])
 @_login_required
 def confirmar_cobranca(charge_id: int):
+    """Função `confirmar_cobranca`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     charge = Charge.query.get_or_404(charge_id)
     _ensure_charge_installments(charge)
     installments = _charge_installments(charge)
@@ -4617,6 +4719,7 @@ def confirmar_cobranca(charge_id: int):
 @app.route('/cobrancas/<int:charge_id>/parcelas/<int:installment_number>/pagar', methods=['POST'])
 @_login_required
 def pagar_parcela_cobranca(charge_id: int, installment_number: int):
+    """Função `pagar_parcela_cobranca`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     charge = Charge.query.get_or_404(charge_id)
     _ensure_charge_installments(charge)
     installment = ChargeInstallment.query.filter_by(charge_id=charge.id, installment_number=installment_number).first_or_404()
@@ -4647,6 +4750,7 @@ def pagar_parcela_cobranca(charge_id: int, installment_number: int):
 @app.route('/cobrancas/<int:charge_id>/parcelas/<int:installment_number>/editar', methods=['POST'])
 @_login_required
 def editar_parcela_cobranca(charge_id: int, installment_number: int):
+    """Função `editar_parcela_cobranca`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     charge = Charge.query.get_or_404(charge_id)
     _ensure_charge_installments(charge)
     installment = ChargeInstallment.query.filter_by(charge_id=charge.id, installment_number=installment_number).first_or_404()
@@ -4682,6 +4786,7 @@ def editar_parcela_cobranca(charge_id: int, installment_number: int):
 @app.route('/cobrancas/<int:charge_id>/cancelar', methods=['POST'])
 @_login_required
 def cancelar_cobranca(charge_id: int):
+    """Função `cancelar_cobranca`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     charge = Charge.query.get_or_404(charge_id)
     if charge.status == 'cancelado':
         flash('Esta cobrança já está cancelada.', 'danger')
@@ -4699,6 +4804,7 @@ def cancelar_cobranca(charge_id: int):
 @app.route('/cobrancas/<int:charge_id>/excluir', methods=['POST'])
 @_login_required
 def excluir_cobranca(charge_id: int):
+    """Função `excluir_cobranca`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     charge = Charge.query.get_or_404(charge_id)
     db.session.delete(charge)
     db.session.commit()
@@ -4710,6 +4816,7 @@ def excluir_cobranca(charge_id: int):
 @app.route('/caixa')
 @_login_required
 def caixa():
+    """Função `caixa`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     today = datetime.utcnow().date()
     charges = Charge.query.order_by(Charge.id.desc()).all()
 
@@ -4746,6 +4853,7 @@ def caixa():
 @app.route('/clientes/<int:client_id>/historico')
 @_login_required
 def historico_cliente(client_id: int):
+    """Função `historico_cliente`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     client = Client.query.get_or_404(client_id)
     sales = Sale.query.filter_by(client_id=client.id).order_by(Sale.created_at.desc()).all()
     maintenances = MaintenanceTicket.query.filter(MaintenanceTicket.client_name == client.name).order_by(MaintenanceTicket.entry_date.desc()).all()
@@ -4793,12 +4901,14 @@ def historico_cliente(client_id: int):
 @app.route('/logs')
 @_login_required
 def logs_auditoria():
+    """Função `logs_auditoria`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     return render_template('audit_logs.html', logs=AuditLog.query.order_by(AuditLog.created_at.desc()).limit(300).all())
 
 
 @app.route('/produtos/<int:product_id>/alterar-preco', methods=['POST'])
 @_login_required
 def alterar_preco_produto(product_id: int):
+    """Função `alterar_preco_produto`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     product = Product.query.get_or_404(product_id)
     old_price = Decimal(product.price)
     new_price = Decimal(request.form.get('new_price') or '0')
