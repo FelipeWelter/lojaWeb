@@ -84,11 +84,6 @@
   }
 }
 
-@page {
-  size: 80mm auto;
-  margin: 4mm;
-}
-
 @media print {
   .thermal-receipt,
   .thermal-receipt .card {
@@ -597,4 +592,132 @@
     color: #475569;
     text-align: left !important;
   }
+}
+
+
+/* Compatibilidade com geração de PDF via xhtml2pdf (Pisa): evita dependência de @media print e CSS avançado */
+.print-receipt {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  color: #111827;
+}
+
+.receipt-card {
+  border: 1px solid #cbd5e1;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.receipt-header {
+  border-bottom: 2px solid #1d4ed8;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.receipt-logo {
+  width: 140px;
+  height: auto;
+  margin-bottom: 6px;
+}
+
+.receipt-block {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  padding: 8px;
+  margin-bottom: 6px;
+}
+
+.receipt-block h4 {
+  margin: 0 0 4px;
+  color: #1d4ed8;
+  font-size: 12px;
+}
+
+.receipt-block p,
+.receipt-section p {
+  margin: 2px 0;
+  font-size: 11px;
+}
+
+.receipt-section {
+  margin-top: 10px;
+}
+
+.receipt-section h3 {
+  margin: 0 0 6px;
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.receipt-items-table,
+.receipt-summary-table,
+.receipt-installments-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #cbd5e1;
+}
+
+.receipt-items-table th,
+.receipt-installments-table th {
+  background: #1d4ed8;
+  color: #ffffff;
+  border: 1px solid #1d4ed8;
+  font-size: 10px;
+  padding: 6px;
+}
+
+.receipt-items-table td,
+.receipt-summary-table td,
+.receipt-summary-table th,
+.receipt-installments-table td,
+.receipt-installments-table th {
+  border: 1px solid #cbd5e1;
+  padding: 5px 6px;
+  font-size: 10.5px;
+}
+
+.receipt-summary-table th {
+  background: #f1f5f9;
+}
+
+.receipt-summary-total-row th,
+.receipt-summary-total-row td {
+  font-weight: 700;
+  background: #e2e8f0;
+}
+
+.receipt-highlight-section {
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  padding: 8px;
+}
+
+.installment-status {
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.status-pago,
+.status-quitado,
+.status-concluido {
+  border-color: #86efac;
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.status-pendente,
+.status-em-aberto {
+  border-color: #fcd34d;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-atrasado,
+.status-vencido {
+  border-color: #fca5a5;
+  background: #fee2e2;
+  color: #991b1b;
 }
