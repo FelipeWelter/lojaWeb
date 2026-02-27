@@ -245,3 +245,293 @@
     gap: 8px !important;
   }
 }
+
+@media print {
+  .print-receipt {
+    font-family: 'Inter', 'Roboto', sans-serif !important;
+    color: #1f2937 !important;
+  }
+
+  .receipt-header {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #0b5ed7;
+  }
+
+  .receipt-logo {
+    width: 150px;
+    height: auto;
+    margin: 0 0 6px;
+  }
+
+  .receipt-header-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    text-align: left !important;
+  }
+
+  .receipt-block {
+    background: #f8fafc;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 6px;
+  }
+
+  .receipt-block h4 {
+    margin: 0 0 4px;
+    color: #0b5ed7;
+    font-size: 11px;
+  }
+
+  .receipt-block p {
+    margin: 2px 0;
+  }
+
+  .print-receipt table {
+    width: 100%;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  .print-receipt th {
+    background: #0b5ed7;
+    color: #ffffff !important;
+    border-color: #0b5ed7 !important;
+  }
+
+  .print-receipt tbody tr:nth-child(even) {
+    background: #f3f4f6;
+  }
+
+  .receipt-total-box {
+    margin: 10px 0;
+    padding: 8px;
+    border: 1px solid #cbd5e1;
+    background: #e5e7eb;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .receipt-total-box strong {
+    font-size: 17px;
+    font-weight: 800;
+    color: #0f172a;
+  }
+
+  .pix-qrcode-block {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed #64748b;
+    text-align: center;
+  }
+
+  .pix-qrcode-block img {
+    margin-top: 4px;
+  }
+
+  .signature-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .signature-box {
+    border-top: 1px solid #111;
+    padding-top: 4px;
+    min-height: 28px;
+    text-align: center;
+  }
+
+  .receipt-legal-footer {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #d1d5db;
+    font-size: 9px;
+    color: #475569;
+    text-align: left !important;
+  }
+
+  .thermal-receipt,
+  .thermal-receipt .card,
+  .thermal-receipt header,
+  .thermal-receipt p,
+  .thermal-receipt h2,
+  .thermal-receipt h3,
+  .thermal-receipt td,
+  .thermal-receipt th {
+    text-align: left !important;
+  }
+}
+
+@media print {
+  .print-receipt {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-family: 'Inter', 'Roboto', sans-serif !important;
+    color: #0f172a !important;
+  }
+
+  .receipt-card {
+    padding: 10px !important;
+  }
+
+  .receipt-header {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: start;
+    border-bottom: 2px solid #1d4ed8;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+
+  .receipt-logo {
+    width: 140px;
+    max-width: 140px;
+    height: auto;
+  }
+
+  .receipt-header-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .receipt-block {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 8px;
+  }
+
+  .receipt-block h4 {
+    margin: 0 0 6px;
+    color: #1d4ed8;
+    font-size: 12px;
+  }
+
+  .receipt-block p {
+    margin: 3px 0;
+    font-size: 10.5px;
+  }
+
+  .receipt-section {
+    margin-top: 10px;
+  }
+
+  .receipt-section h3 {
+    margin: 0 0 6px;
+    color: #1e293b;
+    font-size: 12px;
+  }
+
+  .receipt-items-table,
+  .receipt-installments-table,
+  .receipt-summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  .receipt-items-table thead th,
+  .receipt-installments-table thead th {
+    background: #1d4ed8;
+    color: #fff !important;
+    border: 1px solid #1d4ed8 !important;
+    font-size: 10px;
+    text-transform: none;
+  }
+
+  .receipt-items-table td,
+  .receipt-items-table th,
+  .receipt-installments-table td,
+  .receipt-installments-table th,
+  .receipt-summary-table td,
+  .receipt-summary-table th {
+    border: 1px solid #cbd5e1 !important;
+    padding: 5px 6px;
+    font-size: 10px;
+  }
+
+  .receipt-items-table tbody tr:nth-child(even),
+  .receipt-installments-table tbody tr:nth-child(even) {
+    background: #f8fafc;
+  }
+
+  .receipt-items-table td:nth-child(1),
+  .receipt-items-table th:nth-child(1),
+  .receipt-items-table td:nth-child(2),
+  .receipt-items-table th:nth-child(2) {
+    text-align: left !important;
+  }
+
+  .receipt-items-table td:nth-child(3),
+  .receipt-items-table td:nth-child(4),
+  .receipt-items-table td:nth-child(5),
+  .receipt-items-table th:nth-child(3),
+  .receipt-items-table th:nth-child(4),
+  .receipt-items-table th:nth-child(5),
+  .receipt-summary-table td,
+  .receipt-summary-table th,
+  .receipt-installments-table td,
+  .receipt-installments-table th {
+    text-align: right !important;
+  }
+
+  .receipt-summary-table th {
+    width: 60%;
+    background: #f1f5f9;
+    color: #0f172a !important;
+  }
+
+  .receipt-summary-total-row th,
+  .receipt-summary-total-row td {
+    font-weight: 800;
+    font-size: 11px;
+    background: #e2e8f0;
+  }
+
+  .payment-line {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #94a3b8;
+  }
+
+  .pix-qrcode-block {
+    border: 1px dashed #94a3b8;
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+  }
+
+  .pix-qrcode-block img {
+    margin: 6px auto;
+  }
+
+  .signature-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .signature-box {
+    border-top: 1px solid #1e293b;
+    min-height: 34px;
+    text-align: center;
+    padding-top: 4px;
+    font-size: 10px;
+  }
+
+  .receipt-legal-footer {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #cbd5e1;
+    font-size: 9px;
+    color: #475569;
+    text-align: left !important;
+  }
+}

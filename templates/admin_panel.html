@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+  <h2>Painel do Administrador</h2>
+  <p>Centralize aqui as configurações da loja, usuários e ações críticas.</p>
+</section>
+
+<section class="card">
+  <h3>Identidade visual e dados da loja</h3>
+  <form method="post" action="{{ url_for('salvar_configuracoes_admin') }}" enctype="multipart/form-data" class="grid form-grid">
+    <input name="store_name" value="{{ settings.store_name }}" placeholder="Nome da loja" required />
+    <input name="store_contact" value="{{ settings.store_contact }}" placeholder="Contato da loja" required />
+    <input name="store_address" value="{{ settings.store_address }}" placeholder="Endereço da loja" required />
+    <input name="cnpj" value="{{ settings.cnpj or '' }}" placeholder="CNPJ (opcional)" />
+    <input name="pix_key" value="{{ settings.pix_key or '' }}" placeholder="Chave Pix" />
+    <input name="pix_receiver_name" value="{{ settings.pix_receiver_name }}" placeholder="Nome no Pix" />
+    <input name="pix_receiver_city" value="{{ settings.pix_receiver_city }}" placeholder="Cidade no Pix" />
+    <label>
+      Logotipo da loja (PNG, JPG, SVG ou WEBP)
+      <input type="file" name="store_logo" accept=".png,.jpg,.jpeg,.svg,.webp" />
+    </label>
+    <button type="submit">Salvar configurações</button>
+  </form>
+</section>
+
+<section class="card">
+  <h3>Usuários (dentro do painel administrativo)</h3>
+  <form method="post" action="{{ url_for('usuarios') }}" class="grid form-grid">
+    <input name="name" placeholder="Nome" required />
+    <input type="email" name="email" placeholder="E-mail" required />
+    <input type="password" name="password" placeholder="Senha" minlength="6" required />
+    <label class="checkbox-inline admin-inline"><input type="checkbox" name="is_admin" /> <span>Administrador</span></label>
+    <button type="submit">Criar usuário</button>
+  </form>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Criação</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.name }}</td>
+          <td>{{ u.email }}</td>
+          <td>{{ 'Admin' if u.is_admin else 'Operador' }}</td>
+          <td>{{ u.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>
+            <div class="action-group">
+              <details>
+                <summary class="btn-edit">Editar</summary>
+                <form method="post" action="{{ url_for('editar_usuario', user_id=u.id) }}" class="inline-form user-edit-form">
+                  <input name="name" value="{{ u.name }}" required />
+                  <input type="email" name="email" value="{{ u.email }}" required />
+                  <input type="password" name="password" minlength="6" placeholder="Nova senha (opcional)" />
+                  <label class="checkbox-inline admin-inline"><input type="checkbox" name="is_admin" {% if u.is_admin %}checked{% endif %}/> <span>Administrador</span></label>
+                  <button type="submit">Salvar</button>
+                </form>
+              </details>
+              <form method="post" action="{{ url_for('remover_usuario', user_id=u.id) }}" onsubmit="return confirm('Deseja remover este usuário?');">
+                <button type="submit" class="btn-danger">Remover</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="5">Sem usuários.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h3>Ações críticas</h3>
+  <div class="grid form-grid">
+    <form method="post" action="{{ url_for('limpar_clientes_admin') }}" onsubmit="return confirm('Tem certeza que deseja remover todos os clientes?');">
+      <h4>Limpar clientes</h4>
+      <p>Digite <strong>LIMPAR CLIENTES</strong> para confirmar.</p>
+      <input name="confirm_clients" placeholder="LIMPAR CLIENTES" required />
+      <button type="submit" class="btn-danger">Limpar clientes</button>
+    </form>
+
+    <form method="post" action="{{ url_for('limpar_estoque_admin') }}" onsubmit="return confirm('Esta ação vai zerar o estoque. Continuar?');">
+      <h4>Limpar estoque (com verificação)</h4>
+      <p>Digite <strong>LIMPAR ESTOQUE</strong> para confirmar a verificação.</p>
+      <input name="stock_verification" placeholder="LIMPAR ESTOQUE" required />
+      <button type="submit" class="btn-danger">Zerar estoque</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

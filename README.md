@@ -94,6 +94,23 @@ docker compose up --build
 3. Acompanhe o status no módulo de **Cobranças**.
 4. Ao identificar o recebimento, realize a **confirmação de pagamento** no sistema.
 
+
+## Configuração do Pix (QR Code no recibo)
+
+Para o QR Code Pix do recibo funcionar como pagamento real, configure as variáveis de ambiente:
+
+```bash
+export PIX_KEY="sua-chave-pix"
+export PIX_RECEIVER_NAME="LojaWeb Tecnologia"
+export PIX_RECEIVER_CITY="Sao Paulo"
+```
+
+- `PIX_KEY`: chave Pix válida (CPF/CNPJ, e-mail, telefone ou EVP).
+- `PIX_RECEIVER_NAME`: nome do recebedor (máx. 25 caracteres no padrão Pix).
+- `PIX_RECEIVER_CITY`: cidade do recebedor (máx. 15 caracteres no padrão Pix).
+
+Se `PIX_KEY` não estiver configurada, o recibo exibirá aviso de configuração em vez do QR Code.
+
 ---
 
 ## Segurança e operação

@@ -1,7 +1,7 @@
 {% macro sidebar(endpoint) %}
-<aside class="app-sidebar">
-  <a href="{{ url_for('dashboard') }}" class="sidebar-brand" aria-label="LojaWeb">
-    <img src="{{ url_for('static', filename='logo-lojaweb.svg') }}" alt="LojaWeb" class="sidebar-logo" />
+<aside class="app-sidebar" id="app-sidebar">
+  <a href="{{ url_for('dashboard') }}" class="sidebar-brand" aria-label="{{ ui_store_name or 'Loja' }}">
+    <img src="{{ url_for('static', filename=ui_store_logo or 'logo-lojaweb.svg') }}" alt="{{ ui_store_name or 'Loja' }}" class="sidebar-logo" />
   </a>
   <nav>
     <a href="{{ url_for('dashboard') }}" class="{% if endpoint == 'dashboard' %}active{% endif %}">Dashboard</a>
@@ -11,7 +11,7 @@
     <a href="{{ url_for('clientes') }}" class="{% if endpoint in ['clientes','editar_cliente','historico_cliente'] %}active{% endif %}">Clientes</a>
     <a href="{{ url_for('vendas') }}" class="{% if endpoint == 'vendas' %}active{% endif %}">Vendas</a>
     <a href="{{ url_for('logs_auditoria') }}" class="{% if endpoint == 'logs_auditoria' %}active{% endif %}">Logs</a>
-    <a href="{{ url_for('usuarios') }}" class="nav-admin {% if endpoint == 'usuarios' %}active{% endif %}">Usuários</a>
+    <a href="{{ url_for('admin_panel') }}" class="nav-admin {% if endpoint in ['admin_panel', 'usuarios'] %}active{% endif %}">Administrador</a>
     <a href="{{ url_for('logout') }}" class="nav-admin">Sair</a>
   </nav>
 </aside>
@@ -20,9 +20,10 @@
 {% macro navbar(user_name) %}
 <header class="app-navbar">
   <div class="navbar-brand">
-    <img src="{{ url_for('static', filename='logo-lojaweb.svg') }}" alt="LojaWeb" class="navbar-logo" />
+    <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-controls="app-sidebar" aria-expanded="true">☰ Menu</button>
+    <img src="{{ url_for('static', filename=ui_store_logo or 'logo-lojaweb.svg') }}" alt="{{ ui_store_name or 'Loja' }}" class="navbar-logo" />
     <div>
-      <h1>Painel de Gestão</h1>
+      <h1>{{ ui_store_name or 'Painel de Gestão' }}</h1>
       <small>Fluxo unificado para estoque e cadastro</small>
     </div>
   </div>
@@ -45,6 +46,28 @@
     toasts.forEach((toast) => {
       window.setTimeout(() => toast.classList.add('is-hidden'), 3500);
     });
+
+    const shell = document.querySelector('.app-shell');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebarCollapsedStorageKey = 'lojaweb-sidebar-collapsed';
+
+    const syncSidebarUI = (collapsed) => {
+      if (!shell || !sidebarToggle) return;
+      shell.classList.toggle('sidebar-collapsed', collapsed);
+      sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+      sidebarToggle.textContent = collapsed ? '☰ Mostrar menu' : '☰ Esconder menu';
+    };
+
+    if (shell && sidebarToggle) {
+      const isCollapsed = window.localStorage.getItem(sidebarCollapsedStorageKey) === 'true';
+      syncSidebarUI(isCollapsed);
+
+      sidebarToggle.addEventListener('click', () => {
+        const nowCollapsed = !shell.classList.contains('sidebar-collapsed');
+        window.localStorage.setItem(sidebarCollapsedStorageKey, String(nowCollapsed));
+        syncSidebarUI(nowCollapsed);
+      });
+    }
 
     const overlay = document.getElementById('print-loading-overlay');
     const showOverlay = () => overlay?.classList.remove('hidden');
