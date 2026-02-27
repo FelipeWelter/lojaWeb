@@ -31,10 +31,13 @@
         </section>
       </header>
 
-      <h3>Itens</h3>
+      <section class="receipt-section-heading">
+        <h3>Itens do documento</h3>
+        <p class="receipt-legend">Legenda: <strong>Origem</strong> identifica o tipo de lançamento e <strong>SKU</strong> identifica o código do item no estoque.</p>
+      </section>
       <table class="receipt-items-table">
         <thead>
-          <tr><th>Produto</th><th>Origem/SKU</th><th>Qtd</th><th>Unitário</th><th>Subtotal</th></tr>
+          <tr><th>Descrição do item</th><th>Origem do item / SKU</th><th>Quantidade</th><th>Valor unitário</th><th>Subtotal</th></tr>
         </thead>
         <tbody>
           {% for row in items %}
@@ -49,26 +52,43 @@
         </tbody>
       </table>
 
+      <section class="receipt-summary-grid">
+        <article class="receipt-summary-card">
+          <span>Subtotal bruto</span>
+          <strong>R$ {{ '%.2f'|format(gross_total if gross_total is defined else subtotal) }}</strong>
+        </article>
+        <article class="receipt-summary-card">
+          <span>Desconto aplicado</span>
+          <strong>R$ {{ '%.2f'|format(discount_amount or 0) }}</strong>
+        </article>
+      </section>
+
       {% if record_code.startswith('MON-') %}
       <div class="receipt-total-box">
         <span>Total da montagem</span>
         <strong>R$ {{ '%.2f'|format(total) }}</strong>
       </div>
       {% else %}
-      <p><strong>Valor Bruto:</strong> R$ {{ '%.2f'|format(gross_total if gross_total is defined else subtotal) }}</p>
-      <p><strong>Desconto:</strong> R$ {{ '%.2f'|format(discount_amount or 0) }}</p>
       <div class="receipt-total-box">
         <span>Valor Líquido</span>
         <strong>R$ {{ '%.2f'|format(total) }}</strong>
       </div>
       {% endif %}
-      {% if payment_method_label is defined %}
-      <p><strong>Forma de pagamento:</strong> {{ payment_method_label }}</p>
-      {% endif %}
+      <section class="receipt-info-grid">
+        {% if payment_method_label is defined %}
+        <article class="receipt-info-pill">
+          <span>Forma de pagamento</span>
+          <strong>{{ payment_method_label }}</strong>
+        </article>
+        {% endif %}
 
-      {% if payment_status_label is defined %}
-      <p><strong>Status do pagamento:</strong> {{ payment_status_label }}</p>
-      {% endif %}
+        {% if payment_status_label is defined %}
+        <article class="receipt-info-pill">
+          <span>Status do pagamento</span>
+          <strong>{{ payment_status_label }}</strong>
+        </article>
+        {% endif %}
+      </section>
 
       {% if payment_status_label is defined and payment_status_label == 'Pendente' %}
       <section class="pix-qrcode-block">
@@ -152,8 +172,10 @@
         {% endif %}
       </section>
       {% endif %}
-      <p><strong>Observações:</strong> {{ notes }}</p>
-      <p><strong>Técnico responsável:</strong> {{ performed_by_name }}</p>
+      <section class="receipt-notes-block">
+        <p><strong>Observações:</strong> {{ notes }}</p>
+        <p><strong>Técnico responsável:</strong> {{ performed_by_name }}</p>
+      </section>
 
       {% if record_code.startswith('MON-') or record_code.startswith('OS-') %}
       <section class="signature-grid">
