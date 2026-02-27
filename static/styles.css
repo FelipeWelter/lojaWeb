@@ -2736,3 +2736,29 @@ input[type="number"] {
     width: 88px;
   }
 }
+
+.sidebar-toggle {
+  background: #1f2937;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  padding: .45rem .75rem;
+  cursor: pointer;
+}
+
+.sidebar-toggle:hover {
+  background: #374151;
+}
+
+.app-content {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 1fr;
+}
+
+.app-shell.sidebar-collapsed .app-sidebar {
+  display: none;
+}

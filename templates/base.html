@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LojaWeb - Gestão</title>
+    <title>{{ ui_store_name or 'LojaWeb' }} - Gestão</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='variables.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='print.css') }}" media="print" />
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo-lojaweb.svg') }}" />
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename=ui_store_logo or 'logo-lojaweb.svg') }}" />
   </head>
   <body class="{% if request.endpoint == 'login' %}auth-page{% else %}dashboard-page{% endif %}">
     {% from 'fragments.html' import sidebar, navbar, toast_messages, scripts %}

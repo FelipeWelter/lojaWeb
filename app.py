@@ -5,8 +5,11 @@ from functools import wraps
 import json
 import os
 from pathlib import Path
+from urllib.parse import quote
 from uuid import uuid4
 from io import BytesIO
+import re
+import unicodedata
 
 from flask import Flask, flash, make_response, redirect, render_template, request, session, url_for
 from flask_mail import Mail, Message
@@ -45,6 +48,10 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 app.config['LOGIN_THROTTLE_MAX_ATTEMPTS'] = int(os.getenv('LOGIN_THROTTLE_MAX_ATTEMPTS', '5'))
 app.config['LOGIN_THROTTLE_BLOCK_MINUTES'] = int(os.getenv('LOGIN_THROTTLE_BLOCK_MINUTES', '15'))
+app.config['PIX_KEY'] = os.getenv('PIX_KEY', '').strip()
+app.config['PIX_RECEIVER_NAME'] = os.getenv('PIX_RECEIVER_NAME', 'LOJAWEB TECNOLOGIA').strip()
+app.config['PIX_RECEIVER_CITY'] = os.getenv('PIX_RECEIVER_CITY', 'SAO PAULO').strip()
+app.config['BRANDING_UPLOAD_FOLDER'] = 'static/uploads/branding'
 
 db = SQLAlchemy(app)
 mail = Mail(app)
@@ -352,6 +359,21 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+class StoreSettings(db.Model):
+    """Configurações administrativas editáveis para dados institucionais da loja."""
+
+    id = db.Column(db.Integer, primary_key=True)
+    store_name = db.Column(db.String(120), nullable=False, default='LojaWeb Tecnologia')
+    store_address = db.Column(db.String(255), nullable=False, default='Rua Exemplo, 123 - Centro')
+    store_contact = db.Column(db.String(120), nullable=False, default='contato@lojaweb.local')
+    cnpj = db.Column(db.String(30), nullable=True)
+    pix_key = db.Column(db.String(255), nullable=True)
+    pix_receiver_name = db.Column(db.String(25), nullable=False, default='LOJAWEB TECNOLOGIA')
+    pix_receiver_city = db.Column(db.String(15), nullable=False, default='SAO PAULO')
+    logo_path = db.Column(db.String(255), nullable=False, default='logo-lojaweb.svg')
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class AuditLog(db.Model):
     """Classe `AuditLog`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     id = db.Column(db.Integer, primary_key=True)
@@ -440,6 +462,64 @@ def _current_user():
     if not uid:
         return None
     return User.query.get(uid)
+
+
+def _admin_required(view):
+    """Garante que somente administradores acessem rotas sensíveis do painel."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        current = _current_user()
+        if not current or not current.is_admin:
+            flash('Apenas administradores podem acessar esta área.', 'danger')
+            return redirect(url_for('dashboard'))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def _branding_upload_dir() -> Path:
+    """Retorna e cria o diretório de upload para assets de identidade visual."""
+    upload_dir = Path(app.root_path) / app.config['BRANDING_UPLOAD_FOLDER']
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    return upload_dir
+
+
+def _get_store_settings() -> StoreSettings:
+    """Carrega (ou cria) o registro único de configurações da loja."""
+    settings = StoreSettings.query.first()
+    if settings:
+        return settings
+
+    settings = StoreSettings(
+        store_name='LojaWeb Tecnologia',
+        store_address='Rua Exemplo, 123 - Centro',
+        store_contact='contato@lojaweb.local',
+        cnpj=None,
+        pix_key=app.config.get('PIX_KEY', '') or None,
+        pix_receiver_name=_sanitize_pix_text(app.config.get('PIX_RECEIVER_NAME', 'LOJAWEB TECNOLOGIA'), max_len=25) or 'LOJAWEB TECNOLOGIA',
+        pix_receiver_city=_sanitize_pix_text(app.config.get('PIX_RECEIVER_CITY', 'SAO PAULO'), max_len=15) or 'SAO PAULO',
+        logo_path='logo-lojaweb.svg',
+    )
+    db.session.add(settings)
+    db.session.commit()
+    return settings
+
+
+def _apply_store_settings_to_runtime(settings: StoreSettings):
+    """Sincroniza dados de Pix editáveis no painel com as configs usadas em runtime."""
+    app.config['PIX_KEY'] = (settings.pix_key or '').strip()
+    app.config['PIX_RECEIVER_NAME'] = (settings.pix_receiver_name or '').strip() or 'LOJAWEB TECNOLOGIA'
+    app.config['PIX_RECEIVER_CITY'] = (settings.pix_receiver_city or '').strip() or 'SAO PAULO'
+
+
+def _base_template_context() -> dict:
+    """Fornece contexto global de branding para navbar/sidebar e demais templates."""
+    settings = _get_store_settings()
+    _apply_store_settings_to_runtime(settings)
+    return {
+        'ui_store_name': settings.store_name,
+        'ui_store_logo': settings.logo_path,
+        'ui_store_has_cnpj': bool((settings.cnpj or '').strip()),
+    }
 
 
 def _build_reset_token(email: str):
@@ -872,6 +952,68 @@ def _to_money_decimal(value, default: str = '0.00') -> Decimal:
     return parsed.quantize(Decimal('0.01'))
 
 
+def _sanitize_pix_text(value: str, *, max_len: int) -> str:
+    normalized = unicodedata.normalize('NFKD', value or '').encode('ascii', 'ignore').decode('ascii')
+    normalized = re.sub(r'[^A-Za-z0-9 ]+', '', normalized).strip().upper()
+    return normalized[:max_len]
+
+
+def _emv_field(field_id: str, value: str) -> str:
+    return f"{field_id}{len(value):02d}{value}"
+
+
+def _crc16_ccitt(payload: str) -> str:
+    crc = 0xFFFF
+    data = payload.encode('utf-8')
+    for byte in data:
+        crc ^= byte << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return f"{crc:04X}"
+
+
+def _build_pix_payload(*, amount: Decimal, txid: str) -> str | None:
+    pix_key = app.config.get('PIX_KEY', '')
+    if not pix_key:
+        return None
+
+    merchant_name = _sanitize_pix_text(app.config.get('PIX_RECEIVER_NAME', 'LOJAWEB TECNOLOGIA'), max_len=25) or 'LOJAWEB'
+    merchant_city = _sanitize_pix_text(app.config.get('PIX_RECEIVER_CITY', 'SAO PAULO'), max_len=15) or 'SAO PAULO'
+    txid_clean = _sanitize_pix_text(txid, max_len=25) or 'LOJAWEB'
+
+    merchant_account_info = ''.join([
+        _emv_field('00', 'BR.GOV.BCB.PIX'),
+        _emv_field('01', pix_key),
+    ])
+
+    amount_str = f"{Decimal(amount or 0).quantize(Decimal('0.01')):.2f}"
+
+    payload_without_crc = ''.join([
+        _emv_field('00', '01'),
+        _emv_field('26', merchant_account_info),
+        _emv_field('52', '0000'),
+        _emv_field('53', '986'),
+        _emv_field('54', amount_str),
+        _emv_field('58', 'BR'),
+        _emv_field('59', merchant_name),
+        _emv_field('60', merchant_city),
+        _emv_field('62', _emv_field('05', txid_clean)),
+        '6304',
+    ])
+
+    crc = _crc16_ccitt(payload_without_crc)
+    return f"{payload_without_crc}{crc}"
+
+
+def _build_pix_qr_url(payload: str | None) -> str | None:
+    if not payload:
+        return None
+    return f"https://quickchart.io/qr?size=220&text={quote(payload, safe='')}"
+
+
 def _load_json_list(raw_value: str | None) -> list[dict]:
     """Carrega JSON de lista e retorna apenas itens-objeto válidos."""
     if not raw_value:
@@ -1165,6 +1307,12 @@ def _sync_ticket_parts_stock_delta(previous_parts_items: list[dict], current_par
 
 
 
+@app.context_processor
+def inject_base_context():
+    """Injeta dados visuais da loja em todos os templates renderizados."""
+    return _base_template_context()
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Função `login`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
@@ -1248,12 +1396,10 @@ def logout():
 
 @app.route('/usuarios', methods=['GET', 'POST'])
 @_login_required
+@_admin_required
 def usuarios():
     """Função `usuarios`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
-    if not current or not current.is_admin:
-        flash('Apenas administradores podem gerenciar usuários.', 'danger')
-        return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
         name = (request.form.get('name') or '').strip()
@@ -1279,12 +1425,10 @@ def usuarios():
 
 @app.route('/usuarios/<int:user_id>/editar', methods=['POST'])
 @_login_required
+@_admin_required
 def editar_usuario(user_id: int):
     """Função `editar_usuario`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
-    if not current or not current.is_admin:
-        flash('Apenas administradores podem editar usuários.', 'danger')
-        return redirect(url_for('dashboard'))
 
     user = User.query.get_or_404(user_id)
     name = (request.form.get('name') or '').strip()
@@ -1318,12 +1462,10 @@ def editar_usuario(user_id: int):
 
 @app.route('/usuarios/<int:user_id>/remover', methods=['POST'])
 @_login_required
+@_admin_required
 def remover_usuario(user_id: int):
     """Função `remover_usuario`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
     current = _current_user()
-    if not current or not current.is_admin:
-        flash('Apenas administradores podem remover usuários.', 'danger')
-        return redirect(url_for('dashboard'))
 
     user = User.query.get_or_404(user_id)
     if user.id == current.id:
@@ -1339,11 +1481,104 @@ def remover_usuario(user_id: int):
     return redirect(url_for('usuarios'))
 
 
+
+
+@app.route('/admin')
+@_login_required
+@_admin_required
+def admin_panel():
+    """Renderiza painel administrativo centralizando configurações da loja e ações críticas."""
+    settings = _get_store_settings()
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template('admin_panel.html', settings=settings, users=users)
+
+
+@app.route('/admin/configuracoes', methods=['POST'])
+@_login_required
+@_admin_required
+def salvar_configuracoes_admin():
+    """Persiste configurações de identidade visual, dados da loja e chave Pix."""
+    settings = _get_store_settings()
+
+    settings.store_name = (request.form.get('store_name') or '').strip() or settings.store_name
+    settings.store_address = (request.form.get('store_address') or '').strip() or settings.store_address
+    settings.store_contact = (request.form.get('store_contact') or '').strip() or settings.store_contact
+    settings.cnpj = (request.form.get('cnpj') or '').strip() or None
+    settings.pix_key = (request.form.get('pix_key') or '').strip() or None
+
+    pix_receiver_name = _sanitize_pix_text(request.form.get('pix_receiver_name') or settings.store_name, max_len=25)
+    pix_receiver_city = _sanitize_pix_text(request.form.get('pix_receiver_city') or 'SAO PAULO', max_len=15)
+    settings.pix_receiver_name = pix_receiver_name or 'LOJAWEB TECNOLOGIA'
+    settings.pix_receiver_city = pix_receiver_city or 'SAO PAULO'
+
+    logo_file = request.files.get('store_logo')
+    if logo_file and logo_file.filename:
+        filename = secure_filename(logo_file.filename)
+        ext = Path(filename).suffix.lower()
+        allowed = {'.png', '.jpg', '.jpeg', '.svg', '.webp'}
+        if ext not in allowed:
+            flash('Formato de logo inválido. Use PNG, JPG, SVG ou WEBP.', 'danger')
+            return redirect(url_for('admin_panel'))
+
+        final_name = f'brand-logo{ext}'
+        logo_path = _branding_upload_dir() / final_name
+        logo_file.save(logo_path)
+        settings.logo_path = f'uploads/branding/{final_name}'
+
+    _apply_store_settings_to_runtime(settings)
+    _log_audit('Configurações administrativas', f'Usuário {_current_user().name} atualizou os dados da loja e branding.')
+    db.session.commit()
+    flash('Configurações administrativas salvas com sucesso.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/limpar-clientes', methods=['POST'])
+@_login_required
+@_admin_required
+def limpar_clientes_admin():
+    """Remove todos os clientes cadastrados após confirmação explícita no formulário."""
+    confirmation = (request.form.get('confirm_clients') or '').strip().upper()
+    if confirmation != 'LIMPAR CLIENTES':
+        flash('Confirmação inválida para limpeza de clientes.', 'danger')
+        return redirect(url_for('admin_panel'))
+
+    total = Client.query.count()
+    Client.query.delete()
+    _log_audit('Limpeza de clientes', f'Usuário {_current_user().name} removeu {total} cliente(s).')
+    db.session.commit()
+    flash(f'{total} cliente(s) removido(s) com sucesso.', 'success')
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/limpar-estoque', methods=['POST'])
+@_login_required
+@_admin_required
+def limpar_estoque_admin():
+    """Executa limpeza de estoque apenas quando a frase de verificação for confirmada."""
+    verification_phrase = (request.form.get('stock_verification') or '').strip().upper()
+    if verification_phrase != 'LIMPAR ESTOQUE':
+        flash('Verificação inválida. Digite "LIMPAR ESTOQUE" para confirmar.', 'danger')
+        return redirect(url_for('admin_panel'))
+
+    products = Product.query.filter(Product.category != 'Serviço').all()
+    changed = 0
+    for product in products:
+        if int(product.stock or 0) != 0:
+            product.stock = 0
+            changed += 1
+
+    _log_audit('Limpeza de estoque', f'Usuário {_current_user().name} zerou o estoque de {changed} produto(s).')
+    db.session.commit()
+    flash(f'Estoque zerado para {changed} produto(s).', 'success')
+    return redirect(url_for('admin_panel'))
+
+
 @app.route('/imprimir/<string:tipo>/<int:record_id>')
 @_login_required
 def imprimir(tipo: str, record_id: int):
-    """Função `imprimir`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """Gera documentos de impressão com dados operacionais e branding configurável."""
     assembly_data = None
+    settings = _get_store_settings()
     if tipo == 'venda':
         data = Sale.query.get_or_404(record_id)
         sale_items = data.items or []
@@ -1469,10 +1704,17 @@ def imprimir(tipo: str, record_id: int):
                     'total': Decimal(custom.quantity) * Decimal(custom.unit_cost or 0),
                 })
 
+        pix_qr_payload = None
+        pix_qr_url = None
+        if payment_status_label == 'Pendente':
+            pix_qr_payload = _build_pix_payload(amount=Decimal(data.total or 0), txid=f'VEN{data.id}')
+            pix_qr_url = _build_pix_qr_url(pix_qr_payload)
+
+        settings = _get_store_settings()
         context = {
             'document_title': f'Recibo de Venda #{data.id}',
-            'store_name': 'LojaWeb',
-            'store_contact': 'contato@lojaweb.local',
+            'store_name': settings.store_name,
+            'store_contact': settings.store_contact,
             'record_date': data.created_at,
             'record_code': f'VEN-{data.id}',
             'client_name': data.client.name,
@@ -1494,6 +1736,12 @@ def imprimir(tipo: str, record_id: int):
             'assembly_inline': assembly_data,
             'assembly_receipt_items': assembly_receipt_items,
             'service_receipt_lines': service_receipt_lines,
+            'pix_qr_payload': pix_qr_payload,
+            'pix_qr_url': pix_qr_url,
+            'pix_key': app.config.get('PIX_KEY', ''),
+            'store_address': settings.store_address,
+            'store_cnpj': settings.cnpj,
+            'store_logo': settings.logo_path,
         }
     elif tipo == 'montagem':
         data = ComputerAssembly.query.get_or_404(record_id)
@@ -1553,8 +1801,8 @@ def imprimir(tipo: str, record_id: int):
         assembly_total = sum((item['total'] for item in items), Decimal('0.00')).quantize(Decimal('0.01'))
         context = {
             'document_title': f'Recibo de Montagem #{data.id}',
-            'store_name': 'LojaWeb',
-            'store_contact': 'contato@lojaweb.local',
+            'store_name': settings.store_name,
+            'store_contact': settings.store_contact,
             'record_date': data.created_at,
             'record_code': f'MON-{data.id}',
             'client_name': data.nome_referencia or data.computador.name,
@@ -1602,8 +1850,8 @@ def imprimir(tipo: str, record_id: int):
 
         context = {
             'document_title': f'Recibo de Ordem de Serviço #{data.id}',
-            'store_name': 'LojaWeb',
-            'store_contact': 'contato@lojaweb.local',
+            'store_name': settings.store_name,
+            'store_contact': settings.store_contact,
             'record_date': data.entry_date,
             'record_code': f'OS-{data.id}',
             'client_name': data.client_name,
@@ -1616,15 +1864,15 @@ def imprimir(tipo: str, record_id: int):
                 'os': MAINTENANCE_STATUS_LABELS.get(data.status, data.status),
             },
             'notes': (data.observations or 'Sem observações.') + ' | Garantia de 90 dias para mão de obra e peças substituídas com defeito de fabricação.',
-            'performed_by_name': 'Equipe Técnica LojaWeb',
+            'performed_by_name': f'Equipe Técnica {settings.store_name}',
         }
     elif tipo == 'servico':
         data = ServiceRecord.query.get_or_404(record_id)
         subtotal = (Decimal(data.total_price or 0) + Decimal(data.discount_amount or 0)).quantize(Decimal('0.01'))
         context = {
             'document_title': f'Recibo de Serviço #{data.id}',
-            'store_name': 'LojaWeb',
-            'store_contact': 'contato@lojaweb.local',
+            'store_name': settings.store_name,
+            'store_contact': settings.store_contact,
             'record_date': data.created_at,
             'record_code': f'SER-{data.id}',
             'client_name': data.client_name,
@@ -1693,8 +1941,8 @@ def imprimir(tipo: str, record_id: int):
 
         context = {
             'document_title': f'Relatório de Cliente - {client.name}',
-            'store_name': 'LojaWeb',
-            'store_contact': 'contato@lojaweb.local',
+            'store_name': settings.store_name,
+            'store_contact': settings.store_contact,
             'record_date': datetime.utcnow(),
             'record_code': f'CLI-{client.id}',
             'client_name': client.name,
@@ -1725,8 +1973,8 @@ def imprimir(tipo: str, record_id: int):
         paid_value = Decimal(sale.total or 0)
         context = {
             'document_title': f'Recibo de Quitação #{charge.id}',
-            'store_name': 'LojaWeb',
-            'store_contact': 'contato@lojaweb.local',
+            'store_name': settings.store_name,
+            'store_contact': settings.store_contact,
             'record_date': charge.payment_confirmed_at or datetime.utcnow(),
             'record_code': f'QUIT-{charge.id}',
             'client_name': sale.client.name,
@@ -1775,8 +2023,8 @@ def imprimir(tipo: str, record_id: int):
 
         context = {
             'document_title': 'Relatório de Inadimplência',
-            'store_name': 'LojaWeb',
-            'store_contact': 'contato@lojaweb.local',
+            'store_name': settings.store_name,
+            'store_contact': settings.store_contact,
             'record_date': datetime.utcnow(),
             'record_code': f'REL-COB-{datetime.utcnow().strftime("%Y%m%d%H%M")}',
             'client_name': 'Uso interno',
@@ -1804,8 +2052,8 @@ def imprimir(tipo: str, record_id: int):
 
         context = {
             'document_title': f'Recibo de Pagamento Parcial #{charge.id}',
-            'store_name': 'LojaWeb',
-            'store_contact': 'contato@lojaweb.local',
+            'store_name': settings.store_name,
+            'store_contact': settings.store_contact,
             'record_date': datetime.utcnow(),
             'record_code': f'PARC-{charge.id}',
             'client_name': source,
@@ -1832,9 +2080,19 @@ def imprimir(tipo: str, record_id: int):
         flash('Tipo de impressão inválido.', 'danger')
         return redirect(url_for('dashboard'))
 
+    context.setdefault('store_name', settings.store_name)
+    context.setdefault('store_contact', settings.store_contact)
+    context.setdefault('store_address', settings.store_address)
+    context.setdefault('store_cnpj', settings.cnpj)
+    context.setdefault('store_logo', settings.logo_path)
+
     html = render_template('print_receipt.html', **context)
-    preview_mode = request.args.get('preview') == '1'
-    if pisa is None or preview_mode:
+
+    # Permite pré-visualização HTML do recibo para validação de layout no navegador.
+    if request.args.get('preview') == '1':
+        return html
+
+    if pisa is None:
         return html
 
     pdf_buffer = BytesIO()
