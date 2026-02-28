@@ -2389,30 +2389,46 @@ def dashboard():
         for service in ServiceRecord.query.filter(ServiceRecord.created_at >= start_date).all()
     }
 
-    realized_profit = Decimal('0.00')
+    paid_by_sale_id: dict[int, Decimal] = {}
+    paid_by_service_id: dict[int, Decimal] = {}
+    sale_totals: dict[int, Decimal] = {}
+    service_totals: dict[int, Decimal] = {}
+
     for charge in period_charges:
         if charge.status == 'cancelado':
-            continue
-
-        total_amount = _charge_total_amount(charge)
-        if total_amount <= 0:
             continue
 
         paid_amount = Decimal(charge.amount_paid or 0).quantize(Decimal('0.01'))
         if paid_amount <= 0:
             continue
 
-        ratio = min(Decimal('1.00'), (paid_amount / total_amount))
         if charge.sale_id and charge.sale:
-            sale_total = Decimal(charge.sale.total or 0).quantize(Decimal('0.01'))
-            sale_cost = sale_cost_map.get(charge.sale_id, Decimal('0.00'))
-            sale_margin = sale_total - sale_cost
-            realized_profit += sale_margin * ratio
+            paid_by_sale_id[charge.sale_id] = paid_by_sale_id.get(charge.sale_id, Decimal('0.00')) + paid_amount
+            sale_totals[charge.sale_id] = Decimal(charge.sale.total or 0).quantize(Decimal('0.01'))
         elif charge.service_id and charge.service:
-            service_total = Decimal(charge.service.total_price or 0).quantize(Decimal('0.01'))
-            service_cost_value = service_cost_map.get(charge.service_id, Decimal(charge.service.cost or 0).quantize(Decimal('0.01')))
-            service_margin = service_total - service_cost_value
-            realized_profit += service_margin * ratio
+            paid_by_service_id[charge.service_id] = paid_by_service_id.get(charge.service_id, Decimal('0.00')) + paid_amount
+            service_totals[charge.service_id] = Decimal(charge.service.total_price or 0).quantize(Decimal('0.01'))
+
+    realized_profit = Decimal('0.00')
+    for sale_id, paid_amount in paid_by_sale_id.items():
+        sale_total = sale_totals.get(sale_id, Decimal('0.00'))
+        if sale_total <= 0:
+            continue
+
+        ratio = min(Decimal('1.00'), (paid_amount / sale_total))
+        sale_cost = sale_cost_map.get(sale_id, Decimal('0.00'))
+        sale_margin = sale_total - sale_cost
+        realized_profit += sale_margin * ratio
+
+    for service_id, paid_amount in paid_by_service_id.items():
+        service_total = service_totals.get(service_id, Decimal('0.00'))
+        if service_total <= 0:
+            continue
+
+        ratio = min(Decimal('1.00'), (paid_amount / service_total))
+        service_cost_value = service_cost_map.get(service_id, Decimal('0.00'))
+        service_margin = service_total - service_cost_value
+        realized_profit += service_margin * ratio
 
     net_profit = realized_profit - Decimal(total_fixed_costs or 0)
     maintenance_in_progress = maintenance_query.filter(MaintenanceTicket.status != 'concluido').count()
