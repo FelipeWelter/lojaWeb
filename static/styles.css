@@ -1937,7 +1937,7 @@ body.dashboard-page textarea:focus {
 
 .montaje-card .multi-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) 130px 80px 40px;
+  grid-template-columns: minmax(180px, 1.4fr) 130px minmax(112px, auto) 40px;
   gap: 10px;
   align-items: end;
 }
@@ -1945,8 +1945,8 @@ body.dashboard-page textarea:focus {
 .montaje-card .multi-qty-field,
 .montaje-card .multi-row .qty-control,
 .montaje-card .multi-row input[name$="_qtys[]"] {
-  width: 80px;
-  min-width: 80px;
+  width: 112px;
+  min-width: 112px;
 }
 
 .montaje-card .multi-row .qty-control {
