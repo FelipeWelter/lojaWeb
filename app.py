@@ -2297,6 +2297,8 @@ def dashboard():
         start_date = now - timedelta(days=7)
     elif period == 'month':
         start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    elif period == 'year':
+        start_date = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     else:
         period = 'month'
         start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
