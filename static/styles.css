@@ -1943,10 +1943,14 @@ body.dashboard-page textarea:focus {
 }
 
 .montaje-card .multi-qty-field,
-.montaje-card .multi-row .qty-control,
-.montaje-card .multi-row input[name$="_qtys[]"] {
+.montaje-card .multi-row .qty-control {
   width: 112px;
   min-width: 112px;
+}
+
+.montaje-card .multi-row input[name$="_qtys[]"] {
+  width: 100%;
+  min-width: 0;
 }
 
 .montaje-card .multi-row .qty-control {
@@ -1963,7 +1967,11 @@ body.dashboard-page textarea:focus {
   }
 
   .montaje-card .multi-qty-field,
-  .montaje-card .multi-row .qty-control,
+  .montaje-card .multi-row .qty-control {
+    width: 100%;
+    min-width: 0;
+  }
+
   .montaje-card .multi-row input[name$="_qtys[]"] {
     width: 100%;
     min-width: 0;
