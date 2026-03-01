@@ -92,6 +92,8 @@ class Product(db.Model):
     motherboard_chipset = db.Column(db.String(40), nullable=True)
     cabinet_brand = db.Column(db.String(60), nullable=True)
     cabinet_description = db.Column(db.String(180), nullable=True)
+    fan_brand = db.Column(db.String(60), nullable=True)
+    fan_description = db.Column(db.String(180), nullable=True)
     peripheral_mouse = db.Column(db.String(120), nullable=True)
     peripheral_keyboard = db.Column(db.String(120), nullable=True)
     peripheral_monitor = db.Column(db.String(120), nullable=True)
@@ -125,6 +127,8 @@ class Product(db.Model):
         add_spec('Capacidade', self.storage_capacity)
         add_spec('Gabinete', self.cabinet_brand)
         add_spec('Descrição', self.cabinet_description)
+        add_spec('Fan', self.fan_brand)
+        add_spec('Descrição do fan', self.fan_description)
         add_spec('Fonte', self.psu_watts)
         add_spec('Mouse', self.peripheral_mouse)
         add_spec('Teclado', self.peripheral_keyboard)
@@ -1140,6 +1144,8 @@ def _generate_piece_name(component_class: str | None, form_data) -> str:
         specs = [clean('psu_brand'), clean('psu_watts')]
     elif component_class == 'gabinete':
         specs = [clean('cabinet_brand'), clean('cabinet_description')]
+    elif component_class == 'fans':
+        specs = [clean('fan_brand'), clean('fan_description')]
     elif component_class == 'perifericos':
         specs = [
             clean('peripheral_mouse'),
@@ -2642,6 +2648,8 @@ def produtos():
             motherboard_chipset=(request.form.get('motherboard_chipset') or '').strip() or None,
             cabinet_brand=(request.form.get('cabinet_brand') or '').strip() or None,
             cabinet_description=(request.form.get('cabinet_description') or '').strip() or None,
+            fan_brand=(request.form.get('fan_brand') or '').strip() or None,
+            fan_description=(request.form.get('fan_description') or '').strip() or None,
             peripheral_mouse=(request.form.get('peripheral_mouse') or '').strip() or None,
             peripheral_keyboard=(request.form.get('peripheral_keyboard') or '').strip() or None,
             peripheral_monitor=(request.form.get('peripheral_monitor') or '').strip() or None,
@@ -2786,6 +2794,10 @@ def editar_produto(product_id: int):
         product.cabinet_brand = (request.form.get('cabinet_brand') or '').strip() or None
     if 'cabinet_description' in request.form:
         product.cabinet_description = (request.form.get('cabinet_description') or '').strip() or None
+    if 'fan_brand' in request.form:
+        product.fan_brand = (request.form.get('fan_brand') or '').strip() or None
+    if 'fan_description' in request.form:
+        product.fan_description = (request.form.get('fan_description') or '').strip() or None
     if 'peripheral_mouse' in request.form:
         product.peripheral_mouse = (request.form.get('peripheral_mouse') or '').strip() or None
     if 'peripheral_keyboard' in request.form:
@@ -5105,6 +5117,10 @@ with app.app_context():
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN cabinet_brand VARCHAR(60)'))
     if 'cabinet_description' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN cabinet_description VARCHAR(180)'))
+    if 'fan_brand' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN fan_brand VARCHAR(60)'))
+    if 'fan_description' not in columns:
+        db.session.execute(db.text('ALTER TABLE product ADD COLUMN fan_description VARCHAR(180)'))
     if 'peripheral_mouse' not in columns:
         db.session.execute(db.text('ALTER TABLE product ADD COLUMN peripheral_mouse VARCHAR(120)'))
     if 'peripheral_keyboard' not in columns:
