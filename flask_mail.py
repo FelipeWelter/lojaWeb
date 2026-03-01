@@ -3,22 +3,22 @@ from email.message import EmailMessage
 
 
 class Message:
-    """Classe `Message`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """Representa uma mensagem de e-mail."""
     def __init__(self, subject='', recipients=None, body=''):
-        """Função `__init__`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Inicializa assunto, destinatários e corpo da mensagem."""
         self.subject = subject
         self.recipients = recipients or []
         self.body = body
 
 
 class Mail:
-    """Classe `Mail`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """Cliente SMTP simples para envio de e-mails."""
     def __init__(self, app=None):
-        """Função `__init__`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Armazena a aplicação com as configurações de SMTP."""
         self.app = app
 
     def send(self, message: Message):
-        """Função `send`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Envia um e-mail usando as configurações carregadas da aplicação."""
         if not self.app:
             raise RuntimeError('Mail não configurado.')
 

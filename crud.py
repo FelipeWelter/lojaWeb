@@ -8,37 +8,37 @@ T = TypeVar('T', bound=Model)
 
 
 class GenericCrudService(Generic[T]):
-    """Classe `GenericCrudService`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """Serviço CRUD genérico para modelos SQLAlchemy."""
     def __init__(self, model: type[T], db):
-        """Função `__init__`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Configura o serviço com o modelo e instância de banco."""
         self.model = model
         self.db = db
 
     def get_active(self):
-        """Função `get_active`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Retorna entidades ativas quando o campo `active` existir."""
         query = self.model.query
         if hasattr(self.model, 'active'):
             query = query.filter_by(active=True)
         return query.all()
 
     def get_by_id(self, entity_id: int) -> Optional[T]:
-        """Função `get_by_id`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Busca uma entidade pelo identificador primário."""
         return self.model.query.get(entity_id)
 
     def create(self, **kwargs) -> T:
-        """Função `create`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Cria e adiciona uma nova entidade à sessão do banco."""
         entity = self.model(**kwargs)
         self.db.session.add(entity)
         return entity
 
     def update(self, entity: T, **kwargs) -> T:
-        """Função `update`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Atualiza atributos de uma entidade existente."""
         for key, value in kwargs.items():
             setattr(entity, key, value)
         return entity
 
     def soft_delete(self, entity: T):
-        """Função `soft_delete`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Desativa a entidade quando possível ou remove da sessão."""
         if hasattr(entity, 'active'):
             entity.active = False
         else:
@@ -47,7 +47,7 @@ class GenericCrudService(Generic[T]):
 
 @dataclass
 class ProductDTO:
-    """Classe `ProductDTO`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """DTO com dados e validações básicas de produto."""
     name: str
     category: str
     stock: int
@@ -57,7 +57,7 @@ class ProductDTO:
     serial_number: Optional[str] = None
 
     def validate(self):
-        """Função `validate`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Valida campos obrigatórios e valores monetários/estoque."""
         if not self.name.strip():
             raise ValueError('Nome do produto é obrigatório.')
         if self.stock < 0:
@@ -68,13 +68,13 @@ class ProductDTO:
 
 @dataclass
 class ClientDTO:
-    """Classe `ClientDTO`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """DTO com dados e validações básicas de cliente."""
     name: str
     cpf: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
 
     def validate(self):
-        """Função `validate`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+        """Valida os campos obrigatórios de cliente."""
         if not self.name.strip():
             raise ValueError('Nome do cliente é obrigatório.')
