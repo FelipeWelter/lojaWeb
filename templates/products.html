@@ -62,6 +62,12 @@
           <label>Descrição<input name="cabinet_description" placeholder="Ex: Mid Tower com lateral em vidro" value="{{ edit_product.cabinet_description if edit_product else "" }}" /></label>
         </div>
 
+        <div id="fans-fields" class="component-extra-fields" hidden style="display:none;">
+          <h4>Fans</h4>
+          <label>Marca<input name="fan_brand" placeholder="Ex: Corsair" value="{{ edit_product.fan_brand if edit_product else "" }}" /></label>
+          <label>Descrição<input name="fan_description" placeholder="Ex: Kit com 3 fans ARGB 120mm" value="{{ edit_product.fan_description if edit_product else "" }}" /></label>
+        </div>
+
         <div id="ram-fields" class="component-extra-fields" hidden style="display:none;">
           <h4>Memória RAM</h4>
           <label>Tecnologia (DDR)
@@ -211,6 +217,7 @@
 
     const fieldsMap = {
       gabinete: document.getElementById('cabinet-fields'),
+      fans: document.getElementById('fans-fields'),
       memoria_ram: document.getElementById('ram-fields'),
       processador: document.getElementById('cpu-fields'),
       placa_mae: document.getElementById('motherboard-fields'),
@@ -222,6 +229,7 @@
 
     const helpMap = {
       gabinete: 'Gabinete: preencha marca e descrição.',
+      fans: 'Fans: preencha marca e descrição do kit ou modelo.',
       memoria_ram: 'RAM: tecnologia DDR, frequência, marca e capacidade. RAM não usa campos de armazenamento.',
       processador: 'Processador: preencha fabricante e modelo.',
       placa_mae: 'Placa-mãe: preencha marca, modelo, socket e chipset.',
@@ -231,7 +239,7 @@
       perifericos: 'Periféricos: informe mouse, teclado, monitor e cabos.',
     };
 
-    const noExtraClasses = ['fans'];
+    const noExtraClasses = [];
     const noExtraFields = document.getElementById('no-extra-fields');
 
     Object.entries(fieldsMap).forEach(([key, fieldContainer]) => {
@@ -300,6 +308,8 @@
     let parts = [];
     if (selectedClass === 'gabinete') {
       parts = [pick('input[name="cabinet_brand"]'), pick('input[name="cabinet_description"]')];
+    } else if (selectedClass === 'fans') {
+      parts = [pick('input[name="fan_brand"]'), pick('input[name="fan_description"]')];
     } else if (selectedClass === 'memoria_ram') {
       parts = [pick('input[name="ram_brand"]'), pick('input[name="ram_size"]'), pick('select[name="ram_ddr"]'), pick('input[name="ram_frequency"]')];
     } else if (selectedClass === 'processador') {
