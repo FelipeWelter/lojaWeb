@@ -308,6 +308,31 @@ body.auth-page .alert.danger {
   color: #a9d7ff;
 }
 
+/* Estilo para o link 'Esqueci minha senha' na tela de login (parece botão) */
+.forgot-password {
+  display: inline-block;
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.7rem;
+  background: transparent;
+  color: #a9d7ff;
+  border: 1px solid rgba(169, 215, 255, 0.25);
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: background .15s ease, transform .06s ease;
+}
+
+.forgot-password:hover {
+  background: rgba(169, 215, 255, 0.08);
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+
+.forgot-password:focus {
+  outline: 2px solid rgba(169, 215, 255, 0.18);
+  box-shadow: 0 6px 18px rgba(41, 128, 185, 0.08);
+}
+
 @media (max-width: 540px) {
   body.auth-page .container {
     padding: 0.85rem;
@@ -2174,14 +2199,12 @@ body.dashboard-page textarea:focus {
   font-weight: 700;
 }
 
-
-
 .checkbox-inline {
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
   gap: 6px;
   padding: 2px 0;
-  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .checkbox-inline input[type="checkbox"] {
@@ -2642,7 +2665,7 @@ input[type="number"] {
 }
 
 .suggested-price-hint strong {
-  color: #1d4ed8;
+  color: #2bff00;
 }
 
 /* Refatoração crítica: contenção de legendas e tabelas responsivas */

@@ -10,7 +10,7 @@
     <h3>1) Tipo de item</h3>
     <div class="action-group">
       <button type="button" class="btn-loja btn-loja--primary" id="choose-piece-btn">Peça</button>
-      <a class="btn-loja btn-loja--secondary" id="choose-computer-btn" href="{{ url_for('montar_pc') }}">Computador</a>
+      <a class="btn-loja btn-loja--secondary" id="choose-computer-btn" href="{{ url_for('montar_pc') }}">🖥️​ Montar Computador</a>
     </div>
   </section>
 
@@ -145,8 +145,16 @@
         <h3>5) Valores</h3>
         <label>Custo unitário<div class="money-wrap"><input name="cost_price" id="cost-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.cost_price) if edit_product else "0,00" }}" required /></div></label>
         <label>Preço de venda<div class="money-wrap"><input name="price" id="price-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="{{ "%.2f"|format(edit_product.price) if edit_product else "0,00" }}" required /></div></label>
-        <p class="suggested-price-hint">Sugestão com margem de 25%: <strong id="suggested-price">R$ 0,00</strong></p>
-        <label class="inline-checkbox"><input type="checkbox" id="apply-suggested-price" name="apply_suggested_price" /> Aplicar sugestão de preço (+25%)</label>
+
+        <p class="suggested-price-hint">Sugestão de preço mínimo (margem de 20%):
+        </br>
+          <label class="checkbox-inline" for="apply-suggested-price">
+            <input type="checkbox" id="apply-suggested-price" name="apply_suggested_price">
+            Aplicar sugestão de preço mínimo <strong id="suggested-price">R$ 0,00</strong>
+          </label>
+        </p>
+        
+
         <label>Frete/Taxas<div class="money-wrap"><input name="freight_fees" id="freight-input" class="js-clear-prefill" type="text" data-money="true" placeholder="0,00" value="0,00" /></div></label>
         <label>Margem de lucro (%)<span id="margin-pill" class="margin-pill ok">0,00%</span><input name="margin_percent" id="margin-input" type="text" value="0,00" readonly /></label>
       </section>

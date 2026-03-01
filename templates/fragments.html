@@ -21,13 +21,14 @@
 <header class="app-navbar">
   <div class="navbar-brand">
     <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-controls="app-sidebar" aria-expanded="true">☰ Menu</button>
-    <img src="{{ url_for('static', filename=ui_store_logo or 'logo-lojaweb.svg') }}" alt="{{ ui_store_name or 'Loja' }}" class="navbar-logo" />
     <div>
-      <h1>{{ ui_store_name or 'Painel de Gestão' }}</h1>
-      <small>Fluxo unificado para estoque e cadastro</small>
+      <p>
+      <h1>{{ ui_store_name or 'BizuTech' }} - Painel de Gestão</h1>
+      </p>
+      <!--<h1>{{ ui_store_name or 'Painel de Gestão' }}</h1>-->
     </div>
   </div>
-  <strong>{{ user_name or 'Operador' }}</strong>
+  <strong>{{ user_name or 'Operador'}}</strong>
 </header>
 {% endmacro %}
 

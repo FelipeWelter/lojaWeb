@@ -16,7 +16,7 @@
     <div class="app-shell">
       {{ sidebar(request.endpoint) }}
       <div class="app-content">
-        {{ navbar(session.get('user_name')) }}
+        {{ navbar(user_name) }}
     {% endif %}
 
     <main class="container">

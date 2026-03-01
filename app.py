@@ -530,6 +530,7 @@ def _base_template_context() -> dict:
         'ui_store_name': settings.store_name,
         'ui_store_logo': settings.logo_path,
         'ui_store_has_cnpj': bool((settings.cnpj or '').strip()),
+        'user_name': _current_user().name if _current_user() else None,
     }
 
 
@@ -1438,6 +1439,7 @@ def login():
         )
         session.permanent = remember_me
         session['user_id'] = user.id
+        session['user_name'] = user.name
         db.session.commit()
         flash('Login realizado com sucesso!', 'success')
         return redirect(url_for('dashboard'))
@@ -5396,4 +5398,4 @@ with app.app_context():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=True)
