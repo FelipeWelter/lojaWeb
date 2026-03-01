@@ -1,5 +1,5 @@
 def buscar_pecas_disponiveis(product_model):
-    """Função `buscar_pecas_disponiveis`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """Busca peças e computadores ativos com estoque disponível."""
     return (
         product_model.query
         .filter(
@@ -13,7 +13,7 @@ def buscar_pecas_disponiveis(product_model):
 
 
 def buscar_pecas_por_classe(product_model, slots):
-    """Função `buscar_pecas_por_classe`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """Agrupa peças ativas por classe de componente para cada slot."""
     return {
         slot_key: (
             product_model.query
