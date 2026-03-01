@@ -6,17 +6,17 @@
     <a href="{{ url_for('produtos') }}" class="btn-loja btn-loja--secondary">⬅ Voltar para Produtos</a>
   </div>
   <h2>{% if edit_assembly %}Editar Montagem #{{ edit_assembly.id }}{% else %}Montagem de Computadores{% endif %}</h2>
-  <p class="montage-subtitle">{% if edit_assembly %}Atualize a configuração usando a mesma tela de montagem de PC.{% else %}Monte uma configuração profissional em poucos cliques.{% endif %}</p>
+  <p class="montage-subtitle">{% if edit_assembly %}Edição de Comutadores Cadastrados.{% else %}Monte Seu Computador.{% endif %}</p>
   <form method="post" action="{% if edit_assembly %}{{ url_for('editar_montagem', assembly_id=edit_assembly.id) }}{% endif %}" class="grid form-grid" id="form-montagem" enctype="multipart/form-data">
     <div class="pc-layout full-width">
       <section class="pc-builder-area">
         <div class="pc-header full-width">
           <label>
-            Nome do computador (novo ou existente)
+            Identifiação do Computador
             <input name="computer_name" placeholder="Ex: GAMER" value="{{ edit_assembly.nome_referencia if edit_assembly else "" }}" required {% if edit_assembly %}readonly{% endif %} />
           </label>
           <label>
-            Preço base (opcional para existente)
+            Preço atual do computador (R$) -  não afeta o cálculo do orçamento
             <input name="computer_original_price" type="number" min="0" step="0.01" placeholder="0,00" value="{{ "%.2f"|format(edit_assembly.preco_original) if edit_assembly else "" }}" />
           </label>
           <div class="file-upload-field">
@@ -45,7 +45,7 @@
             {{ piece_slot('fonte', 'Fonte', parts_by_class) }}
           </div>
 
-          <div class="assembly-row one-column">
+          <div class="assembly-row two-column">
             {{ piece_slot('memoria_ram', 'Memória RAM', parts_by_class, allow_multiple=True) }}
           </div>
 
@@ -53,28 +53,38 @@
             {{ piece_slot('armazenamento', 'Armazenamento', parts_by_class, allow_multiple=True) }}
           </div>
 
+          <div class="assembly-row one-columns">
+            {{ piece_slot('placa_video', 'Placa de Vídeo', parts_by_class, '🎮') }}
+          </div>
+
           <div class="assembly-row one-column">
             <div class="slot-box optional-panel" data-slot="opcionais">
               <div class="slot-heading">
-                <h3>Opcionais / Observações</h3>
+                <h3>Opcionais</h3>
                 <span class="slot-icon" aria-hidden="true">📝</span>
               </div>
-              {{ piece_slot('placa_video', 'Placa de Vídeo', parts_by_class, '🎮') }}
-
               <div class="assembly-summary notes-panel full-width">
                 <label>
                   Observações técnicas
                   <textarea name="technical_notes" rows="4" placeholder="Ex: curva de fan ajustada, XMP ativado...">{{ edit_assembly.technical_notes if edit_assembly and edit_assembly.technical_notes else "" }}</textarea>
                 </label>
                 <div class="class-menu technical-checklist">
-                  <label><input type="checkbox" name="bios_updated" {% if edit_assembly and edit_assembly.bios_updated %}checked{% endif %}/> BIOS atualizada</label>
-                  <label>Valor BIOS (R$)<input name="bios_service_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.bios_service_cost or 0) if edit_assembly else '0.00' }}" /></label>
-                  <label><input type="checkbox" name="stress_test_done" {% if edit_assembly and edit_assembly.stress_test_done %}checked{% endif %}/> Stress test realizado</label>
-                  <label>Valor Stress (R$)<input name="stress_test_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.stress_test_cost or 0) if edit_assembly else '0.00' }}" /></label>
-                  <label><input type="checkbox" name="os_installed" {% if edit_assembly and edit_assembly.os_installed %}checked{% endif %}/> Sistema operacional instalado</label>
-                  <label>Valor SO (R$)<input name="os_install_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.os_install_cost or 0) if edit_assembly else '0.00' }}" /></label>
-                  <label><input type="checkbox" name="create_stock_item" {% if not edit_assembly %}checked{% endif %}/> Criar item automaticamente em "Computador" no estoque</label>
-                  <label><input type="checkbox" name="send_to_sales" /> Enviar montagem finalizada direto para o carrinho de vendas</label>
+                  <label>
+                    <input type="checkbox" name="bios_updated" {% if edit_assembly and edit_assembly.bios_updated %}checked{% endif %}/>
+                    🩻​ Atualização de BIOS (R$)<input name="bios_service_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.bios_service_cost or 0) if edit_assembly else '0.00' }}" />
+                    </label>
+                  <label>
+                    <input type="checkbox" name="stress_test_done" {% if edit_assembly and edit_assembly.stress_test_done %}checked{% endif %}/> 
+                    🔥Teste de Estresse (R$)<input name="stress_test_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.stress_test_cost or 0) if edit_assembly else '0.00' }}" />
+                  </label>
+                  <label>
+                    <input type="checkbox" name="os_installed" {% if edit_assembly and edit_assembly.os_installed %}checked{% endif %}/> 
+                    💿 Sistema Operacional Instalado(R$)<input name="os_install_cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(edit_assembly.os_install_cost or 0) if edit_assembly else '0.00' }}" />
+                  </label>
+                  <label>
+                    <input type="checkbox" name="create_stock_item" {% if not edit_assembly %}checked{% endif %}/> Criar item automaticamente em "Computador" no estoque</label>
+                  <label>
+                    <input type="checkbox" name="send_to_sales" /> Enviar montagem finalizada direto para o carrinho de vendas</label>
                 </div>
               </div>
 

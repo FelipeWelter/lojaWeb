@@ -2,7 +2,7 @@ from decimal import Decimal
 
 
 def calcular_margem_lucro(custo, venda):
-    """Função `calcular_margem_lucro`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """Função `calcular_margem_lucro`."""
     custo_dec = Decimal(custo or 0)
     venda_dec = Decimal(venda or 0)
     if venda_dec <= 0:
@@ -12,6 +12,6 @@ def calcular_margem_lucro(custo, venda):
 
 
 def calcular_preco_sugerido(custo_total, markup=Decimal('0.20')):
-    """Função `calcular_preco_sugerido`: explica o objetivo deste bloco para facilitar alterações e colaboração."""
+    """Função `calcular_preco_sugerido`."""
     custo_dec = Decimal(custo_total or 0)
     return (custo_dec * (Decimal('1.00') + Decimal(markup))).quantize(Decimal('0.01'))
