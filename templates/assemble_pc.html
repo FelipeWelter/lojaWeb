@@ -82,11 +82,11 @@
                 <div>
                   <p class="summary-title">Resumo do Orçamento</p>
                   <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
-                  <p><strong>Sugestão (+25% peças):</strong> <span id="total-sugerido">R$ 0,00</span></p>
-                  <label class="inline-checkbox"><input type="checkbox" id="apply-price-suggestion" name="apply_price_suggestion" /> Aplicar sugestão no valor final</label>
+                  <p><strong>Sugestão (+20% peças):</strong> <span id="total-sugerido">R$ 0,00</span></p>
+                  <label class="checkbox-inline"><input type="checkbox" id="apply-price-suggestion" name="apply_price_suggestion" /> Aplicar sugestão no valor final</label>
                 </div>
                 <button type="submit" class="summary-submit">{% if edit_assembly %}Salvar montagem{% else %}Finalizar montagem{% endif %}</button>
-                <p class="summary-hint">Desmarcado: mantém somente preço das peças. Marcado: aplica +25% nas peças avulsas.</p>
+                <p class="summary-hint">Desmarcado: mantém somente preço das peças. Marcado: aplica +20% nas peças avulsas.</p>
               </div>
             </div>
           </div>
@@ -165,9 +165,11 @@
 </section>
 
 {% set modal_id='assembly-confirm-modal' %}
+<!--
 {% set modal_title='Enviar para o carrinho?' %}
 {% set modal_message='Você poderá finalizar a venda imediatamente após montar o PC.' %}
 {% include 'includes/modal.html' %}
+-->
 
 <script>
   const form = document.getElementById('form-montagem');

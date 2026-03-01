@@ -12,7 +12,7 @@
   <form method="post" action="{{ url_for('mesclar_clientes') }}" class="grid form-grid crm-form-grid" style="margin-bottom:1rem;">
     <label><span>Mesclar cliente origem (ID)</span><input name="source_client_id" type="number" min="1" required></label>
     <label><span>No cliente destino (ID)</span><input name="target_client_id" type="number" min="1" required></label>
-    <button type="submit" class="btn-loja btn-loja--secondary">Mesclar históricos</button>
+    <button type="submit" class="btn-loja btn-loja--secondary" style="align-self:center;">Mesclar históricos</button>
   </form>
   <form method="post" class="grid form-grid crm-form-grid">
     <input type="hidden" name="client_id" value="{{ editing_client.id if editing_client else "" }}" />
@@ -106,10 +106,13 @@
   </div>
 </section>
 
+<!--
 {% set modal_id='client-confirm-modal' %}
 {% set modal_title='Confirmação' %}
 {% set modal_message='Confirme a operação para continuar.' %}
 {% include 'includes/modal.html' %}
+
+-->
 
 <script>
   const searchInput = document.getElementById('client-search');

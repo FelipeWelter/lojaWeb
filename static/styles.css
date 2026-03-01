@@ -711,7 +711,7 @@ body.auth-page .alert.danger {
 .summary-highlight #total-custo,
 .summary-highlight #preco-sugerido {
   font-weight: 800;
-  color: #132f8f;
+  color: #00ff40;
 }
 
 .summary-submit {
@@ -1566,7 +1566,7 @@ input, select, textarea { background: #34495e; border-color: #4a6572; color: #ec
 .money-wrap { position: relative; min-width: 170px; }
 .money-wrap::before {
   content: 'R$';
-  position: absolute;
+  position: auto;
   left: 10px;
   top: 50%;
   transform: translateY(-50%);
@@ -1773,19 +1773,20 @@ button:hover,
   gap: .6rem;
 }
 
+
 .maintenance-part-row {
   background: rgba(44, 62, 80, 0.35);
   border: 1px solid rgba(236, 240, 241, 0.15);
   border-radius: 10px;
   padding: .6rem;
-  display: grid;
+  display: flex;
   grid-template-columns: minmax(260px, 1fr) 120px auto;
   gap: .6rem;
-  align-items: end;
+  align-items: center;
 }
 
 .maintenance-qty-field {
-  max-width: 120px;
+  max-width: 100px;
 }
 
 .maintenance-part-qty-input {

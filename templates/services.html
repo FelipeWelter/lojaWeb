@@ -62,11 +62,17 @@
             </select>
             <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
           </label>
+
+
+
+<!--
           <label class="floating-field maintenance-qty-field">
             <span>Qtd. peça</span>
             <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="{{ part.get('quantity') or 1 }}" />
           </label>
-          <button type="button" class="btn-secondary remove-part-row" style="align-self:end;" {% if opening_parts|length == 1 %}hidden{% endif %}>Remover</button>
+        -->
+
+          <button type="button" class="btn-secondary remove-part-row" style="align-self:center;" {% if opening_parts|length == 1 %}hidden{% endif %}>Remover</button>
         </div>
           {% endfor %}
         {% else %}
@@ -81,16 +87,21 @@
             </select>
             <small class="selected-part-description" data-empty="Selecione uma peça para visualizar a descrição completa."></small>
           </label>
+
+          <!--
           <label class="floating-field maintenance-qty-field">
             <span>Qtd. peça</span>
             <input name="maintenance_part_qty[]" class="maintenance-part-qty-input" type="number" min="1" value="1" />
           </label>
-          <button type="button" class="btn-secondary remove-part-row" style="align-self:end;" hidden>Remover</button>
+        -->
+
+          <button type="button" class="btn-secondary remove-part-row" style="align-self:center;" hidden>Remover</button>
         </div>
         {% endif %}
       </div>
       <button type="button" id="add-maintenance-part" class="btn-secondary" style="margin-top:8px;">+ Adicionar peça</button>
     </div>
+    
     <label class="floating-field">
       <span>Mão de obra (R$)</span>
       <input name="maintenance_labor_cost" type="number" min="0" step="0.01" placeholder="0,00" value="{{ '%.2f'|format(edit_ticket.labor_cost or 0) if edit_ticket else '' }}" />
