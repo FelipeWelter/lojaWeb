@@ -433,7 +433,7 @@ client_service.model = Client
 
 
 @app.errorhandler(ValueError)
-def handle_value_error(exc):    """Função `handle_value_error`: captura erros de valor, registra detalhes para análise e informa o usuário de forma clara sobre o problema encontrado."""
+def handle_value_error(exc):
     flash(str(exc), 'danger')
     return redirect(request.referrer or url_for('dashboard'))
 
