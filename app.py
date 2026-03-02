@@ -4073,20 +4073,20 @@ def vendas():
         if assembly.id_computador in assembly_total_by_product:
             continue
 
-        pieces_sale_total = Decimal('0.00')
-        for comp in assembly.composicao:
-            if not comp.peca:
-                continue
-            pieces_sale_total += Decimal(comp.quantidade_utilizada or 0) * Decimal(comp.peca.price or 0)
-
         technical_services_total = (
             Decimal(assembly.bios_service_cost or 0)
             + Decimal(assembly.stress_test_cost or 0)
             + Decimal(assembly.os_install_cost or 0)
-        )
+        ).quantize(Decimal('0.01'))
 
-        # Valor importado no PDV para montagem: peças + serviços técnicos adicionais.
-        assembly_total_by_product[assembly.id_computador] = (pieces_sale_total + technical_services_total).quantize(Decimal('0.01'))
+        pieces_cost_total = (Decimal(assembly.custo_total or 0) - technical_services_total).quantize(Decimal('0.01'))
+        pieces_sale_total = Decimal(assembly.preco_sugerido or 0) if assembly.apply_price_suggestion else pieces_cost_total
+
+        # Valor importado no PDV para montagem deve refletir o preço final salvo:
+        # preço base + subtotal de peças (com ou sem +20%) + serviços técnicos.
+        assembly_total_by_product[assembly.id_computador] = (
+            Decimal(assembly.preco_original or 0) + pieces_sale_total + technical_services_total
+        ).quantize(Decimal('0.01'))
 
     if request.method == 'POST':
         sale_name = (request.form.get('sale_name') or '').strip()
