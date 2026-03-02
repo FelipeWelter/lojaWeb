@@ -1435,6 +1435,29 @@ def _sync_ticket_parts_stock_delta(previous_parts_items: list[dict], current_par
         product.stock = int(product.stock or 0) - delta
 
 
+def _restore_ticket_parts_stock(ticket: 'MaintenanceTicket'):
+    """Reverte ao estoque as peças já debitadas para uma OS."""
+    if not ticket.parts_stock_applied:
+        return
+
+    quantity_map = _parts_quantity_map(_load_json_list(ticket.parts_json))
+    if not quantity_map:
+        ticket.parts_stock_applied = False
+        return
+
+    products = Product.query.filter(Product.id.in_(quantity_map.keys())).all()
+    products_by_id = {product.id: product for product in products}
+    missing_ids = sorted(set(quantity_map.keys()) - set(products_by_id.keys()))
+    if missing_ids:
+        raise ValueError('Não foi possível reverter o estoque: uma ou mais peças da OS não existem mais.')
+
+    for product_id, qty in quantity_map.items():
+        product = products_by_id[product_id]
+        product.stock = int(product.stock or 0) + max(0, int(qty or 0))
+
+    ticket.parts_stock_applied = False
+
+
 
 @app.context_processor
 def inject_base_context():
@@ -3754,6 +3777,34 @@ def atualizar_manutencao(ticket_id: int):
     ticket.waiting_parts = status == 'aguardando_pecas'
     db.session.commit()
     flash('Status da manutenção atualizado!', 'success')
+    return redirect(url_for('servicos'))
+
+
+@app.route('/manutencoes/<int:ticket_id>/excluir', methods=['POST'])
+@_login_required
+def excluir_manutencao(ticket_id: int):
+    ticket = MaintenanceTicket.query.get_or_404(ticket_id)
+
+    try:
+        _restore_ticket_parts_stock(ticket)
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), 'danger')
+        return redirect(url_for('servicos'))
+
+    if ticket.service_record_id:
+        Charge.query.filter_by(service_id=ticket.service_record_id).update(
+            {Charge.service_id: None},
+            synchronize_session=False,
+        )
+
+        service = ServiceRecord.query.get(ticket.service_record_id)
+        if service:
+            db.session.delete(service)
+
+    db.session.delete(ticket)
+    db.session.commit()
+    flash('Manutenção excluída com sucesso!', 'success')
     return redirect(url_for('servicos'))
 
 

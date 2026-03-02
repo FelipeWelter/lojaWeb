@@ -168,6 +168,9 @@
                 <input type="hidden" name="action" value="finalizar" />
                 <button type="submit" class="btn-success">✅ Finalizar e enviar ao histórico</button>
               </form>
+              <form method="post" action="{{ url_for('excluir_manutencao', ticket_id=ticket.id) }}" onsubmit="return confirm('Excluir esta manutenção em andamento? Esta ação não pode ser desfeita.');">
+                <button type="submit" class="btn-loja btn-loja--danger">🗑️ Excluir manutenção</button>
+              </form>
             </div>
           </details>
         </td>
