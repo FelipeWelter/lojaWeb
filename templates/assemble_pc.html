@@ -96,7 +96,7 @@
                   <label class="checkbox-inline"><input type="checkbox" id="apply-price-suggestion" name="apply_price_suggestion" /> Aplicar sugestão no valor final</label>
                 </div>
                 <button type="submit" class="summary-submit">{% if edit_assembly %}Salvar montagem{% else %}Finalizar montagem{% endif %}</button>
-                <p class="summary-hint">Desmarcado: mantém custo de compra das peças. Marcado: usa o preço de venda das peças.</p>
+                <p class="summary-hint">Desmarcado: mantém custo de compra das peças. Marcado: usa o preço de venda das peças + 20% de sugestão.</p>
               </div>
             </div>
           </div>
@@ -263,7 +263,8 @@
     });
 
     const extraServicesCents = toCents(form.querySelector('input[name="bios_service_cost"]')?.value) + toCents(form.querySelector('input[name="stress_test_cost"]')?.value) + toCents(form.querySelector('input[name="os_install_cost"]')?.value);
-    const finalPiecesCents = applySuggestionCheckbox?.checked ? suggestedPiecesOnlyCents : pecasCents;
+    const suggestedWithMarkupCents = Math.round(suggestedPiecesOnlyCents * 1.2);
+    const finalPiecesCents = applySuggestionCheckbox?.checked ? suggestedWithMarkupCents : pecasCents;
     const finalCents = finalPiecesCents + extraServicesCents;
 
     custoEl.textContent = formatBRLFromCents(finalCents);

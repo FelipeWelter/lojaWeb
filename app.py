@@ -819,6 +819,11 @@ def _calculate_assembly_suggested_pieces_total(piece_counter, pieces_by_id, cust
     return suggested_total.quantize(Decimal('0.01'))
 
 
+def _apply_assembly_suggestion_markup(suggested_total: Decimal) -> Decimal:
+    """Aplica o acréscimo de 20% sobre o total sugerido das peças."""
+    return (Decimal(suggested_total or 0) * Decimal('1.20')).quantize(Decimal('0.01'))
+
+
 def _build_computer_with_parts(
     computer_name,
     original_price_new,
@@ -917,7 +922,7 @@ def _build_computer_with_parts(
 
         preco_original = preco_base_informado
         custo_base = preco_original.quantize(Decimal('0.01'))
-        subtotal_pecas = preco_sugerido if apply_price_suggestion else custo_pecas
+        subtotal_pecas = _apply_assembly_suggestion_markup(preco_sugerido) if apply_price_suggestion else custo_pecas
         preco_final = (preco_original + subtotal_pecas + technical_services_cost).quantize(Decimal('0.01'))
         custo_compra_total = (custo_base + custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
         if create_stock_item:
@@ -3235,7 +3240,7 @@ def editar_montagem(assembly_id: int):
 
         computer = assembly.computador
         if computer:
-            subtotal_pecas = assembly.preco_sugerido if apply_price_suggestion else custo_pecas
+            subtotal_pecas = _apply_assembly_suggestion_markup(assembly.preco_sugerido) if apply_price_suggestion else custo_pecas
             custo_compra_total = (custo_base + custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
             if computer.stock > 0:
                 computer.price = (preco_original + subtotal_pecas + technical_services_cost).quantize(Decimal('0.01'))
@@ -4157,7 +4162,7 @@ def vendas():
         ).quantize(Decimal('0.01'))
 
         pieces_cost_total = (Decimal(assembly.custo_total or 0) - technical_services_total).quantize(Decimal('0.01'))
-        pieces_sale_total = Decimal(assembly.preco_sugerido or 0) if assembly.apply_price_suggestion else pieces_cost_total
+        pieces_sale_total = _apply_assembly_suggestion_markup(Decimal(assembly.preco_sugerido or 0)) if assembly.apply_price_suggestion else pieces_cost_total
 
         # Valor importado no PDV para montagem deve refletir o preço final salvo:
         # preço base + subtotal de peças (custo ou venda) + serviços técnicos.
