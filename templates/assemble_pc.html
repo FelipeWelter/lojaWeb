@@ -92,11 +92,11 @@
                 <div>
                   <p class="summary-title">Resumo do Orçamento</p>
                   <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
-                  <p><strong>Sugestão (+20% peças):</strong> <span id="total-sugerido">R$ 0,00</span></p>
+                  <p><strong>Total de venda das peças:</strong> <span id="total-sugerido">R$ 0,00</span></p>
                   <label class="checkbox-inline"><input type="checkbox" id="apply-price-suggestion" name="apply_price_suggestion" /> Aplicar sugestão no valor final</label>
                 </div>
                 <button type="submit" class="summary-submit">{% if edit_assembly %}Salvar montagem{% else %}Finalizar montagem{% endif %}</button>
-                <p class="summary-hint">Desmarcado: mantém somente preço das peças. Marcado: aplica +20% nas peças avulsas.</p>
+                <p class="summary-hint">Desmarcado: mantém custo de compra das peças. Marcado: usa o preço de venda das peças.</p>
               </div>
             </div>
           </div>
@@ -194,6 +194,7 @@
     const row = input.closest('.multi-row, .slot-box');
     const hiddenId = row?.querySelector('.stock-id-input');
     const costInput = row?.querySelector('input[name$="_cost"], input[name$="_custom_costs[]"]');
+    const priceInput = row?.querySelector('input[name$="_price"], input[name$="_custom_prices[]"]');
     const listId = input.getAttribute('list');
     const list = listId ? document.getElementById(listId) : null;
     const normalizedInput = String(input.value || '').trim().toLowerCase();
@@ -215,15 +216,15 @@
       if (costInput) {
         costInput.value = Number(match.dataset.cost || 0).toFixed(2);
       }
+      if (priceInput) {
+        priceInput.value = Number(match.dataset.price || 0).toFixed(2);
+      }
       return;
     }
 
     if (hiddenId) hiddenId.value = '';
   }
 
-  function calcularSugestaoUnitCents(unitCents) {
-    return Math.round(Number(unitCents || 0) * 1.25);
-  }
 
   function atualizarTotais() {
     let pecasCents = 0;
@@ -234,13 +235,15 @@
       const entryInput = row.querySelector('input[name$="_entries[]"]');
       const qtyInput = row.querySelector('input[name$="_qtys[]"]');
       const customCostInput = row.querySelector('input[name$="_custom_costs[]"]');
+      const customPriceInput = row.querySelector('input[name$="_custom_prices[]"]');
       const qty = Number(qtyInput?.value || 0);
       const isStock = Boolean(stockId);
 
       if ((isStock || (entryInput && entryInput.value.trim())) && qty > 0) {
-        const unitCents = toCents(customCostInput.value);
-        pecasCents += Math.round(unitCents * qty);
-        suggestedPiecesOnlyCents += calcularSugestaoUnitCents(unitCents) * qty;
+        const unitCostCents = toCents(customCostInput.value);
+        const unitPriceCents = toCents(customPriceInput?.value || 0);
+        pecasCents += Math.round(unitCostCents * qty);
+        suggestedPiecesOnlyCents += Math.round(unitPriceCents * qty);
       }
     });
 
@@ -248,12 +251,14 @@
       const entryInput = box.querySelector('input[name^="slot_"][name$="_entry"]');
       const stockId = box.querySelector('input[name^="slot_"][name$="_stock_id"]')?.value;
       const cost = box.querySelector('input[name^="slot_"][name$="_cost"]');
+      const price = box.querySelector('input[name^="slot_"][name$="_price"]');
 
       if (!entryInput || !entryInput.value.trim()) return;
       if (stockId || entryInput.value.trim()) {
-        const unitCents = toCents(cost?.value || 0);
-        pecasCents += unitCents;
-        suggestedPiecesOnlyCents += calcularSugestaoUnitCents(unitCents);
+        const unitCostCents = toCents(cost?.value || 0);
+        const unitPriceCents = toCents(price?.value || 0);
+        pecasCents += unitCostCents;
+        suggestedPiecesOnlyCents += unitPriceCents;
       }
     });
 
@@ -285,6 +290,7 @@
       clone.querySelector('input[name$="_entries[]"]').value = '';
       clone.querySelector('input[name$="_stock_ids[]"]').value = '';
       clone.querySelector('input[name$="_custom_costs[]"]').value = '';
+      clone.querySelector('input[name$="_custom_prices[]"]').value = '';
       clone.querySelector('input[name$="_qtys[]"]').value = 1;
       list.appendChild(clone);
       atualizarTotais();
@@ -312,6 +318,7 @@
         row.querySelector('input[name$="_entries[]"]').value = '';
         row.querySelector('input[name$="_stock_ids[]"]').value = '';
         row.querySelector('input[name$="_custom_costs[]"]').value = '';
+        row.querySelector('input[name$="_custom_prices[]"]').value = '';
         row.querySelector('input[name$="_qtys[]"]').value = 1;
       }
       atualizarTotais();
@@ -368,6 +375,7 @@
       const slotBox = form.querySelector(`.single-slot[data-slot="${slot}"]`);
       const entry = slotBox?.querySelector('.piece-entry');
       const cost = slotBox?.querySelector('input[name^="slot_"][name$="_cost"]');
+      const price = slotBox?.querySelector('input[name^="slot_"][name$="_price"]');
       const stockId = slotBox?.querySelector('.stock-id-input');
       if (!slotBox || !entry) return;
       if (!entry.value && custom?.name) {
@@ -375,6 +383,9 @@
       }
       if (cost && custom?.cost) {
         cost.value = custom.cost;
+      }
+      if (price && custom?.price) {
+        price.value = custom.price;
       }
       if (stockId && !entry.value.trim()) {
         stockId.value = '';
@@ -395,9 +406,11 @@
         const stockId = row.querySelector('input[name$="_stock_ids[]"]');
         const qty = row.querySelector('input[name$="_qtys[]"]');
         const cost = row.querySelector('input[name$="_custom_costs[]"]');
+        const price = row.querySelector('input[name$="_custom_prices[]"]');
 
         if (qty) qty.value = rowData?.qty || 1;
         if (cost) cost.value = rowData?.custom_cost || '';
+        if (price) price.value = rowData?.custom_price || '';
 
         if (rowData?.piece_id) {
           if (stockId) stockId.value = String(rowData.piece_id);
