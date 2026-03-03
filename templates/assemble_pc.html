@@ -89,7 +89,7 @@
               </div>
 
               <div class="assembly-summary summary-highlight summary-inline">
-                <div>
+                <div class="summary-values">
                   <p class="summary-title">Resumo do Orçamento</p>
                   <p><strong>Custo Total:</strong> <span id="total-custo">R$ 0,00</span></p>
                   <p><strong>Total de venda das peças:</strong> <span id="total-sugerido">R$ 0,00</span></p>
@@ -299,14 +299,6 @@
 
   form.addEventListener('click', (event) => {
     const target = event.target;
-
-    if (target.classList.contains('qty-decrease') || target.classList.contains('qty-increase')) {
-      const input = target.parentElement.querySelector('input[type="number"]');
-      const current = Number(input.value || 1);
-      const delta = target.classList.contains('qty-increase') ? 1 : -1;
-      input.value = Math.max(1, current + delta);
-      atualizarTotais();
-    }
 
     if (target.classList.contains('row-remove')) {
       const list = target.closest('.multi-list');
