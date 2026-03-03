@@ -22,23 +22,16 @@
       <div class="field-stack multi-cost-field">
         <label>Custo compra (R$)</label>
         <input name="{{ slot_key }}_custom_costs[]" type="number" min="0" step="0.01" placeholder="0,00" />
-      </div>
-      <div class="field-stack multi-cost-field">
         <label>Preço venda (R$)</label>
         <input name="{{ slot_key }}_custom_prices[]" type="number" min="0" step="0.01" placeholder="0,00" />
       </div>
-      <div class="field-stack multi-qty-field">
-        <label>Quantidade</label>
-        <div class="qty-control qty-control--compact" title="Quantidade">
-          <button type="button" class="qty-btn qty-decrease" data-action="decrease" aria-label="Diminuir">−</button>
-          <input type="number" name="{{ slot_key }}_qtys[]" min="1" value="1" />
-          <button type="button" class="qty-btn qty-increase" data-action="increase" aria-label="Aumentar">+</button>
-        </div>
-      </div>
-      <button type="button" class="row-remove" title="Remover linha" aria-label="Remover linha">✕</button>
+      <input type="hidden" name="{{ slot_key }}_qtys[]" value="1" />
+      <button type="button" class="row-remove row-remove--compact" title="Remover linha" aria-label="Remover linha">✕</button>
     </div>
   </div>
-  <button type="button" class="add-item btn-secondary" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
+  <div class="multi-actions">
+    <button type="button" class="add-item btn-secondary" data-slot="{{ slot_key }}">＋ Adicionar {{ slot_label }}</button>
+  </div>
 </div>
 {% else %}
 <div class="slot-box single-slot" data-slot="{{ slot_key }}">
