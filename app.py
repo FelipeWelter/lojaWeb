@@ -203,6 +203,7 @@ class AssemblyCustomPart(db.Model):
     part_name = db.Column(db.String(120), nullable=False)
     quantity = db.Column(db.Integer, nullable=False, default=1)
     unit_cost = db.Column(db.Numeric(10, 2), nullable=False, default=0)
+    unit_price = db.Column(db.Numeric(10, 2), nullable=False, default=0)
 
 
 class ComputerAssembly(db.Model):
@@ -737,8 +738,16 @@ def _collect_selected_piece_inputs(form_data, prefix=''):
             entries = form_data.getlist(f'{prefix}{slot_key}_entries[]')
             qtys = form_data.getlist(f'{prefix}{slot_key}_qtys[]')
             custom_costs = form_data.getlist(f'{prefix}{slot_key}_custom_costs[]')
+            custom_prices = form_data.getlist(f'{prefix}{slot_key}_custom_prices[]')
 
-            for stock_id, entry, qty, custom_cost in zip(stock_ids, entries, qtys, custom_costs):
+            max_rows = max(len(stock_ids), len(entries), len(qtys), len(custom_costs), len(custom_prices))
+            for idx in range(max_rows):
+                stock_id = stock_ids[idx] if idx < len(stock_ids) else ''
+                entry = entries[idx] if idx < len(entries) else ''
+                qty = qtys[idx] if idx < len(qtys) else '1'
+                custom_cost = custom_costs[idx] if idx < len(custom_costs) else '0'
+                custom_price = custom_prices[idx] if idx < len(custom_prices) else '0'
+
                 qty_value = _safe_qty(qty)
                 if stock_id:
                     selected_piece_ids.extend([int(stock_id)] * qty_value)
@@ -751,6 +760,7 @@ def _collect_selected_piece_inputs(form_data, prefix=''):
                         'name': entry,
                         'qty': qty_value,
                         'unit_cost': Decimal(custom_cost or '0'),
+                        'unit_price': Decimal(custom_price or '0'),
                     })
         else:
             stock_id = form_data.get(f'{prefix}slot_{slot_key}_stock_id')
@@ -760,12 +770,14 @@ def _collect_selected_piece_inputs(form_data, prefix=''):
 
             custom_name = (form_data.get(f'{prefix}slot_{slot_key}_entry') or '').strip()
             custom_cost = form_data.get(f'{prefix}slot_{slot_key}_cost') or '0'
+            custom_price = form_data.get(f'{prefix}slot_{slot_key}_price') or '0'
             if custom_name:
                 custom_items.append({
                     'slot_key': slot_key,
                     'name': custom_name,
                     'qty': 1,
                     'unit_cost': Decimal(custom_cost),
+                    'unit_price': Decimal(custom_price),
                 })
 
     return selected_piece_ids, custom_items
@@ -788,8 +800,8 @@ def _read_optional_service_costs(form_data):
     }
 
 
-def _calculate_assembly_suggested_pieces_total(piece_counter, pieces_by_id, custom_items=None, markup=Decimal('0.25')):
-    """Função `_calculate_assembly_suggested_pieces_total`: calcula o preço sugerido total de peças e itens personalizados em uma montagem de computador, aplicando uma margem de lucro."""
+def _calculate_assembly_suggested_pieces_total(piece_counter, pieces_by_id, custom_items=None):
+    """Função `_calculate_assembly_suggested_pieces_total`: calcula o total de venda das peças e itens personalizados em uma montagem de computador."""
     suggested_total = Decimal('0.00')
     custom_items = custom_items or []
 
@@ -797,11 +809,11 @@ def _calculate_assembly_suggested_pieces_total(piece_counter, pieces_by_id, cust
         piece = pieces_by_id.get(piece_id)
         if not piece:
             continue
-        suggested_unit = calcular_preco_sugerido(Decimal(piece.price or 0), markup=markup)
+        suggested_unit = Decimal(piece.price or 0)
         suggested_total += Decimal(qty) * suggested_unit
 
     for custom_item in custom_items:
-        suggested_unit = calcular_preco_sugerido(Decimal(custom_item['unit_cost'] or 0), markup=markup)
+        suggested_unit = Decimal(custom_item.get('unit_price') or 0)
         suggested_total += Decimal(custom_item['qty']) * suggested_unit
 
     return suggested_total.quantize(Decimal('0.01'))
@@ -858,11 +870,13 @@ def _build_computer_with_parts(
         for piece_id, qty in piece_counter.items():
             piece = pieces_by_id[piece_id]
             piece.stock -= qty
-            custo_total += Decimal(qty) * Decimal(piece.price or 0)
+            custo_total += Decimal(qty) * Decimal(piece.cost_price or 0)
 
         for custom_item in custom_items:
             if custom_item['unit_cost'] < 0:
                 raise ValueError(f"Custo inválido para peça personalizada: {custom_item['name']}")
+            if custom_item.get('unit_price', Decimal('0')) < 0:
+                raise ValueError(f"Preço de venda inválido para peça personalizada: {custom_item['name']}")
             custo_total += Decimal(custom_item['qty']) * custom_item['unit_cost']
 
         custo_pecas = custo_total.quantize(Decimal('0.01'))
@@ -902,10 +916,13 @@ def _build_computer_with_parts(
             preco_base_informado = Decimal(computer.price)
 
         preco_original = preco_base_informado
+        custo_base = preco_original.quantize(Decimal('0.01'))
         subtotal_pecas = preco_sugerido if apply_price_suggestion else custo_pecas
         preco_final = (preco_original + subtotal_pecas + technical_services_cost).quantize(Decimal('0.01'))
+        custo_compra_total = (custo_base + custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
         if create_stock_item:
             computer.price = preco_final
+        computer.cost_price = custo_compra_total
 
         montagem = ComputerAssembly(
             id_computador=computer.id,
@@ -944,6 +961,7 @@ def _build_computer_with_parts(
                     part_name=custom_item['name'],
                     quantity=custom_item['qty'],
                     unit_cost=custom_item['unit_cost'],
+                    unit_price=custom_item['unit_price'],
                 )
             )
 
@@ -951,6 +969,7 @@ def _build_computer_with_parts(
         'preco_original': preco_original,
         'custo_total': custo_total,
         'preco_final': preco_final,
+        'custo_compra_total': custo_compra_total,
         'preco_sugerido': preco_sugerido,
         'apply_price_suggestion': apply_price_suggestion,
         'new_photo_urls': uploaded_photo_urls,
@@ -1864,8 +1883,8 @@ def imprimir(tipo: str, record_id: int):
                     'item': custom.part_name,
                     'source_label': 'Item personalizado',
                     'quantity': custom.quantity,
-                    'unit_price': Decimal(custom.unit_cost or 0),
-                    'total': Decimal(custom.quantity) * Decimal(custom.unit_cost or 0),
+                    'unit_price': Decimal(custom.unit_price or 0),
+                    'total': Decimal(custom.quantity) * Decimal(custom.unit_price or 0),
                 })
 
         pix_qr_payload = None
@@ -1909,11 +1928,9 @@ def imprimir(tipo: str, record_id: int):
         }
     elif tipo == 'montagem':
         data = ComputerAssembly.query.get_or_404(record_id)
-        apply_suggestion = bool(data.apply_price_suggestion)
         items = []
         for item in data.composicao:
-            base_unit_price = Decimal(item.peca.price or 0)
-            unit_price = calcular_preco_sugerido(base_unit_price, markup=Decimal('0.25')) if apply_suggestion else base_unit_price
+            unit_price = Decimal(item.peca.price or 0)
             items.append({
                 'item': item.peca.name,
                 'source_label': 'Estoque',
@@ -1924,8 +1941,7 @@ def imprimir(tipo: str, record_id: int):
             })
 
         for custom in data.custom_parts:
-            base_unit_price = Decimal(custom.unit_cost or 0)
-            unit_price = calcular_preco_sugerido(base_unit_price, markup=Decimal('0.25')) if apply_suggestion else base_unit_price
+            unit_price = Decimal(custom.unit_price or 0)
             items.append({
                 'item': custom.part_name,
                 'source_label': 'Item Personalizado',
@@ -2677,8 +2693,8 @@ def produtos():
                 db.session.commit()
                 flash(
                     f'Computador montado cadastrado! Preço base R$ {result["preco_original"]:.2f} + '
-                    f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
-                    f'Preço sugerido das peças avulsas (+20%) R$ {result["preco_sugerido"]:.2f}.',
+                    f'custo de compra R$ {result["custo_compra_total"]:.2f} | preço final de venda R$ {result["preco_final"]:.2f} | '
+                    f'Total de venda das peças R$ {result["preco_sugerido"]:.2f}.',
                     'success',
                 )
             except ValueError as exc:
@@ -2982,12 +2998,12 @@ def _build_assembly_edit_data(latest_assemblies):
       para facilitar a renderização na interface de usuário.
      """
     slot_multiple = {slot_key: allow_multiple for slot_key, _, allow_multiple in COMPONENT_SLOTS}
-    slot_defaults = {slot_key: {'name': '', 'cost': '0'} for slot_key, _, allow_multiple in COMPONENT_SLOTS if not allow_multiple}
+    slot_defaults = {slot_key: {'name': '', 'cost': '0', 'price': '0'} for slot_key, _, allow_multiple in COMPONENT_SLOTS if not allow_multiple}
 
     data = {}
     for assembly in latest_assemblies:
         single_selected = {}
-        single_custom = {k: {'name': v['name'], 'cost': v['cost']} for k, v in slot_defaults.items()}
+        single_custom = {k: {'name': v['name'], 'cost': v['cost'], 'price': v['price']} for k, v in slot_defaults.items()}
         multi_rows = {slot_key: [] for slot_key, _, allow_multiple in COMPONENT_SLOTS if allow_multiple}
 
         for item in assembly.composicao:
@@ -3003,6 +3019,7 @@ def _build_assembly_edit_data(latest_assemblies):
                     'qty': item.quantidade_utilizada,
                     'custom_name': '',
                     'custom_cost': '0',
+                    'custom_price': '0',
                 })
             else:
                 single_selected[slot_key] = {
@@ -3017,16 +3034,18 @@ def _build_assembly_edit_data(latest_assemblies):
                     'qty': custom.quantity,
                     'custom_name': custom.part_name,
                     'custom_cost': f'{Decimal(custom.unit_cost):.2f}',
+                    'custom_price': f'{Decimal(custom.unit_price or 0):.2f}',
                 })
             else:
                 single_custom[custom.slot_key] = {
                     'name': custom.part_name,
                     'cost': f'{Decimal(custom.unit_cost):.2f}',
+                    'price': f'{Decimal(custom.unit_price or 0):.2f}',
                 }
 
         for slot_key in list(multi_rows.keys()):
             if not multi_rows[slot_key]:
-                multi_rows[slot_key].append({'piece_id': '', 'piece_name': '', 'qty': 1, 'custom_name': '', 'custom_cost': '0'})
+                multi_rows[slot_key].append({'piece_id': '', 'piece_name': '', 'qty': 1, 'custom_name': '', 'custom_cost': '0', 'custom_price': '0'})
 
         data[assembly.id] = {
             'single_selected': single_selected,
@@ -3094,8 +3113,8 @@ def montar_pc():
             db.session.commit()
             flash(
                 f'Montagem concluída! Preço base R$ {result["preco_original"]:.2f} + '
-                f'peças R$ {result["custo_total"]:.2f} = preço final R$ {result["preco_final"]:.2f} | '
-                f'Sugestão de peças avulsas (+20%) R$ {result["preco_sugerido"]:.2f} '
+                f'custo de compra R$ {result["custo_compra_total"]:.2f} | preço final de venda R$ {result["preco_final"]:.2f} | '
+                f'Total de venda das peças R$ {result["preco_sugerido"]:.2f} '
                 f'({"aplicada" if result["apply_price_suggestion"] else "não aplicada"}).',
                 'success',
             )
@@ -3185,11 +3204,13 @@ def editar_montagem(assembly_id: int):
         for piece_id, qty in piece_counter_new.items():
             piece = pieces_by_id[piece_id]
             piece.stock -= qty
-            custo_total += Decimal(qty) * Decimal(piece.price or 0)
+            custo_total += Decimal(qty) * Decimal(piece.cost_price or 0)
 
         for custom_item in custom_items:
             if custom_item['unit_cost'] < 0:
                 raise ValueError(f"Custo inválido para peça personalizada: {custom_item['name']}")
+            if custom_item.get('unit_price', Decimal('0')) < 0:
+                raise ValueError(f"Preço de venda inválido para peça personalizada: {custom_item['name']}")
             custo_total += Decimal(custom_item['qty']) * custom_item['unit_cost']
 
         assembly.nome_referencia = nome_referencia
@@ -3199,6 +3220,7 @@ def editar_montagem(assembly_id: int):
             + optional_costs['os_install_cost']
         ).quantize(Decimal('0.01'))
         assembly.preco_original = preco_original
+        custo_base = preco_original.quantize(Decimal('0.01'))
         custo_pecas = custo_total.quantize(Decimal('0.01'))
         assembly.custo_total = (custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
         assembly.preco_sugerido = _calculate_assembly_suggested_pieces_total(piece_counter_new, pieces_by_id, custom_items)
@@ -3212,9 +3234,12 @@ def editar_montagem(assembly_id: int):
         assembly.os_install_cost = optional_costs['os_install_cost']
 
         computer = assembly.computador
-        if computer and computer.stock > 0:
+        if computer:
             subtotal_pecas = assembly.preco_sugerido if apply_price_suggestion else custo_pecas
-            computer.price = (preco_original + subtotal_pecas + technical_services_cost).quantize(Decimal('0.01'))
+            custo_compra_total = (custo_base + custo_pecas + technical_services_cost).quantize(Decimal('0.01'))
+            if computer.stock > 0:
+                computer.price = (preco_original + subtotal_pecas + technical_services_cost).quantize(Decimal('0.01'))
+            computer.cost_price = custo_compra_total
 
         ProductComposition.query.filter_by(id_montagem=assembly.id).delete()
         AssemblyCustomPart.query.filter_by(assembly_id=assembly.id).delete()
@@ -3237,6 +3262,7 @@ def editar_montagem(assembly_id: int):
                     part_name=custom_item['name'],
                     quantity=custom_item['qty'],
                     unit_cost=custom_item['unit_cost'],
+                    unit_price=custom_item['unit_price'],
                 )
             )
 
@@ -4134,7 +4160,7 @@ def vendas():
         pieces_sale_total = Decimal(assembly.preco_sugerido or 0) if assembly.apply_price_suggestion else pieces_cost_total
 
         # Valor importado no PDV para montagem deve refletir o preço final salvo:
-        # preço base + subtotal de peças (com ou sem +20%) + serviços técnicos.
+        # preço base + subtotal de peças (custo ou venda) + serviços técnicos.
         assembly_total_by_product[assembly.id_computador] = (
             Decimal(assembly.preco_original or 0) + pieces_sale_total + technical_services_total
         ).quantize(Decimal('0.01'))
@@ -5273,6 +5299,7 @@ with app.app_context():
             'part_name VARCHAR(120) NOT NULL, '
             'quantity INTEGER NOT NULL DEFAULT 1, '
             'unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0, '
+            'unit_price NUMERIC(10,2) NOT NULL DEFAULT 0, '
             'FOREIGN KEY(assembly_id) REFERENCES montagem_computador (id)'
             ')'
         )
@@ -5289,6 +5316,12 @@ with app.app_context():
             ')'
         )
     )
+    db.session.commit()
+
+    assembly_custom_columns = [row[1] for row in db.session.execute(db.text('PRAGMA table_info(assembly_custom_part)'))]
+    if 'unit_price' not in assembly_custom_columns:
+        db.session.execute(db.text('ALTER TABLE assembly_custom_part ADD COLUMN unit_price NUMERIC(10,2) NOT NULL DEFAULT 0'))
+        db.session.execute(db.text('UPDATE assembly_custom_part SET unit_price = unit_cost WHERE unit_price IS NULL OR unit_price = 0'))
     db.session.commit()
 
     db.session.execute(
